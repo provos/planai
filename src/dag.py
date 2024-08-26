@@ -1,19 +1,33 @@
-from typing import Dict, List, Set, Type
+from concurrent.futures import ThreadPoolExecutor
+from threading import Thread
+from typing import Dict, List, Optional, Set, Type
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
+from src.dispatcher import Dispatcher
 from src.task import TaskWorker, TaskWorkItem
 
 
 class DAG(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     name: str
     tasks: Dict[str, TaskWorker] = Field(default_factory=dict)
     dependencies: Dict[str, List[str]] = Field(default_factory=dict)
+
+    _dispatcher: Optional[Dispatcher] = PrivateAttr(default=None)
+    _thread_pool: Optional[ThreadPoolExecutor] = PrivateAttr(default=None)
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        if self._thread_pool is None:
+            self._thread_pool = ThreadPoolExecutor()
 
     def add_task(self, task: TaskWorker) -> "DAG":
         """Add a task to the DAG."""
         self.tasks[task.name] = task
         self.dependencies[task.name] = []
+        task.set_dag(self)
         return self
 
     def set_dependency(self, upstream: str, downstream: str) -> "DAG":
@@ -73,6 +87,11 @@ class DAG(BaseModel):
                 "Initial work items must be provided for all and only source tasks."
             )
 
+        dispatcher = Dispatcher(self)
+        dispatch_thread = Thread(target=dispatcher.dispatch)
+        dispatch_thread.start()
+        self._dispatcher = dispatcher
+
         accepted_work: Dict[Type["TaskWorkItem"], TaskWorker] = {}
         for task_name in source_tasks:
             task = self.tasks[task_name]
@@ -87,6 +106,12 @@ class DAG(BaseModel):
                     f"Initial work item {work_item} has no corresponding task."
                 )
 
+        # Wait for all tasks to complete
+        dispatcher.wait_for_completion()
+        dispatcher.stop()
+        dispatch_thread.join()
+        self._thread_pool.shutdown(wait=True)
+        
     def __str__(self) -> str:
         return f"DAG: {self.name} with {len(self.tasks)} tasks"
 

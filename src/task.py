@@ -1,8 +1,11 @@
 import inspect
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Set, Tuple, Type, get_type_hints
+from typing import TYPE_CHECKING, Any, Dict, Optional, Set, Tuple, Type, get_type_hints
 
 from pydantic import BaseModel, Field, PrivateAttr
+
+if TYPE_CHECKING:
+    from src.dag import DAG
 
 
 class TaskWorkItem(BaseModel):
@@ -38,6 +41,10 @@ class TaskWorker(BaseModel, ABC):
     _consumers: Dict[Type["TaskWorker"], "TaskWorker"] = PrivateAttr(
         default_factory=dict
     )
+    _dag: Optional["DAG"] = PrivateAttr(default=None)
+
+    def set_dag(self, dag: "DAG"):
+        self._dag = dag
 
     @abstractmethod
     def consume_work(self, task: TaskWorkItem):
@@ -79,10 +86,17 @@ class TaskWorker(BaseModel, ABC):
 
         # Verify if there is a consumer for the given task class
         consumer = self._consumers.get(task.__class__)
-        if consumer:
-            consumer.consume_work(task)
-        else:
+        if consumer is None:
             raise ValueError(f"No consumer registered for {task.__class__.__name__}")
+
+        if self._dag and self._dag._dispatcher:
+            self._dag._dispatcher.add_work(consumer, task)
+        else:
+            self._dispatch_work(task)
+
+    def _dispatch_work(self, task: TaskWorkItem):
+        consumer = self._consumers.get(task.__class__)
+        consumer.consume_work(task)
 
     def validate_taskworkitem(
         self, task_cls: Type[TaskWorkItem], consumer: "TaskWorker"
