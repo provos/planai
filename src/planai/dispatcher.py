@@ -3,10 +3,10 @@ from queue import Empty, Queue
 from threading import Event
 from typing import TYPE_CHECKING
 
-from src.task import TaskWorker, TaskWorkItem
+from task import TaskWorker, TaskWorkItem
 
 if TYPE_CHECKING:
-    from src.dag import DAG
+    from dag import DAG
 
 
 class Dispatcher:

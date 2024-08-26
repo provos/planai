@@ -4,8 +4,8 @@ from typing import Dict, List, Optional, Set, Type
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
-from src.dispatcher import Dispatcher
-from src.task import TaskWorker, TaskWorkItem
+from dispatcher import Dispatcher
+from task import TaskWorker, TaskWorkItem
 
 
 class DAG(BaseModel):
