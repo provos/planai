@@ -1,4 +1,5 @@
 import inspect
+from abc import ABC, abstractmethod
 from typing import Any, Dict, Set, Tuple, Type, get_type_hints
 
 from pydantic import BaseModel, Field, PrivateAttr
@@ -11,7 +12,23 @@ class TaskWorkItem(BaseModel):
         return self._provenance.copy()
 
 
-class TaskWorker(BaseModel):
+class TaskWorker(BaseModel, ABC):
+    """
+    Base class for all task workers.
+
+    This class is strongly typed for both input and output types. The type checking
+    is performed during the registration of consumers.
+
+    Attributes:
+        name (str): The name of the task.
+        output_types (Set[Type[TaskWorkItem]]): The types of work this task can output.
+        _id (int): A private attribute to track the task's ID.
+        _consumers (Dict[Type["TaskWorker"], "TaskWorker"]): A private attribute to store registered consumers.
+
+    Note:
+        Any subclass of TaskWorker must implement both consume_work and publish_work methods.
+    """
+
     name: str = Field(..., title="Task name", description="The name of the task")
     output_types: Set[Type[TaskWorkItem]] = Field(
         default_factory=set, description="The types of work this task can output"
@@ -22,10 +39,31 @@ class TaskWorker(BaseModel):
         default_factory=dict
     )
 
+    @abstractmethod
     def consume_work(self, task: TaskWorkItem):
-        print(f"Task {self.name} consumed work with provenance {task._provenance}")
+        """
+        Abstract method to consume a work item.
+
+        This method must be implemented by subclasses to define specific work consumption logic.
+
+        Args:
+            task (TaskWorkItem): The work item to be consumed.
+        """
+        pass
 
     def publish_work(self, task: TaskWorkItem, input_task: TaskWorkItem = None):
+        """
+        Publish a work item.
+
+        This method handles the publishing of work items, including provenance tracking and consumer routing.
+
+        Args:
+            task (TaskWorkItem): The work item to be published.
+            input_task (TaskWorkItem, optional): The input task that led to this work item.
+
+        Raises:
+            ValueError: If the task type is not in the output_types or if no consumer is registered for the task type.
+        """
         if type(task) not in self.output_types:
             raise ValueError(
                 f"Task {self.name} cannot publish work of type {type(task).__name__}"
@@ -49,6 +87,18 @@ class TaskWorker(BaseModel):
     def validate_taskworkitem(
         self, task_cls: Type[TaskWorkItem], consumer: "TaskWorker"
     ) -> Tuple[bool, Exception]:
+        """
+        Validate that a consumer can handle a specific TaskWorkItem type.
+
+        This method checks if the consumer has a properly typed consume_work method for the given task class.
+
+        Args:
+            task_cls (Type[TaskWorkItem]): The TaskWorkItem subclass to validate.
+            consumer (TaskWorker): The consumer to validate against.
+
+        Returns:
+            Tuple[bool, Exception]: A tuple containing a boolean indicating success and an exception if validation failed.
+        """
         # Ensure consumer has a consume_work method taking task_cls as parameter
         consume_method = getattr(consumer, "consume_work", None)
         if not consume_method:
@@ -76,9 +126,23 @@ class TaskWorker(BaseModel):
         return True, None
 
     def get_taskworkitem_class(self) -> Type[TaskWorkItem]:
+        """
+        Get the TaskWorkItem subclass that this worker can consume.
+
+        This method inspects the consume_work method to determine the type of TaskWorkItem it can handle.
+
+        Returns:
+            Type[TaskWorkItem]: The TaskWorkItem subclass this worker can consume.
+
+        Raises:
+            AttributeError: If the consume_work method is not defined.
+            TypeError: If the consume_work method is not properly typed.
+        """
         consume_method = getattr(self, "consume_work", None)
         if not consume_method:
-            raise AttributeError(f"{self.__class__.__name__} has no method consume_work")
+            raise AttributeError(
+                f"{self.__class__.__name__} has no method consume_work"
+            )
         signature = inspect.signature(consume_method)
         parameters = signature.parameters
         if len(parameters) != 1:
@@ -94,6 +158,19 @@ class TaskWorker(BaseModel):
         return first_param_type
 
     def register_consumer(self, task_cls: Type[TaskWorkItem], consumer: "TaskWorker"):
+        """
+        Register a consumer for a specific TaskWorkItem type.
+
+        This method performs type checking to ensure that the consumer can handle the specified TaskWorkItem type.
+
+        Args:
+            task_cls (Type[TaskWorkItem]): The TaskWorkItem subclass to register a consumer for.
+            consumer (TaskWorker): The consumer to register.
+
+        Raises:
+            TypeError: If task_cls is not a subclass of TaskWorkItem or if the consumer cannot handle the task type.
+            ValueError: If the task type is not in the output_types or if a consumer is already registered for the task type.
+        """
         # Ensure task_cls is a subclass of TaskWorkItem
         if not issubclass(task_cls, TaskWorkItem):
             raise TypeError(f"{task_cls.__name__} is not a subclass of TaskWorkItem")
