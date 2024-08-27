@@ -110,6 +110,10 @@ class Graph(BaseModel):
             worker = self.workers[worker_name]
             accepted_work[worker.get_taskworkitem_class()] = worker
 
+        # let the workers now that we are about to start
+        for workers in self.workers.values():
+            workers.init()
+
         for task in initial_tasks:
             worker = accepted_work.get(type(task))
             if worker:

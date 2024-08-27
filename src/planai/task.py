@@ -82,6 +82,9 @@ class TaskWorker(BaseModel, ABC):
 
     def _pre_consume_work(self, task: TaskWorkItem):
         self.consume_work(task)
+        
+    def init(self):
+        pass
 
     @abstractmethod
     def consume_work(self, task: TaskWorkItem):
@@ -135,6 +138,10 @@ class TaskWorker(BaseModel, ABC):
 
     def completed(self):
         """Called to let the worker know that it has finished processing all work."""
+        pass
+    
+    def notify(self, task_name: str):
+        """Called to notify the worker that no tasks with provenance of task_name are remaining."""
         pass
 
     def _dispatch_work(self, task: TaskWorkItem):
