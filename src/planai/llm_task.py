@@ -1,3 +1,4 @@
+import hashlib
 import logging
 from textwrap import dedent
 from typing import Optional
@@ -5,9 +6,9 @@ from typing import Optional
 from langchain_core.output_parsers import PydanticOutputParser
 from pydantic import ConfigDict, Field
 
+from .cached_task import CachedTaskWorker
 from .llm_interface import LLMInterface
 from .task import TaskWorker, TaskWorkItem
-from .cached_task import CachedTaskWorker
 
 
 class LLMTaskWorker(TaskWorker):
@@ -45,7 +46,7 @@ class LLMTaskWorker(TaskWorker):
         ).strip()
 
         parser = PydanticOutputParser(pydantic_object=self._output_type())
-        
+
         response = self.llm.generate_pydantic(
             prompt_template=prompt,
             output_schema=self._output_type(),
@@ -59,7 +60,7 @@ class LLMTaskWorker(TaskWorker):
 
     def post_process(self, response: Optional[TaskWorkItem], input_task: TaskWorkItem):
         if response is not None:
-            self.publish_work(response)
+            self.publish_work(task=response, input_task=input_task)
         else:
             logging.error(
                 "LLM did not return a valid response for task %s with provenance %s",
@@ -69,10 +70,9 @@ class LLMTaskWorker(TaskWorker):
 
 
 class CachedLLMTaskWorker(CachedTaskWorker, LLMTaskWorker):
-
     def _get_cache_key(self, task: TaskWorkItem) -> str:
         """Generate a unique cache key for the input task including the prompt template and model name."""
         upstream_cache_key = super()._get_cache_key(task)
-        
+
         upstream_cache_key += f" - {self.prompt} - {self.llm.model_name}"
         return hashlib.sha1(upstream_cache_key.encode()).hexdigest()

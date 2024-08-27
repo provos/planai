@@ -102,7 +102,7 @@ class DAG(BaseModel):
         for task in initial_tasks:
             worker = accepted_work.get(type(task))
             if worker:
-                worker.consume_work(task)
+                worker._pre_consume_work(task)
             else:
                 raise ValueError(
                     f"Initial task {task} has no corresponding worker."

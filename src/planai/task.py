@@ -72,7 +72,7 @@ class TaskWorker(BaseModel, ABC):
         """
         pass
 
-    def publish_work(self, task: TaskWorkItem, input_task: TaskWorkItem = None):
+    def publish_work(self, task: TaskWorkItem, input_task: TaskWorkItem):
         """
         Publish a work item.
 
@@ -80,7 +80,7 @@ class TaskWorker(BaseModel, ABC):
 
         Args:
             task (TaskWorkItem): The work item to be published.
-            input_task (TaskWorkItem, optional): The input task that led to this work item.
+            input_task (TaskWorkItem): The input task that led to this work item.
 
         Raises:
             ValueError: If the task type is not in the output_types or if no consumer is registered for the task type.
