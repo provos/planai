@@ -37,7 +37,13 @@ class CachedTaskWorker(TaskWorker):
         task_dict = task.model_dump()
         task_str = str(sorted(task_dict.items()))  # Ensure consistent ordering
         task_str += f" - {self.name}"  # Include the task name to avoid collisions
+        if extra_key := self.extra_cache_key():
+            task_str += f" - {extra_key}"
         return hashlib.sha1(task_str.encode()).hexdigest()
+    
+    def extra_cache_key(self) -> str:
+        """Can be implemented by subclasses to provide additional cache key information."""
+        return ""
 
     def _publish_cached_results(
         self, cached_results: List[TaskWorkItem], input_task: TaskWorkItem
