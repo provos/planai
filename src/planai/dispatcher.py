@@ -34,7 +34,7 @@ class Dispatcher:
                 continue
 
     def _execute_task(self, task: TaskWorker, work_item: TaskWorkItem):
-        task.consume_work(work_item)
+        task._pre_consume_work(work_item)
 
     def _task_completed(self, future):
         self.active_tasks -= 1

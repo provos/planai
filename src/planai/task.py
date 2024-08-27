@@ -1,4 +1,5 @@
 import inspect
+import logging
 from abc import ABC, abstractmethod
 from typing import (
     TYPE_CHECKING,
@@ -56,6 +57,9 @@ class TaskWorker(BaseModel, ABC):
     def set_dag(self, dag: "DAG"):
         self._dag = dag
 
+    def _pre_consume_work(self, task: TaskWorkItem):
+        self.consume_work(task)
+
     @abstractmethod
     def consume_work(self, task: TaskWorkItem):
         """
@@ -92,7 +96,7 @@ class TaskWorker(BaseModel, ABC):
 
         self._id += 1
         task._provenance.append((self.name, self._id))
-        print(f"Task {self.name} published work with provenance {task._provenance}")
+        logging.info("Task %s published work with provenance %s", self.name, task._provenance)
 
         # Verify if there is a consumer for the given task class
         consumer = self._consumers.get(task.__class__)
