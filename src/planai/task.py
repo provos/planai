@@ -16,7 +16,7 @@ from typing import (
 from pydantic import BaseModel, Field, PrivateAttr
 
 if TYPE_CHECKING:
-    from .dag import DAG
+    from .graph import Graph
 
 
 class TaskWorkItem(BaseModel):
@@ -51,15 +51,15 @@ class TaskWorker(BaseModel, ABC):
     _consumers: Dict[Type["TaskWorker"], "TaskWorker"] = PrivateAttr(
         default_factory=dict
     )
-    _dag: Optional["DAG"] = PrivateAttr(default=None)
+    _graph: Optional["Graph"] = PrivateAttr(default=None)
 
     @property
     def name(self) -> str:
         return self.__class__.__name__
 
-    def set_dag(self, dag: "DAG"):
-        self._dag = dag
-        
+    def set_graph(self, graph: "Graph"):
+        self._graph = graph
+
     def next(self, downstream: "TaskWorker"):
         """
         Sets the dependency between the current task and the downstream task.
@@ -71,11 +71,13 @@ class TaskWorker(BaseModel, ABC):
             TaskWorker: The downstream task.
 
         Raises:
-            ValueError: If the task has not been added to a DAG before setting dependencies.
+            ValueError: If the task has not been added to a Graph before setting dependencies.
         """
-        if self._dag is None:
-            raise ValueError("Task must be added to a DAG before setting dependencies")
-        self._dag.set_dependency(self, downstream)
+        if self._graph is None:
+            raise ValueError(
+                "Task must be added to a Graph before setting dependencies"
+            )
+        self._graph.set_dependency(self, downstream)
         return downstream
 
     def _pre_consume_work(self, task: TaskWorkItem):
@@ -117,18 +119,20 @@ class TaskWorker(BaseModel, ABC):
 
         self._id += 1
         task._provenance.append((self.name, self._id))
-        logging.info("Task %s published work with provenance %s", self.name, task._provenance)
+        logging.info(
+            "Task %s published work with provenance %s", self.name, task._provenance
+        )
 
         # Verify if there is a consumer for the given task class
         consumer = self._consumers.get(task.__class__)
         if consumer is None:
             raise ValueError(f"No consumer registered for {task.__class__.__name__}")
 
-        if self._dag and self._dag._dispatcher:
-            self._dag._dispatcher.add_work(consumer, task)
+        if self._graph and self._graph._dispatcher:
+            self._graph._dispatcher.add_work(consumer, task)
         else:
             self._dispatch_work(task)
-            
+
     def completed(self):
         """Called to let the worker know that it has finished processing all work."""
         pass

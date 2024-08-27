@@ -6,12 +6,12 @@ from typing import TYPE_CHECKING
 from .task import TaskWorker, TaskWorkItem
 
 if TYPE_CHECKING:
-    from .dag import DAG
+    from .graph import Graph
 
 
 class Dispatcher:
-    def __init__(self, dag: "DAG"):
-        self.dag = dag
+    def __init__(self, graph: "Graph"):
+        self.graph = graph
         self.work_queue = Queue()
         self.stop_event = Event()
         self.active_tasks = 0
@@ -26,7 +26,7 @@ class Dispatcher:
             try:
                 task, work_item = self.work_queue.get(timeout=1)
                 self.active_tasks += 1
-                future = self.dag._thread_pool.submit(
+                future = self.graph._thread_pool.submit(
                     self._execute_task, task, work_item
                 )
                 future.add_done_callback(self._task_completed)

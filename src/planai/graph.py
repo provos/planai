@@ -8,7 +8,7 @@ from .dispatcher import Dispatcher
 from .task import TaskWorker, TaskWorkItem
 
 
-class DAG(BaseModel):
+class Graph(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     name: str
@@ -23,29 +23,31 @@ class DAG(BaseModel):
         if self._thread_pool is None:
             self._thread_pool = ThreadPoolExecutor()
 
-    def add_worker(self, task: TaskWorker) -> "DAG":
-        """Add a task to the DAG."""
+    def add_worker(self, task: TaskWorker) -> "Graph":
+        """Add a task to the Graph."""
         if task.name in self.workers:
-            raise ValueError(f"Task with name {task.name} already exists in the DAG.")
+            raise ValueError(f"Task with name {task.name} already exists in the Graph.")
         self.workers[task.name] = task
         self.dependencies[task.name] = []
-        task.set_dag(self)
+        task.set_graph(self)
         return self
-    
-    def add_workers(self, *workers: TaskWorker) -> "DAG":
-        """Add multiple tasks to the DAG."""
+
+    def add_workers(self, *workers: TaskWorker) -> "Graph":
+        """Add multiple tasks to the Graph."""
         for worker in workers:
             self.add_worker(worker)
         return self
 
-    def set_dependency(self, upstream: TaskWorker, downstream: TaskWorker) -> TaskWorker:
+    def set_dependency(
+        self, upstream: TaskWorker, downstream: TaskWorker
+    ) -> TaskWorker:
         upstream_name = upstream.name
         downstream_name = downstream.name
-        
+
         """Set a dependency between two tasks."""
         if upstream_name not in self.workers or downstream_name not in self.workers:
             raise ValueError(
-                "Both tasks must be added to the DAG before setting dependencies."
+                "Both tasks must be added to the Graph before setting dependencies."
             )
 
         if downstream_name not in self.dependencies[upstream_name]:
@@ -65,7 +67,7 @@ class DAG(BaseModel):
             tasks_with_dependencies.update(dependencies)
         return all_tasks - tasks_with_dependencies
 
-    def validate_dag(self) -> List[str]:
+    def validate_graph(self) -> List[str]:
         """Return the execution order of tasks based on dependencies."""
         in_degree = {worker: 0 for worker in self.workers}
         for dependencies in self.dependencies.values():
@@ -84,12 +86,12 @@ class DAG(BaseModel):
                     queue.append(dependent)
 
         if len(execution_order) != len(self.workers):
-            raise ValueError("Circular dependency detected in the DAG.")
+            raise ValueError("Circular dependency detected in the Graph.")
 
         return execution_order
 
     def run(self, initial_tasks: List[TaskWorkItem]) -> None:
-        """Execute the DAG by initiating source tasks."""
+        """Execute the Graph by initiating source tasks."""
         source_workers = self.get_source_workers()
 
         # Validate initial work items
@@ -113,21 +115,19 @@ class DAG(BaseModel):
             if worker:
                 worker._pre_consume_work(task)
             else:
-                raise ValueError(
-                    f"Initial task {task} has no corresponding worker."
-                )
+                raise ValueError(f"Initial task {task} has no corresponding worker.")
 
         # Wait for all tasks to complete
         dispatcher.wait_for_completion()
         dispatcher.stop()
         dispatch_thread.join()
         self._thread_pool.shutdown(wait=True)
-        
+
         for worker in self.workers.values():
             worker.completed()
 
     def __str__(self) -> str:
-        return f"DAG: {self.name} with {len(self.workers)} tasks"
+        return f"Graph: {self.name} with {len(self.workers)} tasks"
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -168,29 +168,29 @@ def main():
             print(f"Task3 consuming: {task.final_result}")
             print("Workflow complete!")
 
-    # Create DAG
-    dag = DAG(name="Simple Workflow")
+    # Create Graph
+    graph = Graph(name="Simple Workflow")
 
     # Create tasks
     task1 = Task1Worker()
     task2 = Task2Worker()
     task3 = Task3Worker()
 
-    # Add tasks to DAG
-    dag.add_worker(task1).add_worker(task2).add_worker(task3)
+    # Add tasks to Graph
+    graph.add_worker(task1).add_worker(task2).add_worker(task3)
 
     # Set dependencies
-    dag.set_dependency(task1, task2).next(task3)
+    graph.set_dependency(task1, task2).next(task3)
 
-    # Validate DAG
-    execution_order = dag.validate_dag()
+    # Validate Graph
+    execution_order = graph.validate_graph()
     print(f"Execution order: {execution_order}")
 
     # Prepare initial work item
-    initial_work = [Task1WorkItem(data="Hello, DAG!")]
+    initial_work = [Task1WorkItem(data="Hello, Graph!")]
 
-    # Run the DAG
-    dag.run(initial_work)
+    # Run the Graph
+    graph.run(initial_work)
 
 
 if __name__ == "__main__":
