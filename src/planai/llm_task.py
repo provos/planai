@@ -3,13 +3,15 @@ from textwrap import dedent
 from typing import Optional
 
 from langchain_core.output_parsers import PydanticOutputParser
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
-from llm_interface import LLMInterface
-from task import TaskWorker, TaskWorkItem
+from .llm_interface import LLMInterface
+from .task import TaskWorker, TaskWorkItem
 
 
-class LLMTask(TaskWorker):
+class LLMTaskWorker(TaskWorker):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     llm: LLMInterface = Field(
         ..., title="LLM", description="The LLM to use for the task"
     )
@@ -32,24 +34,24 @@ class LLMTask(TaskWorker):
         prompt = dedent(
             """
         Here is your input data:
-        {{task}}
+        {task}
         
         Here are your instructions:
-        {{instructions}}
+        {instructions}
         
-        {{format_instructions}}
+        {format_instructions}
         """
         ).strip()
 
         parser = PydanticOutputParser(pydantic_object=self._output_type())
-
+        
         response = self.llm.generate_pydantic(
             prompt_template=prompt,
             output_schema=self._output_type(),
             system="You are a helpful AI assistant. Please help the user with the following task and produce output in JSON.",
             task=task,
-            instructions=prompt,
-            format_instructions=parser.format_instructions(),
+            instructions=self.prompt,
+            format_instructions=parser.get_format_instructions(),
         )
 
         self.post_process(response=response, input_task=task)

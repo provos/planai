@@ -3,7 +3,7 @@ import threading
 
 import paramiko
 
-from utils import setup_logging
+from .utils import setup_logging
 
 try:
     import SocketServer

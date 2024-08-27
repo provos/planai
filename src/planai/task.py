@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional, Set, Tuple, Type, get_typ
 from pydantic import BaseModel, Field, PrivateAttr
 
 if TYPE_CHECKING:
-    from dag import DAG
+    from .dag import DAG
 
 
 class TaskWorkItem(BaseModel):

@@ -3,7 +3,7 @@ import inspect
 import logging
 import os
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 import diskcache
 from dotenv import load_dotenv
@@ -11,11 +11,11 @@ from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain_core.pydantic_v1 import BaseModel
 from ollama import Client
-from utils import setup_logging
 
-from openai import OpenAIWrapper
-from remote_ollama import RemoteOllama
-from ssh import SSHConnection
+from .openai import OpenAIWrapper
+from .remote_ollama import RemoteOllama
+from .ssh import SSHConnection
+from .utils import setup_logging
 
 # Load environment variables from .env.local file
 load_dotenv(".env.local")
@@ -103,6 +103,7 @@ class LLMInterface:
         )
 
         formatted_prompt = prompt.format(**kwargs)
+        
         self.logger.info("Generated prompt: %s", formatted_prompt)
         if logger:
             logger.info("Generated prompt: %s", formatted_prompt)
@@ -145,38 +146,39 @@ class LLMInterface:
         return error_message, response
 
 
-def llm_from_config(config: SystemConfig) -> LLMInterface:
-    config = config.config
-    llm_config = config.get("LLM", {})
-    # switch on config.config['provider']
-    match llm_config.get("provider", "ollama"):
+def llm_from_config(
+    provider: Literal["ollama", "remote_ollama", "openai"] = "ollama",
+    model_name: str = "llama3",
+    hostname: Optional[str] = None,
+    username: Optional[str] = None,
+    log_dir: str = "logs",
+) -> LLMInterface:
+    match provider:
         case "openai":
             api_key = os.getenv("OPENAI_API_KEY")
             if api_key is None:
                 raise ValueError("OPENAI_API_KEY not found in environment variables")
             wrapper = OpenAIWrapper(api_key=api_key)
             return LLMInterface(
-                model_name=llm_config.get("model_name", "gpt-3.5-turbo"),
-                log_dir=llm_config.get("log_dir", "logs"),
+                model_name=model_name,
+                log_dir=log_dir,
                 client=wrapper,
             )
         case "remote_ollama":
             ssh = SSHConnection(
-                hostname=llm_config.get("hostname"),
-                username=llm_config.get("username"),
+                hostname=hostname,
+                username=username,
             )
-            client = RemoteOllama(
-                ssh_connection=ssh, model_name=llm_config.get("model_name", "llama3")
-            )
+            client = RemoteOllama(ssh_connection=ssh, model_name=model_name)
             return LLMInterface(
-                model_name=llm_config.get("model_name", "llama3"),
-                log_dir=llm_config.get("log_dir", "logs"),
+                model_name=model_name,
+                log_dir=log_dir,
                 client=client,
             )
         case "ollama":
             return LLMInterface(
-                model_name=llm_config.get("model_name", "llama3"),
-                log_dir=llm_config.get("log_dir", "logs"),
+                model_name=model_name,
+                log_dir=log_dir,
             )
 
-    raise ValueError("Invalid LLM provider in config: %s", llm_config.get("provider"))
+    raise ValueError(f"Invalid LLM provider in config: {provider}")

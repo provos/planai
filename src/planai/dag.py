@@ -4,8 +4,8 @@ from typing import Dict, List, Optional, Set, Type
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
-from dispatcher import Dispatcher
-from task import TaskWorker, TaskWorkItem
+from .dispatcher import Dispatcher
+from .task import TaskWorker, TaskWorkItem
 
 
 class DAG(BaseModel):
@@ -105,7 +105,7 @@ class DAG(BaseModel):
                 raise ValueError(
                     f"Initial work item {work_item} has no corresponding task."
                 )
-
+                
         # Wait for all tasks to complete
         dispatcher.wait_for_completion()
         dispatcher.stop()

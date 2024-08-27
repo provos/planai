@@ -5,7 +5,7 @@ from typing import Any, Callable, Dict
 import requests
 from ollama import Client
 
-from utils import setup_logging
+from .utils import setup_logging
 
 logger = setup_logging(logs_prefix="remote_ollama", logger_name=__name__)
 
