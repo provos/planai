@@ -1,6 +1,16 @@
 import inspect
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Dict, Optional, Set, Tuple, Type, get_type_hints
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Type,
+    get_type_hints,
+)
 
 from pydantic import BaseModel, Field, PrivateAttr
 
@@ -9,9 +19,9 @@ if TYPE_CHECKING:
 
 
 class TaskWorkItem(BaseModel):
-    _provenance: Dict[str, int] = PrivateAttr(default_factory=dict)
+    _provenance: List[Tuple[str, int]] = PrivateAttr(default_factory=list)
 
-    def copy_provenance(self) -> Dict[str, int]:
+    def copy_provenance(self) -> List[Tuple[str, int]]:
         return self._provenance.copy()
 
 
@@ -81,7 +91,7 @@ class TaskWorker(BaseModel, ABC):
             task._provenance = input_task.copy_provenance()
 
         self._id += 1
-        task._provenance[self.name] = self._id
+        task._provenance.append((self.name, self._id))
         print(f"Task {self.name} published work with provenance {task._provenance}")
 
         # Verify if there is a consumer for the given task class
