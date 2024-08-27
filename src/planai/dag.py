@@ -31,22 +31,31 @@ class DAG(BaseModel):
         self.dependencies[task.name] = []
         task.set_dag(self)
         return self
+    
+    def add_workers(self, *workers: TaskWorker) -> "DAG":
+        """Add multiple tasks to the DAG."""
+        for worker in workers:
+            self.add_worker(worker)
+        return self
 
-    def set_dependency(self, upstream: str, downstream: str) -> "DAG":
+    def set_dependency(self, upstream: TaskWorker, downstream: TaskWorker) -> TaskWorker:
+        upstream_name = upstream.name
+        downstream_name = downstream.name
+        
         """Set a dependency between two tasks."""
-        if upstream not in self.workers or downstream not in self.workers:
+        if upstream_name not in self.workers or downstream_name not in self.workers:
             raise ValueError(
                 "Both tasks must be added to the DAG before setting dependencies."
             )
 
-        if downstream not in self.dependencies[upstream]:
-            self.dependencies[upstream].append(downstream)
-            self.workers[upstream].register_consumer(
-                task_cls=self.workers[downstream].get_taskworkitem_class(),
-                consumer=self.workers[downstream],
+        if downstream_name not in self.dependencies[upstream_name]:
+            self.dependencies[upstream_name].append(downstream_name)
+            self.workers[upstream_name].register_consumer(
+                task_cls=self.workers[downstream_name].get_taskworkitem_class(),
+                consumer=self.workers[downstream_name],
             )
 
-        return self
+        return downstream
 
     def get_source_workers(self) -> Set[str]:
         """Return the set of tasks with no incoming dependencies."""
@@ -160,16 +169,15 @@ def main():
     dag = DAG(name="Simple Workflow")
 
     # Create tasks
-    task1 = Task1Worker(name="Task1")
-    task2 = Task2Worker(name="Task2")
-    task3 = Task3Worker(name="Task3")
+    task1 = Task1Worker()
+    task2 = Task2Worker()
+    task3 = Task3Worker()
 
     # Add tasks to DAG
     dag.add_worker(task1).add_worker(task2).add_worker(task3)
 
     # Set dependencies
-    dag.set_dependency("Task1", "Task2")
-    dag.set_dependency("Task2", "Task3")
+    dag.set_dependency(task1, task2).next(task3)
 
     # Validate DAG
     execution_order = dag.validate_dag()

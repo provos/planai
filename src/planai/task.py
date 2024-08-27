@@ -43,7 +43,6 @@ class TaskWorker(BaseModel, ABC):
         Any subclass of TaskWorker must implement both consume_work and publish_work methods.
     """
 
-    name: str = Field(..., title="Task name", description="The name of the task")
     output_types: Set[Type[TaskWorkItem]] = Field(
         default_factory=set, description="The types of work this task can output"
     )
@@ -54,8 +53,30 @@ class TaskWorker(BaseModel, ABC):
     )
     _dag: Optional["DAG"] = PrivateAttr(default=None)
 
+    @property
+    def name(self) -> str:
+        return self.__class__.__name__
+
     def set_dag(self, dag: "DAG"):
         self._dag = dag
+        
+    def next(self, downstream: "TaskWorker"):
+        """
+        Sets the dependency between the current task and the downstream task.
+
+        Parameters:
+            downstream (TaskWorker): The downstream task to set as a dependency.
+
+        Returns:
+            TaskWorker: The downstream task.
+
+        Raises:
+            ValueError: If the task has not been added to a DAG before setting dependencies.
+        """
+        if self._dag is None:
+            raise ValueError("Task must be added to a DAG before setting dependencies")
+        self._dag.set_dependency(self, downstream)
+        return downstream
 
     def _pre_consume_work(self, task: TaskWorkItem):
         self.consume_work(task)
@@ -237,7 +258,7 @@ def main():
     task_a.register_consumer(MagicTaskWork, task_a)
 
     # Publish work
-    task_a.publish_work(work_item)
+    task_a.publish_work(work_item, input_task=None)
 
 
 if __name__ == "__main__":
