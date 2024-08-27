@@ -7,6 +7,7 @@ from pydantic import ConfigDict, Field
 
 from .llm_interface import LLMInterface
 from .task import TaskWorker, TaskWorkItem
+from .cached_task import CachedTaskWorker
 
 
 class LLMTaskWorker(TaskWorker):
@@ -65,3 +66,13 @@ class LLMTaskWorker(TaskWorker):
                 input_task.__class__.__name__,
                 input_task._provenance,
             )
+
+
+class CachedLLMTaskWorker(CachedTaskWorker, LLMTaskWorker):
+
+    def _get_cache_key(self, task: TaskWorkItem) -> str:
+        """Generate a unique cache key for the input task including the prompt template and model name."""
+        upstream_cache_key = super()._get_cache_key(task)
+        
+        upstream_cache_key += f" - {self.prompt} - {self.llm.model_name}"
+        return hashlib.sha1(upstream_cache_key.encode()).hexdigest()
