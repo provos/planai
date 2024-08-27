@@ -122,6 +122,9 @@ class DAG(BaseModel):
         dispatcher.stop()
         dispatch_thread.join()
         self._thread_pool.shutdown(wait=True)
+        
+        for worker in self.workers.values():
+            worker.completed()
 
     def __str__(self) -> str:
         return f"DAG: {self.name} with {len(self.workers)} tasks"

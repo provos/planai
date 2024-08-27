@@ -128,6 +128,10 @@ class TaskWorker(BaseModel, ABC):
             self._dag._dispatcher.add_work(consumer, task)
         else:
             self._dispatch_work(task)
+            
+    def completed(self):
+        """Called to let the worker know that it has finished processing all work."""
+        pass
 
     def _dispatch_work(self, task: TaskWorkItem):
         consumer = self._consumers.get(task.__class__)
