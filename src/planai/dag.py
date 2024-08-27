@@ -12,7 +12,7 @@ class DAG(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     name: str
-    tasks: Dict[str, TaskWorker] = Field(default_factory=dict)
+    workers: Dict[str, TaskWorker] = Field(default_factory=dict)
     dependencies: Dict[str, List[str]] = Field(default_factory=dict)
 
     _dispatcher: Optional[Dispatcher] = PrivateAttr(default=None)
@@ -23,32 +23,34 @@ class DAG(BaseModel):
         if self._thread_pool is None:
             self._thread_pool = ThreadPoolExecutor()
 
-    def add_task(self, task: TaskWorker) -> "DAG":
+    def add_worker(self, task: TaskWorker) -> "DAG":
         """Add a task to the DAG."""
-        self.tasks[task.name] = task
+        if task.name in self.workers:
+            raise ValueError(f"Task with name {task.name} already exists in the DAG.")
+        self.workers[task.name] = task
         self.dependencies[task.name] = []
         task.set_dag(self)
         return self
 
     def set_dependency(self, upstream: str, downstream: str) -> "DAG":
         """Set a dependency between two tasks."""
-        if upstream not in self.tasks or downstream not in self.tasks:
+        if upstream not in self.workers or downstream not in self.workers:
             raise ValueError(
                 "Both tasks must be added to the DAG before setting dependencies."
             )
 
         if downstream not in self.dependencies[upstream]:
             self.dependencies[upstream].append(downstream)
-            self.tasks[upstream].register_consumer(
-                task_cls=self.tasks[downstream].get_taskworkitem_class(),
-                consumer=self.tasks[downstream],
+            self.workers[upstream].register_consumer(
+                task_cls=self.workers[downstream].get_taskworkitem_class(),
+                consumer=self.workers[downstream],
             )
 
         return self
 
-    def get_source_tasks(self) -> Set[str]:
+    def get_source_workers(self) -> Set[str]:
         """Return the set of tasks with no incoming dependencies."""
-        all_tasks = set(self.tasks.keys())
+        all_tasks = set(self.workers.keys())
         tasks_with_dependencies = set()
         for dependencies in self.dependencies.values():
             tasks_with_dependencies.update(dependencies)
@@ -56,35 +58,35 @@ class DAG(BaseModel):
 
     def validate_dag(self) -> List[str]:
         """Return the execution order of tasks based on dependencies."""
-        in_degree = {task: 0 for task in self.tasks}
+        in_degree = {worker: 0 for worker in self.workers}
         for dependencies in self.dependencies.values():
-            for task in dependencies:
-                in_degree[task] += 1
+            for worker in dependencies:
+                in_degree[worker] += 1
 
-        queue = list(self.get_source_tasks())
+        queue = list(self.get_source_workers())
         execution_order = []
 
         while queue:
-            task = queue.pop(0)
-            execution_order.append(task)
-            for dependent in self.dependencies[task]:
+            worker = queue.pop(0)
+            execution_order.append(worker)
+            for dependent in self.dependencies[worker]:
                 in_degree[dependent] -= 1
                 if in_degree[dependent] == 0:
                     queue.append(dependent)
 
-        if len(execution_order) != len(self.tasks):
+        if len(execution_order) != len(self.workers):
             raise ValueError("Circular dependency detected in the DAG.")
 
         return execution_order
 
-    def run(self, initial_work_items: List[TaskWorkItem]) -> None:
+    def run(self, initial_tasks: List[TaskWorkItem]) -> None:
         """Execute the DAG by initiating source tasks."""
-        source_tasks = self.get_source_tasks()
+        source_workers = self.get_source_workers()
 
         # Validate initial work items
-        if len(initial_work_items) != len(source_tasks):
+        if len(initial_tasks) != len(source_workers):
             raise ValueError(
-                "Initial work items must be provided for all and only source tasks."
+                "Initial tasks must be provided for all and only source worker."
             )
 
         dispatcher = Dispatcher(self)
@@ -93,27 +95,27 @@ class DAG(BaseModel):
         self._dispatcher = dispatcher
 
         accepted_work: Dict[Type["TaskWorkItem"], TaskWorker] = {}
-        for task_name in source_tasks:
-            task = self.tasks[task_name]
-            accepted_work[task.get_taskworkitem_class()] = task
+        for worker_name in source_workers:
+            worker = self.workers[worker_name]
+            accepted_work[worker.get_taskworkitem_class()] = worker
 
-        for work_item in initial_work_items:
-            task = accepted_work.get(type(work_item))
-            if task:
-                task.consume_work(work_item)
+        for task in initial_tasks:
+            worker = accepted_work.get(type(task))
+            if worker:
+                worker.consume_work(task)
             else:
                 raise ValueError(
-                    f"Initial work item {work_item} has no corresponding task."
+                    f"Initial task {task} has no corresponding worker."
                 )
-                
+
         # Wait for all tasks to complete
         dispatcher.wait_for_completion()
         dispatcher.stop()
         dispatch_thread.join()
         self._thread_pool.shutdown(wait=True)
-        
+
     def __str__(self) -> str:
-        return f"DAG: {self.name} with {len(self.tasks)} tasks"
+        return f"DAG: {self.name} with {len(self.workers)} tasks"
 
     def __repr__(self) -> str:
         return self.__str__()
@@ -163,7 +165,7 @@ def main():
     task3 = Task3Worker(name="Task3")
 
     # Add tasks to DAG
-    dag.add_task(task1).add_task(task2).add_task(task3)
+    dag.add_worker(task1).add_worker(task2).add_worker(task3)
 
     # Set dependencies
     dag.set_dependency("Task1", "Task2")
