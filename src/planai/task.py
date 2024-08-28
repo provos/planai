@@ -74,10 +74,15 @@ class TaskWorker(BaseModel, ABC):
         default_factory=dict
     )
     _graph: Optional["Graph"] = PrivateAttr(default=None)
+    _last_input_task: Optional[TaskWorkItem] = PrivateAttr(default=None)
 
     @property
     def name(self) -> str:
         return self.__class__.__name__
+    
+    @property
+    def last_input_task(self) -> Optional[TaskWorkItem]:
+        return self._last_input_task
 
     def set_graph(self, graph: "Graph"):
         self._graph = graph
@@ -115,6 +120,7 @@ class TaskWorker(BaseModel, ABC):
         self._graph._dispatcher.watch(task, self)
 
     def _pre_consume_work(self, task: TaskWorkItem):
+        self._last_input_task = task
         self.consume_work(task)
 
     def init(self):
