@@ -51,21 +51,25 @@ class Dispatcher:
             future = self.graph._thread_pool.submit(notifier.notify, task_name)
             future.add_done_callback(self._notify_completed)
 
-    def watch(self, task: Type["TaskWorkItem"], notifier: TaskWorker):
+    def watch(self, task: Type["TaskWorkItem"], notifier: TaskWorker) -> bool:
         task_name = task.__name__
         with self.notifiers_lock:
             if task_name not in self.notifiers:
                 self.notifiers[task_name] = []
             if notifier not in self.notifiers[task_name]:
                 self.notifiers[task_name].append(notifier)
+                return True
+        return False
 
-    def unwatch(self, task: Type["TaskWorkItem"], notifier: TaskWorker):
+    def unwatch(self, task: Type["TaskWorkItem"], notifier: TaskWorker) -> bool:
         task_name = task.__name__
         with self.notifiers_lock:
             if task_name in self.notifiers:
                 self.notifiers[task_name].remove(notifier)
                 if len(self.notifiers[task_name]) == 0:
                     del self.notifiers[task_name]
+                return True
+        return False
 
     def dispatch(self):
         while (

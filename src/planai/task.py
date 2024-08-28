@@ -120,17 +120,29 @@ class TaskWorker(BaseModel, ABC):
         self._graph.set_dependency(self, downstream)
         return downstream
 
-    def watch(self, task: Type["TaskWorkItem"]) -> None:
+    def watch(self, task: Type["TaskWorkItem"]) -> bool:
         """
-        Watches for this task provenanec to be completed in the graph.
+        Watches for this task provenance to be completed in the graph.
 
         Parameters:
             worker (Type["TaskWorkItem"]): The worker to watch.
 
         Returns:
-            None
+            True if the watch was added, False if the watch was already present.
         """
-        self._graph._dispatcher.watch(task, self)
+        return self._graph._dispatcher.watch(task, self)
+        
+    def unwatch(self, task: Type["TaskWorkItem"]) -> bool:
+        """
+        Removes the watch for this task provenance to be completed in the graph.
+        
+        Parameters:
+            worker (Type["TaskWorkItem"]): The worker to unwatch.
+        
+        Returns:
+            True if the watch was removed, False if the watch was not present.
+        """
+        return self._graph._dispatcher.unwatch(task, self)
 
     def _pre_consume_work(self, task: TaskWorkItem):
         with self._state_lock:
@@ -145,7 +157,8 @@ class TaskWorker(BaseModel, ABC):
         """
         Abstract method to consume a work item.
 
-        This method must be implemented by subclasses to define specific work consumption logic.
+        This method must be implemented by subclasses to define specific work consumption logic. It needs to be thread-safe
+        as it may be called concurrently by multiple threads.
 
         Args:
             task (TaskWorkItem): The work item to be consumed.
