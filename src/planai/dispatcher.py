@@ -1,7 +1,7 @@
 import threading
 from queue import Empty, Queue
 from threading import Event, Lock
-from typing import TYPE_CHECKING, Dict, List
+from typing import TYPE_CHECKING, Dict, List, Type
 
 from .task import TaskWorker, TaskWorkItem
 
@@ -52,14 +52,16 @@ class Dispatcher:
             future = self.graph._thread_pool.submit(notifier.notify, task_name)
             future.add_done_callback(self._notify_completed)
 
-    def watch(self, task_name: str, notifier: TaskWorker):
+    def watch(self, task: Type["TaskWorkItem"], notifier: TaskWorker):
+        task_name = task.__name__
         with self.notifiers_lock:
             if task_name not in self.notifiers:
                 self.notifiers[task_name] = []
             if notifier not in self.notifiers[task_name]:
                 self.notifiers[task_name].append(notifier)
 
-    def unwatch(self, task_name: str, notifier: TaskWorker):
+    def unwatch(self, task: Type["TaskWorkItem"], notifier: TaskWorker):
+        task_name = task.__name__
         with self.notifiers_lock:
             if task_name in self.notifiers:
                 self.notifiers[task_name].remove(notifier)
