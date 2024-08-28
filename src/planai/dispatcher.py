@@ -47,7 +47,6 @@ class Dispatcher:
                     to_notify.append((notifier, task_name))
 
         for notifier, task_name in to_notify:
-            print(f"notifying {notifier.name} for task completion: {task_name}")
             self.active_tasks += 1
             future = self.graph._thread_pool.submit(notifier.notify, task_name)
             future.add_done_callback(self._notify_completed)
