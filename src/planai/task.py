@@ -21,9 +21,31 @@ if TYPE_CHECKING:
 
 class TaskWorkItem(BaseModel):
     _provenance: List[Tuple[str, int]] = PrivateAttr(default_factory=list)
+    _input_provenance: List["TaskWorkItem"] = PrivateAttr(default_factory=list)
 
     def copy_provenance(self) -> List[Tuple[str, int]]:
         return self._provenance.copy()
+
+    def copy_input_provenance(self) -> List["TaskWorkItem"]:
+        return self._input_provenance.copy()
+
+    def find_input_task(
+        self, task_class: Type["TaskWorkItem"]
+    ) -> Optional["TaskWorkItem"]:
+        """
+        Find the most recent input task of the specified class in the input provenance.
+
+        Args:
+            task_class (Type[TaskWorkItem]): The class of the task to find.
+
+        Returns:
+            Optional[TaskWorkItem]: The most recent task of the specified class,
+                                    or None if no such task is found.
+        """
+        for task in reversed(self._input_provenance):
+            if isinstance(task, task_class):
+                return task
+        return None
 
 
 class TaskWorker(BaseModel, ABC):
@@ -80,9 +102,21 @@ class TaskWorker(BaseModel, ABC):
         self._graph.set_dependency(self, downstream)
         return downstream
 
+    def watch(self, task: Type["TaskWorkItem"]) -> None:
+        """
+        Watches for this task provenanec to be completed in the graph.
+
+        Parameters:
+            worker (Type["TaskWorkItem"]): The worker to watch.
+
+        Returns:
+            None
+        """
+        self._graph._dispatcher.watch(task, self)
+
     def _pre_consume_work(self, task: TaskWorkItem):
         self.consume_work(task)
-        
+
     def init(self):
         pass
 
@@ -117,8 +151,12 @@ class TaskWorker(BaseModel, ABC):
             )
 
         # Copy provenance from input task if provided
-        if input_task:
+        if input_task is not None:
             task._provenance = input_task.copy_provenance()
+            task._input_provenance = input_task.copy_input_provenance() + [input_task]
+        else:
+            task._provenance = []
+            task._input_provenance = []
 
         self._id += 1
         task._provenance.append((self.name, self._id))
@@ -139,7 +177,7 @@ class TaskWorker(BaseModel, ABC):
     def completed(self):
         """Called to let the worker know that it has finished processing all work."""
         pass
-    
+
     def notify(self, task_name: str):
         """Called to notify the worker that no tasks with provenance of task_name are remaining."""
         pass
