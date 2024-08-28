@@ -46,7 +46,7 @@ class TaskWorkItem(BaseModel):
                                     or None if no such task is found.
         """
         for task in reversed(self._input_provenance):
-            if isinstance(task, task_class):
+            if task.__class__ is task_class:
                 return task
         return None
 
@@ -165,7 +165,7 @@ class TaskWorker(BaseModel, ABC):
         """
         pass
 
-    def publish_work(self, task: TaskWorkItem, input_task: TaskWorkItem):
+    def publish_work(self, task: TaskWorkItem, input_task: Optional[TaskWorkItem]):
         """
         Publish a work item.
 
