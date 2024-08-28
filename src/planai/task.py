@@ -1,5 +1,8 @@
 import inspect
 import logging
+import threading
+import uuid
+
 from abc import ABC, abstractmethod
 from typing import (
     TYPE_CHECKING,
@@ -76,11 +79,20 @@ class TaskWorker(BaseModel, ABC):
     )
     _graph: Optional["Graph"] = PrivateAttr(default=None)
     _last_input_task: Optional[TaskWorkItem] = PrivateAttr(default=None)
+    _instance_id: uuid.UUID = PrivateAttr(default_factory=uuid.uuid4)
+
+    def __hash__(self):
+        return hash(self._instance_id)
+
+    def __eq__(self, other):
+        if isinstance(other, TaskWorker):
+            return self._instance_id == other._instance_id
+        return False
 
     @property
     def name(self) -> str:
         return self.__class__.__name__
-    
+
     @property
     def last_input_task(self) -> Optional[TaskWorkItem]:
         return self._last_input_task
@@ -165,10 +177,10 @@ class TaskWorker(BaseModel, ABC):
         else:
             task._provenance = []
             task._input_provenance = []
-            
+
         with self._state_lock:
             self._id += 1
-            
+
         task._provenance.append((self.name, self._id))
         logging.info(
             "Task %s published work with provenance %s", self.name, task._provenance

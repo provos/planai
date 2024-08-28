@@ -12,8 +12,8 @@ class Graph(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     name: str
-    workers: Dict[str, TaskWorker] = Field(default_factory=dict)
-    dependencies: Dict[str, List[str]] = Field(default_factory=dict)
+    workers: Set[TaskWorker] = Field(default_factory=set)
+    dependencies: Dict[TaskWorker, List[TaskWorker]] = Field(default_factory=dict)
 
     _dispatcher: Optional[Dispatcher] = PrivateAttr(default=None)
     _thread_pool: Optional[ThreadPoolExecutor] = PrivateAttr(default=None)
@@ -25,10 +25,10 @@ class Graph(BaseModel):
 
     def add_worker(self, task: TaskWorker) -> "Graph":
         """Add a task to the Graph."""
-        if task.name in self.workers:
-            raise ValueError(f"Task with name {task.name} already exists in the Graph.")
-        self.workers[task.name] = task
-        self.dependencies[task.name] = []
+        if task in self.workers:
+            raise ValueError(f"Task {task} already exists in the Graph.")
+        self.workers.add(task)
+        self.dependencies[task] = []
         task.set_graph(self)
         return self
 
@@ -41,33 +41,30 @@ class Graph(BaseModel):
     def set_dependency(
         self, upstream: TaskWorker, downstream: TaskWorker
     ) -> TaskWorker:
-        upstream_name = upstream.name
-        downstream_name = downstream.name
-
         """Set a dependency between two tasks."""
-        if upstream_name not in self.workers or downstream_name not in self.workers:
+        if upstream not in self.workers or downstream not in self.workers:
             raise ValueError(
                 "Both tasks must be added to the Graph before setting dependencies."
             )
 
-        if downstream_name not in self.dependencies[upstream_name]:
-            self.dependencies[upstream_name].append(downstream_name)
-            self.workers[upstream_name].register_consumer(
-                task_cls=self.workers[downstream_name].get_taskworkitem_class(),
-                consumer=self.workers[downstream_name],
+        if downstream not in self.dependencies[upstream]:
+            self.dependencies[upstream].append(downstream)
+            upstream.register_consumer(
+                task_cls=downstream.get_taskworkitem_class(),
+                consumer=downstream,
             )
 
         return downstream
 
-    def get_source_workers(self) -> Set[str]:
+    def get_source_workers(self) -> Set[TaskWorker]:
         """Return the set of tasks with no incoming dependencies."""
-        all_tasks = set(self.workers.keys())
+        all_tasks = set(self.workers)
         tasks_with_dependencies = set()
         for dependencies in self.dependencies.values():
             tasks_with_dependencies.update(dependencies)
         return all_tasks - tasks_with_dependencies
 
-    def validate_graph(self) -> List[str]:
+    def validate_graph(self) -> List[TaskWorker]:
         """Return the execution order of tasks based on dependencies."""
         in_degree = {worker: 0 for worker in self.workers}
         for dependencies in self.dependencies.values():
@@ -106,13 +103,12 @@ class Graph(BaseModel):
         self._dispatcher = dispatcher
 
         accepted_work: Dict[Type["TaskWorkItem"], TaskWorker] = {}
-        for worker_name in source_workers:
-            worker = self.workers[worker_name]
+        for worker in source_workers:
             accepted_work[worker.get_taskworkitem_class()] = worker
 
         # let the workers now that we are about to start
-        for workers in self.workers.values():
-            workers.init()
+        for worker in self.workers:
+            worker.init()
 
         for task in initial_tasks:
             worker = accepted_work.get(type(task))
@@ -127,7 +123,7 @@ class Graph(BaseModel):
         dispatch_thread.join()
         self._thread_pool.shutdown(wait=True)
 
-        for worker in self.workers.values():
+        for worker in self.workers:
             worker.completed()
 
     def __str__(self) -> str:
