@@ -69,6 +69,7 @@ class TaskWorker(BaseModel, ABC):
         default_factory=set, description="The types of work this task can output"
     )
 
+    _state_lock: threading.Lock = PrivateAttr(default_factory=threading.Lock)
     _id: int = PrivateAttr(default=0)
     _consumers: Dict[Type["TaskWorker"], "TaskWorker"] = PrivateAttr(
         default_factory=dict
@@ -120,7 +121,8 @@ class TaskWorker(BaseModel, ABC):
         self._graph._dispatcher.watch(task, self)
 
     def _pre_consume_work(self, task: TaskWorkItem):
-        self._last_input_task = task
+        with self._state_lock:
+            self._last_input_task = task
         self.consume_work(task)
 
     def init(self):
@@ -163,8 +165,10 @@ class TaskWorker(BaseModel, ABC):
         else:
             task._provenance = []
             task._input_provenance = []
-
-        self._id += 1
+            
+        with self._state_lock:
+            self._id += 1
+            
         task._provenance.append((self.name, self._id))
         logging.info(
             "Task %s published work with provenance %s", self.name, task._provenance
