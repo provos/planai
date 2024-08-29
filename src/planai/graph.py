@@ -1,6 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from threading import Thread
-from typing import Dict, List, Optional, Set, Type
+from typing import Dict, List, Optional, Set, Tuple, Type
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
@@ -56,67 +56,28 @@ class Graph(BaseModel):
 
         return downstream
 
-    def get_source_workers(self) -> Set[TaskWorker]:
-        """Return the set of tasks with no incoming dependencies."""
-        all_tasks = set(self.workers)
-        tasks_with_dependencies = set()
-        for dependencies in self.dependencies.values():
-            tasks_with_dependencies.update(dependencies)
-        return all_tasks - tasks_with_dependencies
-
-    def validate_graph(self) -> List[TaskWorker]:
+    def validate_graph(self) -> None:
         """Return the execution order of tasks based on dependencies."""
-        in_degree = {worker: 0 for worker in self.workers}
-        for dependencies in self.dependencies.values():
-            for worker in dependencies:
-                in_degree[worker] += 1
+        pass
 
-        queue = list(self.get_source_workers())
-        execution_order = []
-
-        while queue:
-            worker = queue.pop(0)
-            execution_order.append(worker)
-            for dependent in self.dependencies[worker]:
-                in_degree[dependent] -= 1
-                if in_degree[dependent] == 0:
-                    queue.append(dependent)
-
-        if len(execution_order) != len(self.workers):
-            raise ValueError("Circular dependency detected in the Graph.")
-
-        return execution_order
-
-    def run(self, initial_tasks: List[TaskWorkItem]) -> None:
+    def run(self, initial_tasks: List[Tuple[TaskWorker, TaskWorkItem]]) -> None:
         """Execute the Graph by initiating source tasks."""
-        source_workers = self.get_source_workers()
-
-        # Validate initial work items
-        if len(initial_tasks) != len(source_workers):
-            raise ValueError(
-                "Initial tasks must be provided for all and only source worker."
-            )
-
         dispatcher = Dispatcher(self)
         dispatch_thread = Thread(target=dispatcher.dispatch)
         dispatch_thread.start()
         dispatcher.start_web_interface()
         self._dispatcher = dispatcher
 
-        accepted_work: Dict[Type["TaskWorkItem"], TaskWorker] = {}
-        for worker in source_workers:
-            accepted_work[worker.get_taskworkitem_class()] = worker
-
         # let the workers now that we are about to start
         for worker in self.workers:
             worker.init()
 
-        for task in initial_tasks:
-            worker = accepted_work.get(type(task))
-            if worker:
-                worker._pre_consume_work(task)
-            else:
-                raise ValueError(f"Initial task {task} has no corresponding worker.")
+        for worker, task in initial_tasks:
+            success, error = worker.validate_taskworkitem(type(task), worker)
+            if not success:
+                raise error
+
+            dispatcher.add_work(worker, task)
 
         # Wait for all tasks to complete
         dispatcher.wait_for_completion(wait_for_quit=True)
@@ -188,7 +149,7 @@ def main():
     print(f"Execution order: {execution_order}")
 
     # Prepare initial work item
-    initial_work = [Task1WorkItem(data="Hello, Graph!")]
+    initial_work = [(task1, Task1WorkItem(data="Hello, Graph!"))]
 
     # Run the Graph
     graph.run(initial_work)
