@@ -1,5 +1,6 @@
 import json
 import threading
+import time
 from typing import TYPE_CHECKING, Dict, List
 
 from flask import Flask, Response, jsonify, render_template
@@ -23,18 +24,26 @@ def index():
 @app.route("/stream")
 def stream():
     def event_stream():
+        last_data = None
         while True:
-            queued_tasks = dispatcher.get_queued_tasks()
-            active_tasks = dispatcher.get_active_tasks()
-            completed_tasks = dispatcher.get_completed_tasks()
+            current_data = get_current_data()
+            if current_data != last_data:
+                yield f"data: {json.dumps(current_data)}\n\n"
+            last_data = current_data
+            time.sleep(1)
 
-            data = {
-                "queued": queued_tasks,
-                "active": active_tasks,
-                "completed": completed_tasks,
-            }
+    def get_current_data():
+        queued_tasks = dispatcher.get_queued_tasks()
+        active_tasks = dispatcher.get_active_tasks()
+        completed_tasks = dispatcher.get_completed_tasks()
 
-            yield f"data: {json.dumps(data)}\n\n"
+        data = {
+            "queued": queued_tasks,
+            "active": active_tasks,
+            "completed": completed_tasks,
+        }
+
+        return data
 
     return Response(event_stream(), mimetype="text/event-stream")
 

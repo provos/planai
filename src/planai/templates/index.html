@@ -90,24 +90,58 @@
     <div id="completed-tasks" class="task-list"></div>
 
     <script>
-        const eventSource = new EventSource("/stream");
+        let eventSource;
+        let reconnectAttempt = 0;
 
-        eventSource.onmessage = function (event) {
-            const data = JSON.parse(event.data);
+        function setupEventSource() {
+            eventSource = new EventSource("/stream");
+
+            eventSource.onmessage = function (event) {
+                const data = JSON.parse(event.data);
+                updateTaskLists(data);
+                reconnectAttempt = 0;
+            };
+
+            eventSource.onerror = function (error) {
+                eventSource.close();
+                const timeout = Math.min(16000, Math.pow(2, reconnectAttempt) * 1000);
+                reconnectAttempt++;
+                setTimeout(setupEventSource, timeout);
+            };
+        }
+
+        setupEventSource();
+
+        function updateTaskLists(data) {
             updateTaskList('queued-tasks', data.queued);
             updateTaskList('active-tasks', data.active);
             updateTaskList('completed-tasks', data.completed);
-        };
+        }
 
         function updateTaskList(elementId, tasks) {
             const element = document.getElementById(elementId);
-            element.innerHTML = tasks.map(task => `
-                <div class="task-item">
-                    <strong>ID:</strong> ${task.id}<br>
-                    <strong>Type:</strong> ${task.type}<br>
-                    <strong>Worker:</strong> ${task.worker}
-                </div>
-            `).join('');
+            tasks.forEach(task => {
+                let taskElement = document.getElementById(`task-${task.id}`);
+                if (!taskElement) {
+                    taskElement = document.createElement('div');
+                    taskElement.id = `task-${task.id}`;
+                    taskElement.className = 'task-item';
+                    element.appendChild(taskElement);
+                }
+                taskElement.innerHTML = `
+            <strong>ID:</strong> ${task.id}<br>
+            <strong>Type:</strong> ${task.type}<br>
+            <strong>Worker:</strong> ${task.worker}
+        `;
+            });
+
+            // Remove tasks that no longer exist
+            Array.from(element.children).forEach(child => {
+                const taskId = child.id.replace('task-', '');
+                if (!tasks.some(task => task.id === taskId)) {
+                    element.removeChild(child);
+                }
+            });
         }
 
         document.getElementById('quit-button').addEventListener('click', function () {
