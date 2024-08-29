@@ -1,10 +1,10 @@
 import logging
 import threading
 import time
-from collections import deque
+from collections import defaultdict, deque
 from queue import Empty, Queue
 from threading import Event, Lock
-from typing import TYPE_CHECKING, Dict, List, Type
+from typing import TYPE_CHECKING, DefaultDict, Dict, List, Tuple, Type
 
 from .task import TaskWorker, TaskWorkItem
 from .web_interface import is_quit_requested, run_web_interface
@@ -13,13 +13,21 @@ if TYPE_CHECKING:
     from .graph import Graph
 
 
+# Type aliases
+TaskID = int
+TaskName = str
+ProvenanceChain = Tuple[Tuple[TaskName, TaskID], ...]
+
+
 class Dispatcher:
     def __init__(self, graph: "Graph", web_port=5000):
         self.graph = graph
         self.work_queue = Queue()
-        self.provenance: Dict[str, int] = {}
+        self.provenance: DefaultDict[ProvenanceChain, int] = defaultdict(int)
+        self.notifiers: DefaultDict[ProvenanceChain, List[TaskWorker]] = defaultdict(
+            list
+        )
         self.provenance_lock = Lock()
-        self.notifiers: Dict[str, List[TaskWorker]] = {}
         self.notifiers_lock = Lock()
         self.stop_event = Event()
         self.active_tasks = 0
@@ -33,53 +41,53 @@ class Dispatcher:
 
     def _add_provenance(self, task: TaskWorkItem):
         with self.provenance_lock:
-            for task_provenance in task._provenance:
-                task_name, _ = task_provenance
-                self.provenance[task_name] = self.provenance.get(task_name, 0) + 1
+            for i in range(1, len(task._provenance) + 1):
+                prefix = tuple(task._provenance[:i])
+                self.provenance[prefix] = self.provenance.get(prefix, 0) + 1
 
     def _remove_provenance(self, task: TaskWorkItem):
-        to_notify = []
+        to_notify = set()
         with self.provenance_lock:
-            for task_provenance in task._provenance:
-                task_name, _ = task_provenance
-                self.provenance[task_name] = self.provenance.get(task_name, 0) - 1
-                if self.provenance[task_name] <= 0:
-                    to_notify.append(task_name)
+            for i in range(1, len(task._provenance) + 1):
+                prefix = tuple(task._provenance[:i])
+                self.provenance[prefix] -= 1
+                if self.provenance[prefix] == 0:
+                    del self.provenance[prefix]
+                    to_notify.add(prefix)
 
-        for task_name in to_notify:
-            self._notify_task_completion(task_name)
+        for prefix in to_notify:
+            self._notify_task_completion(prefix)
 
-    def _notify_task_completion(self, task_name: str):
+    def watch(self, prefix: ProvenanceChain, notifier: TaskWorker) -> bool:
+        if not isinstance(prefix, tuple):
+            raise ValueError("Prefix must be a tuple")
+        with self.notifiers_lock:
+            if notifier not in self.notifiers[prefix]:
+                self.notifiers[prefix].append(notifier)
+                return True
+        return False
+
+    def unwatch(self, prefix: ProvenanceChain, notifier: TaskWorker) -> bool:
+        if not isinstance(prefix, tuple):
+            raise ValueError("Prefix must be a tuple")
+        with self.notifiers_lock:
+            if prefix in self.notifiers and notifier in self.notifiers[prefix]:
+                self.notifiers[prefix].remove(notifier)
+                if not self.notifiers[prefix]:
+                    del self.notifiers[prefix]
+                return True
+        return False
+
+    def _notify_task_completion(self, prefix: tuple):
         to_notify = []
         with self.notifiers_lock:
-            if task_name in self.notifiers:
-                for notifier in self.notifiers[task_name]:
-                    to_notify.append((notifier, task_name))
+            for notifier in self.notifiers[prefix]:
+                to_notify.append((notifier, prefix))
 
-        for notifier, task_name in to_notify:
+        for notifier, prefix in to_notify:
             self.active_tasks += 1
-            future = self.graph._thread_pool.submit(notifier.notify, task_name)
+            future = self.graph._thread_pool.submit(notifier.notify, prefix)
             future.add_done_callback(self._notify_completed)
-
-    def watch(self, task: Type["TaskWorkItem"], notifier: TaskWorker) -> bool:
-        task_name = task.__name__
-        with self.notifiers_lock:
-            if task_name not in self.notifiers:
-                self.notifiers[task_name] = []
-            if notifier not in self.notifiers[task_name]:
-                self.notifiers[task_name].append(notifier)
-                return True
-        return False
-
-    def unwatch(self, task: Type["TaskWorkItem"], notifier: TaskWorker) -> bool:
-        task_name = task.__name__
-        with self.notifiers_lock:
-            if task_name in self.notifiers:
-                self.notifiers[task_name].remove(notifier)
-                if len(self.notifiers[task_name]) == 0:
-                    del self.notifiers[task_name]
-                return True
-        return False
 
     def _dispatch_once(self) -> bool:
         try:
@@ -116,7 +124,9 @@ class Dispatcher:
             with self.task_lock:
                 if task_id in self.debug_active_tasks:
                     del self.debug_active_tasks[task_id]
-                    self.completed_tasks.appendleft((task_id, worker, task)) # may need to move this to _task_completed
+                    self.completed_tasks.appendleft(
+                        (task_id, worker, task)
+                    )  # may need to move this to _task_completed
 
     def _get_next_task_id(self):
         with self.task_lock:

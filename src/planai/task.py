@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field, PrivateAttr
 
 if TYPE_CHECKING:
     from .graph import Graph
+    from .dispatcher import ProvenanceChain
 
 
 class TaskWorkItem(BaseModel):
@@ -48,6 +49,22 @@ class TaskWorkItem(BaseModel):
         for task in reversed(self._input_provenance):
             if task.__class__ is task_class:
                 return task
+        return None
+    
+    def prefix_for_input_task(
+        self, task_class: Type["TaskWorker"]
+    ) -> Optional['ProvenanceChain']:
+        """
+        Finds the provenance chain for the most recent input task of the specified class.
+        
+        Args:
+            task_class (Type[TaskWorkItem]): The class of the task to find.
+        Returns:
+            ProvenanceChain: The provenance chain for the most recent input task of the specified class.
+        """
+        for i in range(len(self._provenance)-1, -1, -1):
+            if self._provenance[i][0] == task_class.__name__:
+                return tuple(self._provenance[:i+1])
         return None
 
 
@@ -120,7 +137,7 @@ class TaskWorker(BaseModel, ABC):
         self._graph.set_dependency(self, downstream)
         return downstream
 
-    def watch(self, task: Type["TaskWorkItem"]) -> bool:
+    def watch(self, prefix: 'ProvenanceChain') -> bool:
         """
         Watches for this task provenance to be completed in the graph.
 
@@ -130,9 +147,11 @@ class TaskWorker(BaseModel, ABC):
         Returns:
             True if the watch was added, False if the watch was already present.
         """
-        return self._graph._dispatcher.watch(task, self)
-        
-    def unwatch(self, task: Type["TaskWorkItem"]) -> bool:
+        if not isinstance(prefix, tuple):
+            raise ValueError("Prefix must be a tuple")
+        return self._graph._dispatcher.watch(prefix, self)
+
+    def unwatch(self, prefix: 'ProvenanceChain') -> bool:
         """
         Removes the watch for this task provenance to be completed in the graph.
         
@@ -142,7 +161,9 @@ class TaskWorker(BaseModel, ABC):
         Returns:
             True if the watch was removed, False if the watch was not present.
         """
-        return self._graph._dispatcher.unwatch(task, self)
+        if not isinstance(prefix, tuple):
+            raise ValueError("Prefix must be a tuple")
+        return self._graph._dispatcher.unwatch(prefix, self)
 
     def _pre_consume_work(self, task: TaskWorkItem):
         with self._state_lock:

@@ -71,38 +71,41 @@ class TestDispatcher(unittest.TestCase):
         task = DummyTaskWorkItem(data="test")
         task._provenance = [("Task1", 1), ("Task2", 2)]
         self.dispatcher._add_provenance(task)
-        self.assertEqual(self.dispatcher.provenance, {"Task1": 1, "Task2": 1})
+        self.assertEqual(self.dispatcher.provenance, {(('Task1', 1),): 1, (('Task1', 1), ('Task2', 2)): 1})
 
     def test_remove_provenance(self):
         task = DummyTaskWorkItem(data="test")
         task._provenance = [("Task1", 1), ("Task2", 2)]
-        self.dispatcher.provenance = {"Task1": 1, "Task2": 1}
+        self.dispatcher._add_provenance(task)
+
         with patch.object(self.dispatcher, "_notify_task_completion") as mock_notify:
             self.dispatcher._remove_provenance(task)
-            self.assertEqual(self.dispatcher.provenance, {"Task1": 0, "Task2": 0})
-            mock_notify.assert_any_call("Task1")
-            mock_notify.assert_any_call("Task2")
+            self.assertEqual(self.dispatcher.provenance, {})
+            mock_notify.assert_any_call((("Task1", 1),))
+            mock_notify.assert_any_call((("Task1", 1), ("Task2", 2)))
 
     def test_notify_task_completion(self):
         notifier = Mock(spec=TaskWorker)
-        self.dispatcher.notifiers = {"Task1": [notifier]}
-        self.dispatcher._notify_task_completion("Task1")
+        self.dispatcher.notifiers = {(("Task1", 1),): [notifier]}
+        self.dispatcher._notify_task_completion((("Task1", 1),))
         self.assertEqual(self.dispatcher.active_tasks, 1)
-        notifier.notify.assert_called_once_with("Task1")
+        notifier.notify.assert_called_once_with((("Task1", 1),))
 
     def test_watch(self):
         notifier = Mock(spec=TaskWorker)
-        result = self.dispatcher.watch(DummyTaskWorkItem, notifier)
+        result = self.dispatcher.watch((DummyTaskWorkItem.__name__, 1), notifier)
         self.assertTrue(result)
-        self.assertIn(DummyTaskWorkItem.__name__, self.dispatcher.notifiers)
-        self.assertIn(notifier, self.dispatcher.notifiers[DummyTaskWorkItem.__name__])
+        self.assertIn((DummyTaskWorkItem.__name__, 1), self.dispatcher.notifiers)
+        self.assertIn(
+            notifier, self.dispatcher.notifiers[(DummyTaskWorkItem.__name__, 1)]
+        )
 
     def test_unwatch(self):
         notifier = Mock(spec=TaskWorker)
-        self.dispatcher.notifiers = {DummyTaskWorkItem.__name__: [notifier]}
-        result = self.dispatcher.unwatch(DummyTaskWorkItem, notifier)
+        self.dispatcher.notifiers = {(DummyTaskWorkItem.__name__, 1): [notifier]}
+        result = self.dispatcher.unwatch((DummyTaskWorkItem.__name__, 1), notifier)
         self.assertTrue(result)
-        self.assertNotIn(DummyTaskWorkItem.__name__, self.dispatcher.notifiers)
+        self.assertNotIn((DummyTaskWorkItem.__name__, 1), self.dispatcher.notifiers)
 
     def test_dispatch(self):
         worker = Mock(spec=TaskWorker)
