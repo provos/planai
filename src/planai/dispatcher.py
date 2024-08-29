@@ -1,3 +1,4 @@
+import logging
 import threading
 from queue import Empty, Queue
 from threading import Event, Lock
@@ -102,10 +103,25 @@ class Dispatcher:
             self.task_completion_event.set()
 
     def _task_completed(self, task: TaskWorkItem, future):
-        self._remove_provenance(task)
-        self.active_tasks -= 1
-        if self.active_tasks == 0 and self.work_queue.empty():
-            self.task_completion_event.set()
+        try:
+            # This will raise an exception if the task failed
+            result = future.result()
+
+            # Handle successful task completion
+            logging.info(f"Task {task} completed successfully")
+
+        except Exception as e:
+            # Handle task failure
+            logging.exception(f"Task {task} failed with exception: {str(e)}")
+
+            # Anything else that needs to be done when a task fails?
+
+        finally:
+            # This code will run whether the task succeeded or failed
+            self._remove_provenance(task)
+            self.active_tasks -= 1
+            if self.active_tasks == 0 and self.work_queue.empty():
+                self.task_completion_event.set()
 
     def add_work(self, worker: TaskWorker, task: TaskWorkItem):
         self._add_provenance(task)
