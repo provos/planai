@@ -100,6 +100,7 @@ class Graph(BaseModel):
         dispatcher = Dispatcher(self)
         dispatch_thread = Thread(target=dispatcher.dispatch)
         dispatch_thread.start()
+        dispatcher.start_web_interface()
         self._dispatcher = dispatcher
 
         accepted_work: Dict[Type["TaskWorkItem"], TaskWorker] = {}
@@ -118,7 +119,7 @@ class Graph(BaseModel):
                 raise ValueError(f"Initial task {task} has no corresponding worker.")
 
         # Wait for all tasks to complete
-        dispatcher.wait_for_completion()
+        dispatcher.wait_for_completion(wait_for_quit=True)
         dispatcher.stop()
         dispatch_thread.join()
         self._thread_pool.shutdown(wait=True)

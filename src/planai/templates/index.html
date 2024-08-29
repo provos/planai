@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dispatcher Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        h1,
+        h2 {
+            color: #2c3e50;
+        }
+
+        .task-list {
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 20px;
+        }
+
+        .task-item {
+            background-color: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+
+        .task-item:last-child {
+            margin-bottom: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Dispatcher Dashboard</h1>
+    <button id="quit-button">Quit</button>
+
+    <h2>Queued Tasks</h2>
+    <div id="queued-tasks" class="task-list"></div>
+
+    <h2>Active Tasks</h2>
+    <div id="active-tasks" class="task-list"></div>
+
+    <h2>Completed Tasks</h2>
+    <div id="completed-tasks" class="task-list"></div>
+
+    <script>
+        const eventSource = new EventSource("/stream");
+
+        eventSource.onmessage = function (event) {
+            const data = JSON.parse(event.data);
+            updateTaskList('queued-tasks', data.queued);
+            updateTaskList('active-tasks', data.active);
+            updateTaskList('completed-tasks', data.completed);
+        };
+
+        function updateTaskList(elementId, tasks) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = tasks.map(task => `
+                <div class="task-item">
+                    <strong>ID:</strong> ${task.id}<br>
+                    <strong>Type:</strong> ${task.type}<br>
+                    <strong>Worker:</strong> ${task.worker}
+                </div>
+            `).join('');
+        }
+
+        document.getElementById('quit-button').addEventListener('click', function () {
+            fetch('/quit', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'ok') {
+                        alert('Quit signal sent. The application will shut down soon.');
+                    }
+                });
+        });
+    </script>
+</body>
+
+</html>

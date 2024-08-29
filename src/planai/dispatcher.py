@@ -1,17 +1,20 @@
 import logging
 import threading
+import time
+from collections import deque
 from queue import Empty, Queue
 from threading import Event, Lock
 from typing import TYPE_CHECKING, Dict, List, Type
 
 from .task import TaskWorker, TaskWorkItem
+from .web_interface import is_quit_requested, run_web_interface
 
 if TYPE_CHECKING:
     from .graph import Graph
 
 
 class Dispatcher:
-    def __init__(self, graph: "Graph"):
+    def __init__(self, graph: "Graph", web_port=5000):
         self.graph = graph
         self.work_queue = Queue()
         self.provenance: Dict[str, int] = {}
@@ -21,6 +24,11 @@ class Dispatcher:
         self.stop_event = Event()
         self.active_tasks = 0
         self.task_completion_event = threading.Event()
+        self.web_port = web_port
+        self.debug_active_tasks: Dict[str, Tuple[TaskWorker, TaskWorkItem]] = {}
+        self.completed_tasks: deque = deque(maxlen=100)  # Keep last 100 completed tasks
+        self.task_id_counter = 0
+        self.task_lock = threading.Lock()
 
     def _add_provenance(self, task: TaskWorkItem):
         with self.provenance_lock:
@@ -95,7 +103,62 @@ class Dispatcher:
                 continue
 
     def _execute_task(self, worker: TaskWorker, task: TaskWorkItem):
-        worker._pre_consume_work(task)
+        task_id = self._get_next_task_id()
+        with self.task_lock:
+            self.debug_active_tasks[task_id] = (worker, task)
+
+        try:
+            worker._pre_consume_work(task)
+        finally:
+            with self.task_lock:
+                if task_id in self.debug_active_tasks:
+                    del self.debug_active_tasks[task_id]
+                    self.completed_tasks.appendleft((task_id, worker, task))
+
+    def _get_next_task_id(self):
+        with self.task_lock:
+            self.task_id_counter += 1
+            return self.task_id_counter
+
+    def get_queued_tasks(self) -> List[Dict]:
+        return [
+            {
+                "id": self._get_task_id(task),
+                "type": type(task).__name__,
+                "worker": worker.name,
+            }
+            for worker, task in self.work_queue.queue
+        ]
+
+    def get_active_tasks(self) -> List[Dict]:
+        with self.task_lock:
+            return [
+                {
+                    "id": self._get_task_id(task),
+                    "type": type(task).__name__,
+                    "worker": worker.name,
+                }
+                for task_id, (worker, task) in self.debug_active_tasks.items()
+            ]
+
+    def get_completed_tasks(self) -> List[Dict]:
+        with self.task_lock:
+            return [
+                {
+                    "id": self._get_task_id(task),
+                    "type": type(task).__name__,
+                    "worker": worker.name,
+                }
+                for task_id, worker, task in self.completed_tasks
+            ]
+
+    def _get_task_id(self, task: TaskWorkItem) -> str:
+        # Use the last entry in the _provenance list as the task ID
+        if task._provenance:
+            return f"{task._provenance[-1][0]}_{task._provenance[-1][1]}"
+        else:
+            # Fallback in case _provenance is empty
+            return f"unknown_{id(task)}"
 
     def _notify_completed(self, future):
         self.active_tasks -= 1
@@ -130,5 +193,19 @@ class Dispatcher:
     def stop(self):
         self.stop_event.set()
 
-    def wait_for_completion(self):
+    def wait_for_completion(self, wait_for_quit=False):
         self.task_completion_event.wait()
+
+        if wait_for_quit:
+            while not is_quit_requested():
+                # Sleep for a short time to avoid busy waiting
+                time.sleep(0.1)
+
+    def start_web_interface(self):
+        web_thread = threading.Thread(
+            target=run_web_interface, args=(self, self.web_port)
+        )
+        web_thread.daemon = (
+            True  # This ensures the web thread will exit when the main thread exits
+        )
+        web_thread.start()
