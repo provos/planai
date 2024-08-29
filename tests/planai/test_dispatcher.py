@@ -242,15 +242,7 @@ class TestDispatcherThreading(unittest.TestCase):
         self.dispatcher = Dispatcher(self.graph)
 
     def tearDown(self):
-        logging.debug("Shutting down ThreadPoolExecutor")
-        self.graph._thread_pool.shutdown(wait=False)
-        for thread in threading.enumerate():
-            if thread != threading.current_thread() and thread.is_alive():
-                logging.debug(f"Force stopping thread: {thread}")
-                try:
-                    thread.join(timeout=0.1)
-                except Exception:
-                    pass  # Ignore any errors during forced stop
+        self.graph._thread_pool.shutdown(wait=True)
 
     def test_concurrent_add_work(self):
         num_threads = 10
