@@ -67,6 +67,8 @@ class CachedTaskWorker(TaskWorker):
         task_dict = task.model_dump()
         task_str = str(sorted(task_dict.items()))  # Ensure consistent ordering
         task_str += f" - {self.name}"  # Include the task name to avoid collisions
+        for output_type in self.output_types:
+            task_str += f" - {output_type.__name__}"
         if extra_key := self.extra_cache_key():
             task_str += f" - {extra_key}"
         return hashlib.sha1(task_str.encode()).hexdigest()
