@@ -1,7 +1,7 @@
 import json
 import threading
 import time
-from typing import TYPE_CHECKING, Dict, List
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 from flask import Flask, Response, jsonify, render_template
 
@@ -12,7 +12,7 @@ from .task import TaskWorker, TaskWorkItem
 
 app = Flask(__name__, template_folder="templates")
 
-dispatcher: "Dispatcher" = None
+dispatcher: Optional["Dispatcher"] = None
 quit_event = threading.Event()
 
 

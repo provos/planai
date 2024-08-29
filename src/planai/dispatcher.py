@@ -120,35 +120,33 @@ class Dispatcher:
             self.task_id_counter += 1
             return self.task_id_counter
 
+    def _task_to_dict(self, worker: TaskWorker, task: TaskWorkItem) -> Dict:
+        return {
+            "id": self._get_task_id(task),
+            "type": type(task).__name__,
+            "worker": worker.name,
+            "provenance": [f"{worker}_{id}" for worker, id in task._provenance],
+            "input_provenance": [
+                input_task.model_dump() for input_task in task._input_provenance
+            ],
+        }
+
     def get_queued_tasks(self) -> List[Dict]:
         return [
-            {
-                "id": self._get_task_id(task),
-                "type": type(task).__name__,
-                "worker": worker.name,
-            }
-            for worker, task in self.work_queue.queue
+            self._task_to_dict(worker, task) for worker, task in self.work_queue.queue
         ]
 
     def get_active_tasks(self) -> List[Dict]:
         with self.task_lock:
             return [
-                {
-                    "id": self._get_task_id(task),
-                    "type": type(task).__name__,
-                    "worker": worker.name,
-                }
+                self._task_to_dict(worker, task)
                 for task_id, (worker, task) in self.debug_active_tasks.items()
             ]
 
     def get_completed_tasks(self) -> List[Dict]:
         with self.task_lock:
             return [
-                {
-                    "id": self._get_task_id(task),
-                    "type": type(task).__name__,
-                    "worker": worker.name,
-                }
+                self._task_to_dict(worker, task)
                 for task_id, worker, task in self.completed_tasks
             ]
 

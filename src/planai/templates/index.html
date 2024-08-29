@@ -71,6 +71,37 @@
             border-radius: 4px;
             cursor: pointer;
         }
+
+        .task-item {
+            cursor: pointer;
+        }
+
+        .provenance-info {
+            display: none;
+            background-color: var(--task-list-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 10px;
+            margin-top: 10px;
+        }
+
+        .provenance-info h4 {
+            margin-top: 0;
+        }
+
+        .provenance-info ul {
+            padding-left: 20px;
+        }
+
+        .input-provenance-item {
+            margin-bottom: 15px;
+            border-left: 2px solid var(--border-color);
+            padding-left: 10px;
+        }
+
+        .nested-object {
+            margin-left: 20px;
+        }
     </style>
 </head>
 
@@ -129,10 +160,26 @@
                     element.appendChild(taskElement);
                 }
                 taskElement.innerHTML = `
-            <strong>ID:</strong> ${task.id}<br>
-            <strong>Type:</strong> ${task.type}<br>
-            <strong>Worker:</strong> ${task.worker}
-        `;
+                <div class="task-item" onclick="toggleProvenance('${task.id}')">
+                    <strong>ID:</strong> ${task.id}<br>
+                    <strong>Type:</strong> ${task.type}<br>
+                    <strong>Worker:</strong> ${task.worker}
+                    <div id="provenance-${task.id}" class="provenance-info">
+                        <h4>Provenance:</h4>
+                        <ul>
+                            ${task.provenance.map(p => `<li>${p}</li>`).join('')}
+                        </ul>
+                        <h4>Input Provenance:</h4>
+                        <ul>
+                            ${task.input_provenance.map(inputTask => `
+                                <li class="input-provenance-item">
+                                    ${renderObject(inputTask)}
+                                </li>
+                            `).join('')}
+                        </ul>
+                    </div>
+                </div>
+            `;
             });
 
             // Remove tasks that no longer exist
@@ -143,6 +190,29 @@
                 }
             });
         }
+
+        function renderObject(obj, indent = '') {
+            return Object.entries(obj).map(([key, value]) => {
+                if (value === null) return `${indent}<strong>${key}:</strong> null`;
+                if (typeof value === 'object') {
+                    return `
+                        ${indent}<strong>${key}:</strong>
+                        <div class="nested-object">
+                            ${renderObject(value, indent + '  ')}
+                        </div>
+                    `;
+                }
+                return `${indent}<strong>${key}:</strong> ${JSON.stringify(value)}`;
+            }).join('<br>');
+        }
+
+        function toggleProvenance(taskId) {
+            const provenanceElement = document.getElementById(`provenance-${taskId}`);
+            if (provenanceElement) {
+                provenanceElement.style.display = provenanceElement.style.display === 'none' ? 'block' : 'none';
+            }
+        }
+
 
         document.getElementById('quit-button').addEventListener('click', function () {
             fetch('/quit', { method: 'POST' })
