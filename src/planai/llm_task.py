@@ -59,6 +59,14 @@ class LLMTaskWorker(TaskWorker):
         self.post_process(response=response, input_task=task)
 
     def post_process(self, response: Optional[TaskWorkItem], input_task: TaskWorkItem):
+        """
+        Post-processes the response from the LLM and publishes the work. Subclasses can override this method to do
+        additional processing or filtering. They should call super().post_process() after their custom logic.
+
+        Args:
+            response (Optional[TaskWorkItem]): The response from LLM.
+            input_task (TaskWorkItem): The input task.
+        """
         if response is not None:
             self.publish_work(task=response, input_task=input_task)
         else:
