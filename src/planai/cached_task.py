@@ -69,11 +69,11 @@ class CachedTaskWorker(TaskWorker):
         task_str += f" - {self.name}"  # Include the task name to avoid collisions
         for output_type in self.output_types:
             task_str += f" - {output_type.__name__}"
-        if extra_key := self.extra_cache_key():
+        if extra_key := self.extra_cache_key(task):
             task_str += f" - {extra_key}"
         return hashlib.sha1(task_str.encode()).hexdigest()
 
-    def extra_cache_key(self) -> str:
+    def extra_cache_key(self, task: TaskWorkItem) -> str:
         """Can be implemented by subclasses to provide additional cache key information."""
         return ""
 
