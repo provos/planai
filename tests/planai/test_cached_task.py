@@ -64,16 +64,22 @@ class TestCachedTaskWorker(unittest.TestCase):
         self.assertEqual(self.worker.cache_dir, "./test_cache")
         self.assertEqual(self.worker.cache_size_limit, 1000000)
 
-    def test_extra_cache_key(self):
-        self.assertEqual(self.worker.extra_cache_key(), "dummy_extra_key")
-
     def test_pre_consume_work_cache_miss(self):
         task = DummyInputTask(data="test")
         with patch(
             "test_cached_task.DummyCachedTaskWorker.consume_work"
         ) as mock_consume:
-            self.worker._pre_consume_work(task)
-            mock_consume.assert_called_once_with(task)
+            with patch(
+                "test_cached_task.DummyCachedTaskWorker.pre_consume_work"
+            ) as mock_pre_consume:
+                with patch(
+                    "test_cached_task.DummyCachedTaskWorker.post_consume_work"
+                ) as mock_post_consume:
+                    self.worker._pre_consume_work(task)
+                    mock_pre_consume.assert_called_once_with(task)
+                    mock_consume.assert_called_once_with(task)
+                    mock_post_consume.assert_called_once_with(task)
+                
 
     def test_pre_consume_work_cache_hit(self):
         task = DummyInputTask(data="test")
@@ -85,9 +91,17 @@ class TestCachedTaskWorker(unittest.TestCase):
             "test_cached_task.DummyCachedTaskWorker.consume_work"
         ) as mock_consume:
             with patch.object(self.worker, "_publish_cached_results") as mock_publish:
-                self.worker._pre_consume_work(task)
-                mock_consume.assert_not_called()
-                mock_publish.assert_called_once_with(cached_result, task)
+                with patch(
+                "test_cached_task.DummyCachedTaskWorker.pre_consume_work"
+                ) as mock_pre_consume:
+                    with patch(
+                        "test_cached_task.DummyCachedTaskWorker.post_consume_work"
+                    ) as mock_post_consume:
+                        self.worker._pre_consume_work(task)
+                        mock_pre_consume.assert_called_once_with(task)
+                        mock_consume.assert_not_called()
+                        mock_publish.assert_called_once_with(cached_result, task)
+                        mock_post_consume.assert_called_once_with(task)
 
     def test_publish_work(self):
         input_task = DummyInputTask(data="test")
