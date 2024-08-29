@@ -27,6 +27,7 @@ class Dispatcher:
         self.web_port = web_port
         self.debug_active_tasks: Dict[str, Tuple[TaskWorker, TaskWorkItem]] = {}
         self.completed_tasks: deque = deque(maxlen=100)  # Keep last 100 completed tasks
+        self.total_completed_tasks = 0
         self.task_id_counter = 0
         self.task_lock = threading.Lock()
 
@@ -80,27 +81,29 @@ class Dispatcher:
                 return True
         return False
 
+    def _dispatch_once(self) -> bool:
+        try:
+            worker, task = self.work_queue.get(timeout=1)
+            self.active_tasks += 1
+            future = self.graph._thread_pool.submit(self._execute_task, worker, task)
+
+            # Use a named function instead of a lambda to avoid closure issues
+            def task_completed_callback(future, task=task):
+                self._task_completed(task, future)
+
+            future.add_done_callback(task_completed_callback)
+            return True
+
+        except Empty:
+            return False
+
     def dispatch(self):
         while (
             not self.stop_event.is_set()
             or not self.work_queue.empty()
             or self.active_tasks > 0
         ):
-            try:
-                worker, task = self.work_queue.get(timeout=1)
-                self.active_tasks += 1
-                future = self.graph._thread_pool.submit(
-                    self._execute_task, worker, task
-                )
-
-                # Use a named function instead of a lambda to avoid closure issues
-                def task_completed_callback(future, task=task):
-                    self._task_completed(task, future)
-
-                future.add_done_callback(task_completed_callback)
-
-            except Empty:
-                continue
+            self._dispatch_once()
 
     def _execute_task(self, worker: TaskWorker, task: TaskWorkItem):
         task_id = self._get_next_task_id()
@@ -113,7 +116,7 @@ class Dispatcher:
             with self.task_lock:
                 if task_id in self.debug_active_tasks:
                     del self.debug_active_tasks[task_id]
-                    self.completed_tasks.appendleft((task_id, worker, task))
+                    self.completed_tasks.appendleft((task_id, worker, task)) # may need to move this to _task_completed
 
     def _get_next_task_id(self):
         with self.task_lock:
@@ -170,6 +173,7 @@ class Dispatcher:
 
             # Handle successful task completion
             logging.info(f"Task {task} completed successfully")
+            self.total_completed_tasks += 1
 
         except Exception as e:
             # Handle task failure
