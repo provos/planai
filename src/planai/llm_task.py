@@ -47,16 +47,32 @@ class LLMTaskWorker(TaskWorker):
 
         parser = PydanticOutputParser(pydantic_object=self._output_type())
 
+        # allow subclasses to pre-process the task and present it more clearly to the LLM
+        processed_task = self.pre_process(task)
+
         response = self.llm.generate_pydantic(
             prompt_template=prompt,
             output_schema=self._output_type(),
             system="You are a helpful AI assistant. Please help the user with the following task and produce output in JSON.",
-            task=task,
+            task=processed_task.model_dump_json(indent=2),
             instructions=self.prompt,
             format_instructions=parser.get_format_instructions(),
         )
 
         self.post_process(response=response, input_task=task)
+
+    def pre_process(self, task: TaskWorkItem) -> TaskWorkItem:
+        """
+        Pre-processes the input task before sending it to the LLM. Subclasses can override this method to do additional
+        processing or filtering.
+
+        Args:
+            task (TaskWorkItem): The input task.
+
+        Returns:
+            TaskWorkItem: The pre-processed task.
+        """
+        return task
 
     def post_process(self, response: Optional[TaskWorkItem], input_task: TaskWorkItem):
         """
