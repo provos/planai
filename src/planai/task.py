@@ -204,6 +204,7 @@ class TaskWorker(BaseModel, ABC):
         if consumer is None:
             raise ValueError(f"No consumer registered for {task.__class__.__name__}")
 
+        logging.info("Worker %s publishing work to consumer %s with task type %s", self.name, consumer.name, task.__class__.__name__)
         if self._graph and self._graph._dispatcher:
             self._graph._dispatcher.add_work(consumer, task)
         else:
