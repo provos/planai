@@ -36,7 +36,7 @@ class DummyCachedTaskWorker(CachedTaskWorker):
         result = DummyOutputTask(processed_data=processed_data)
         self.publish_work(task=result, input_task=task)
 
-    def extra_cache_key(self) -> str:
+    def extra_cache_key(self, task: TaskWorkItem) -> str:
         return "dummy_extra_key"
 
 

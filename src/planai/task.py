@@ -51,6 +51,9 @@ class TaskWorkItem(BaseModel):
                 return task
         return None
     
+    def previous_input_task(self):
+        return self._input_provenance[-1] if self._input_provenance else None
+    
     def prefix_for_input_task(
         self, task_class: Type["TaskWorker"]
     ) -> Optional['ProvenanceChain']:
@@ -112,7 +115,8 @@ class TaskWorker(BaseModel, ABC):
 
     @property
     def last_input_task(self) -> Optional[TaskWorkItem]:
-        return self._last_input_task
+        with self._state_lock:
+            return self._last_input_task
 
     def set_graph(self, graph: "Graph"):
         self._graph = graph
@@ -171,6 +175,9 @@ class TaskWorker(BaseModel, ABC):
         self.consume_work(task)
 
     def init(self):
+        """
+        Called when the graph is fully constructed and starts work.
+        """
         pass
 
     @abstractmethod
