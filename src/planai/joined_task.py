@@ -49,6 +49,8 @@ class JoinedTaskWorker(TaskWorker):
     def notify(self, prefix: str):
         if prefix not in self._joined_results:
             raise ValueError(f"Task {prefix} does not have any results to join.")
+        if not self.unwatch(prefix):
+            raise ValueError(f"Trying to remove a Task {prefix} that is not being watched.")
         self.consume_work_joined(self._joined_results.pop(prefix))
 
     def _validate_connection(self) -> None:
