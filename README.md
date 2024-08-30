@@ -69,8 +69,7 @@ class AIAnalyzer(LLMTaskWorker):
     output_types = [AnalysisResult]
     
     def consume_work(self, task: ProcessedData):
-        analysis = self.llm.analyze(task.data)
-        self.publish_work(AnalysisResult(analysis=analysis))
+        super().consume_work(task)
 
 # Create and run the workflow
 graph = Graph(name="Data Analysis Workflow")
