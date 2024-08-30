@@ -74,7 +74,9 @@ class AIAnalyzer(LLMTaskWorker):
 # Create and run the workflow
 graph = Graph(name="Data Analysis Workflow")
 data_processor = CustomDataProcessor()
-ai_analyzer = AIAnalyzer(llm=llm_from_config(provider="openai", model_name="gpt-4"))
+ai_analyzer = AIAnalyzer(
+   llm=llm_from_config(provider="openai", model_name="gpt-4"),
+   prompt="Analyze the provided data and derive insights")
 
 graph.add_workers(data_processor, ai_analyzer)
 graph.set_dependency(data_processor, ai_analyzer)
