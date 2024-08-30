@@ -40,10 +40,7 @@ class JoinedTaskWorker(TaskWorker):
             )
         if prefix not in self._joined_results:
             # we will register the watch for the prefix when we see it for the first time.
-            if not self.watch(prefix):
-                raise ValueError(
-                    f"Task {task} does not have a watch for {self.join_type} in provenance."
-                )
+            self.watch(prefix)
 
         # we accumulate the results by the prefix described by join_type
         # we will deliver them to the sub-class when we get notified
