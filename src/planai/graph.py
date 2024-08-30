@@ -73,12 +73,42 @@ class Graph(BaseModel):
         """Return the execution order of tasks based on dependencies."""
         pass
 
-    def run(self, initial_tasks: List[Tuple[TaskWorker, TaskWorkItem]]) -> None:
-        """Execute the Graph by initiating source tasks."""
+    def run(
+        self,
+        initial_tasks: List[Tuple[TaskWorker, TaskWorkItem]],
+        run_dashboard: bool = False,
+    ) -> None:
+        """
+        Execute the Graph by initiating source tasks and managing the workflow.
+
+        This method sets up the Dispatcher, initializes workers, and processes the initial tasks.
+        It manages the entire execution flow of the graph until completion.
+
+        Args:
+            initial_tasks (List[Tuple[TaskWorker, TaskWorkItem]]): A list of tuples, each containing
+                a TaskWorker and its corresponding TaskWorkItem to initiate the graph execution.
+            run_dashboard (bool, optional): If True, starts a web interface for monitoring the
+                graph execution. Defaults to False.
+
+        Raises:
+            ValueError: If any of the initial tasks fail validation.
+
+        Note:
+            - This method blocks until all tasks in the graph are completed.
+            - It handles the initialization and cleanup of workers, dispatcher, and thread pool.
+            - If run_dashboard is True, the method will wait for manual termination of the web interface.
+
+        Example:
+            graph = Graph(name="My Workflow")
+            # ... (add workers and set dependencies)
+            initial_work = [(task1, Task1WorkItem(data="Start"))]
+            graph.run(initial_work, run_dashboard=True)
+        """
         dispatcher = Dispatcher(self)
         dispatch_thread = Thread(target=dispatcher.dispatch)
         dispatch_thread.start()
-        dispatcher.start_web_interface()
+        if run_dashboard:
+            dispatcher.start_web_interface()
         self._dispatcher = dispatcher
 
         # let the workers now that we are about to start
@@ -93,7 +123,7 @@ class Graph(BaseModel):
             dispatcher.add_work(worker, task)
 
         # Wait for all tasks to complete
-        dispatcher.wait_for_completion(wait_for_quit=True)
+        dispatcher.wait_for_completion(wait_for_quit=run_dashboard)
         dispatcher.stop()
         dispatch_thread.join()
         self._thread_pool.shutdown(wait=True)
