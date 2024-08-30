@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from abc import abstractmethod
-from typing import Dict, List, Type
+from typing import Dict, List, Type, Set
 
 from pydantic import PrivateAttr
 
@@ -53,3 +53,47 @@ class JoinedTaskWorker(TaskWorker):
         if prefix not in self._joined_results:
             raise ValueError(f"Task {prefix} does not have any results to join.")
         self.consume_work_joined(self._joined_results.pop(prefix))
+
+    def _validate_connection(self) -> None:
+        """
+        Validate that the join_type is a TaskWorker that is upstream
+        from the current worker in the graph.
+
+        Raises:
+            ValueError: If the join_type is not a subclass of TaskWorker,
+                        or not found in the upstream path of this worker.
+        """
+        super()._validate_connection()
+
+        if not issubclass(self.join_type, TaskWorker):
+            raise ValueError(
+                f"join_type must be a subclass of TaskWorker, got {self.join_type}"
+            )
+
+        if self._graph is None:
+            raise ValueError(
+                f"{self.__class__.__name__} is not associated with a Graph. Call set_graph() first."
+            )
+
+        def dfs_search(
+            current_worker: TaskWorker,
+            target_type: Type[TaskWorker],
+            visited: Set[TaskWorker],
+        ) -> bool:
+            if isinstance(current_worker, target_type):
+                return True
+
+            visited.add(current_worker)
+
+            for upstream_worker in self._graph.dependencies.keys():
+                if current_worker in self._graph.dependencies[upstream_worker]:
+                    if upstream_worker not in visited:
+                        if dfs_search(upstream_worker, target_type, visited):
+                            return True
+
+            return False
+
+        if not dfs_search(self, self.join_type, set()):
+            raise ValueError(
+                f"{self.join_type.__name__} is not found in the upstream path of {self.__class__.__name__}"
+            )

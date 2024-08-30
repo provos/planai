@@ -371,6 +371,12 @@ class TaskWorker(BaseModel, ABC):
             raise ValueError(f"Consumer for {task_cls.__name__} already registered")
         self._consumers[task_cls] = consumer
 
+        # special cases like JoinedTask need to validate that their join_type is upstream
+        consumer._validate_connection()
+
+    def _validate_connection(self):
+        pass
+
 
 def main():
     class MagicTaskWork(TaskWorkItem):
