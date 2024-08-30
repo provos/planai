@@ -13,7 +13,7 @@
 # limitations under the License.
 import unittest
 from typing import List, Type
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from planai.cached_task import CachedTaskWorker, TaskWorker
 from planai.task import TaskWorkItem
@@ -92,7 +92,6 @@ class TestCachedTaskWorker(unittest.TestCase):
                     mock_pre_consume.assert_called_once_with(task)
                     mock_consume.assert_called_once_with(task)
                     mock_post_consume.assert_called_once_with(task)
-                
 
     def test_pre_consume_work_cache_hit(self):
         task = DummyInputTask(data="test")
@@ -105,7 +104,7 @@ class TestCachedTaskWorker(unittest.TestCase):
         ) as mock_consume:
             with patch.object(self.worker, "_publish_cached_results") as mock_publish:
                 with patch(
-                "test_cached_task.DummyCachedTaskWorker.pre_consume_work"
+                    "test_cached_task.DummyCachedTaskWorker.pre_consume_work"
                 ) as mock_pre_consume:
                     with patch(
                         "test_cached_task.DummyCachedTaskWorker.post_consume_work"

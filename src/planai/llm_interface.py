@@ -12,11 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import hashlib
-import inspect
 import logging
 import os
 import re
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Any, Dict, Literal, Optional, Tuple
 
 import diskcache
 from dotenv import load_dotenv
@@ -116,7 +115,7 @@ class LLMInterface:
         )
 
         formatted_prompt = prompt.format(**kwargs)
-        
+
         self.logger.info("Generated prompt: %s", formatted_prompt)
         if logger:
             logger.info("Generated prompt: %s", formatted_prompt)

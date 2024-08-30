@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Literal, Mapping, Union
+from typing import Any, Literal, Mapping
 
 from openai import OpenAI
 
@@ -23,9 +23,9 @@ class OpenAIWrapper:
     def generate(
         self,
         prompt: str,
-        system: str = '',
-        format: Literal['', 'json'] = '',
-        model: str = 'gpt-3.5-turbo',
+        system: str = "",
+        format: Literal["", "json"] = "",
+        model: str = "gpt-3.5-turbo",
     ) -> Mapping[str, Any]:
         """
         Create a response using the requested OpenAI model.
@@ -46,9 +46,13 @@ class OpenAIWrapper:
 
         if system:
             messages.append({"role": "system", "content": system})
-        elif format == 'json':
+        elif format == "json":
             messages.append(
-                {"role": "system", "content": "You are a helpful assistant that responds in JSON format."})
+                {
+                    "role": "system",
+                    "content": "You are a helpful assistant that responds in JSON format.",
+                }
+            )
 
         messages.append({"role": "user", "content": prompt})
 
@@ -57,17 +61,14 @@ class OpenAIWrapper:
             "messages": messages,
         }
 
-        if format == 'json':
+        if format == "json":
             api_params["response_format"] = {"type": "json_object"}
 
         try:
             response = self.client.chat.completions.create(**api_params)
             content = response.choices[0].message.content
 
-            return {
-                "response": content,
-                "done": True
-            }
+            return {"response": content, "done": True}
 
         except Exception as e:
             raise e
@@ -83,10 +84,11 @@ class OpenAIWrapper:
         Returns:
             The response from the generate function.
         """
-        system_message = next((m['content']
-                              for m in messages if m['role'] == 'system'), '')
-        user_messages = [m['content'] for m in messages if m['role'] == 'user']
+        system_message = next(
+            (m["content"] for m in messages if m["role"] == "system"), ""
+        )
+        user_messages = [m["content"] for m in messages if m["role"] == "user"]
 
-        prompt = '\n'.join(user_messages)
+        prompt = "\n".join(user_messages)
 
         return self.generate(prompt=prompt, system=system_message, **kwargs)

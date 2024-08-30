@@ -16,7 +16,6 @@ from typing import Dict, List, Type
 
 from pydantic import PrivateAttr
 
-from .cached_task import CachedTaskWorker
 from .task import TaskWorker, TaskWorkItem
 
 
@@ -39,7 +38,7 @@ class JoinedTaskWorker(TaskWorker):
             raise ValueError(
                 f"Task {task} does not have a prefix for {self.join_type.__name__} in provenance."
             )
-        if not prefix in self._joined_results:
+        if prefix not in self._joined_results:
             # we will register the watch for the prefix when we see it for the first time.
             if not self.watch(prefix):
                 raise ValueError(

@@ -15,7 +15,6 @@ import inspect
 import logging
 import threading
 import uuid
-
 from abc import ABC, abstractmethod
 from typing import (
     TYPE_CHECKING,
@@ -32,8 +31,8 @@ from typing import (
 from pydantic import BaseModel, Field, PrivateAttr
 
 if TYPE_CHECKING:
-    from .graph import Graph
     from .dispatcher import ProvenanceChain
+    from .graph import Graph
 
 
 class TaskWorkItem(BaseModel):
@@ -63,24 +62,24 @@ class TaskWorkItem(BaseModel):
             if task.__class__ is task_class:
                 return task
         return None
-    
+
     def previous_input_task(self):
         return self._input_provenance[-1] if self._input_provenance else None
-    
+
     def prefix_for_input_task(
         self, task_class: Type["TaskWorker"]
-    ) -> Optional['ProvenanceChain']:
+    ) -> Optional["ProvenanceChain"]:
         """
         Finds the provenance chain for the most recent input task of the specified class.
-        
+
         Args:
             task_class (Type[TaskWorkItem]): The class of the task to find.
         Returns:
             ProvenanceChain: The provenance chain for the most recent input task of the specified class.
         """
-        for i in range(len(self._provenance)-1, -1, -1):
+        for i in range(len(self._provenance) - 1, -1, -1):
             if self._provenance[i][0] == task_class.__name__:
-                return tuple(self._provenance[:i+1])
+                return tuple(self._provenance[: i + 1])
         return None
 
 
@@ -154,7 +153,7 @@ class TaskWorker(BaseModel, ABC):
         self._graph.set_dependency(self, downstream)
         return downstream
 
-    def watch(self, prefix: 'ProvenanceChain') -> bool:
+    def watch(self, prefix: "ProvenanceChain") -> bool:
         """
         Watches for this task provenance to be completed in the graph.
 
@@ -168,13 +167,13 @@ class TaskWorker(BaseModel, ABC):
             raise ValueError("Prefix must be a tuple")
         return self._graph._dispatcher.watch(prefix, self)
 
-    def unwatch(self, prefix: 'ProvenanceChain') -> bool:
+    def unwatch(self, prefix: "ProvenanceChain") -> bool:
         """
         Removes the watch for this task provenance to be completed in the graph.
-        
+
         Parameters:
             worker (Type["TaskWorkItem"]): The worker to unwatch.
-        
+
         Returns:
             True if the watch was removed, False if the watch was not present.
         """
@@ -245,7 +244,12 @@ class TaskWorker(BaseModel, ABC):
         if consumer is None:
             raise ValueError(f"No consumer registered for {task.__class__.__name__}")
 
-        logging.info("Worker %s publishing work to consumer %s with task type %s", self.name, consumer.name, task.__class__.__name__)
+        logging.info(
+            "Worker %s publishing work to consumer %s with task type %s",
+            self.name,
+            consumer.name,
+            task.__class__.__name__,
+        )
         if self._graph and self._graph._dispatcher:
             self._graph._dispatcher.add_work(consumer, task)
         else:

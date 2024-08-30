@@ -50,10 +50,10 @@ class LLMTaskWorker(TaskWorker):
             """
         Here is your input data:
         {task}
-        
+
         Here are your instructions:
         {instructions}
-        
+
         {format_instructions}
         """
         ).strip()

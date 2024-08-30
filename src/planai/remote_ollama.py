@@ -13,7 +13,7 @@
 # limitations under the License.
 import re
 import time
-from typing import Any, Callable, Dict
+from typing import Any, Callable
 
 import requests
 from ollama import Client
@@ -59,8 +59,7 @@ class RemoteOllama:
         self.ollama_port = ollama_port
         self.set_model_name(model_name)
         self.ollama_path = "/usr/local/bin/ollama"
-        self.ollama_client = Client(
-            host=f"http://localhost:{self.ollama_port}")
+        self.ollama_client = Client(host=f"http://localhost:{self.ollama_port}")
         self.generate = self._wrap_with_reconnect(self.ollama_client.generate)
         self.chat = self._wrap_with_reconnect(self.ollama_client.chat)
 
@@ -74,11 +73,13 @@ class RemoteOllama:
                 return func(*args, **kwargs)
             except requests.RequestException as e:
                 logger.warning(
-                    "Request failed: %s. Attempting to re-establish SSH connection.", e)
+                    "Request failed: %s. Attempting to re-establish SSH connection.", e
+                )
                 if not self.ssh_connection.is_active():
                     self.ssh_connection.connect()
                     self.ssh_connection.start_port_forward(
-                        self.ollama_port, 'localhost', self.OLLAMA_PORT)
+                        self.ollama_port, "localhost", self.OLLAMA_PORT
+                    )
                     logger.info("SSH connection re-established.")
                 else:
                     logger.info("SSH connection was still active.")
@@ -86,13 +87,13 @@ class RemoteOllama:
                 try:
                     return func(*args, **kwargs)
                 except requests.RequestException as e:
-                    logger.error(
-                        "Request failed again after reconnecting: %s", e)
+                    logger.error("Request failed again after reconnecting: %s", e)
                     raise
+
         return wrapper
 
     def set_model_name(self, model_name):
-        if not re.match(r'^[a-zA-Z0-9_.\-:/]+$', model_name):
+        if not re.match(r"^[a-zA-Z0-9_.\-:/]+$", model_name):
             raise InvalidModelNameError(model_name)
         self.model_name = model_name
         logger.info(f"Model name set to {self.model_name}")
@@ -102,7 +103,7 @@ class RemoteOllama:
             cmd = f"{cmd_prefix}ollama --version"
             result = self.ssh_connection.execute_command(cmd)
             logger.debug("Executed command: %s, Result: %s", cmd, result)
-            if result['exit_status'] == 0:
+            if result["exit_status"] == 0:
                 self.ollama_path = f"{cmd_prefix}ollama"
                 logger.info("Ollama found at %s", self.ollama_path)
                 return True
@@ -113,37 +114,37 @@ class RemoteOllama:
         commands = [
             "sudo apt-get update",
             "sudo apt-get install -y curl",
-            "curl https://ollama.ai/install.sh | sh"
+            "curl https://ollama.ai/install.sh | sh",
         ]
         for cmd in commands:
             result = self.ssh_connection.execute_command(cmd)
             logger.debug("Executed command: %s, Result: %s", cmd, result)
-            if result['exit_status'] != 0:
+            if result["exit_status"] != 0:
                 logger.error(
-                    f"Failed to execute command: {cmd}, Error: {result['stderr']}")
-                raise SSHCommandError(cmd, result['stderr'])
+                    f"Failed to execute command: {cmd}, Error: {result['stderr']}"
+                )
+                raise SSHCommandError(cmd, result["stderr"])
         logger.info("Ollama installed successfully")
 
     def pull_model(self):
         cmd = f"{self.ollama_path} pull {self.model_name}"
         result = self.ssh_connection.execute_command(cmd)
         logger.debug("Executed command: %s, Result: %s", cmd, result)
-        if result['exit_status'] != 0:
-            logger.error(
-                f"Failed to execute command: {cmd}, Error: {result['stderr']}")
-            raise SSHCommandError(cmd, result['stderr'])
+        if result["exit_status"] != 0:
+            logger.error(f"Failed to execute command: {cmd}, Error: {result['stderr']}")
+            raise SSHCommandError(cmd, result["stderr"])
         logger.info(f"Model {self.model_name} pulled successfully")
 
     def start_server(self):
         cmd = f"nohup {self.ollama_path} serve > /dev/null 2>&1 &"
         result = self.ssh_connection.execute_command(cmd)
         logger.debug("Executed command: %s, Result: %s", cmd, result)
-        if result['exit_status'] != 0:
-            logger.error(
-                f"Failed to execute command: {cmd}, Error: {result['stderr']}")
-            raise SSHCommandError(cmd, result['stderr'])
+        if result["exit_status"] != 0:
+            logger.error(f"Failed to execute command: {cmd}, Error: {result['stderr']}")
+            raise SSHCommandError(cmd, result["stderr"])
         self.ssh_connection.start_port_forward(
-            self.ollama_port, 'localhost', self.OLLAMA_PORT)
+            self.ollama_port, "localhost", self.OLLAMA_PORT
+        )
         logger.info("Ollama server started and port forwarding configured")
 
     def validate_server(self) -> bool:
@@ -152,13 +153,13 @@ class RemoteOllama:
         for _ in range(max_retries):
             try:
                 response = requests.get(
-                    f"http://localhost:{self.ollama_port}/api/tags", timeout=5)
+                    f"http://localhost:{self.ollama_port}/api/tags", timeout=5
+                )
                 if response.status_code == 200:
                     logger.info("Server validation successful")
                     return True
             except requests.RequestException as e:
-                logger.warning(
-                    "Server validation failed with exception: %s", e)
+                logger.warning("Server validation failed with exception: %s", e)
             time.sleep(retry_delay)
         logger.error("Server validation failed after maximum retries")
         return False
@@ -179,9 +180,8 @@ class RemoteOllama:
         cmd = "pkill ollama"
         result = self.ssh_connection.execute_command(cmd)
         logger.debug(f"Executed command: {cmd}, Result: {result}")
-        if result['exit_status'] != 0:
-            logger.error(
-                f"Failed to execute command: {cmd}, Error: {result['stderr']}")
-            raise SSHCommandError(cmd, result['stderr'])
+        if result["exit_status"] != 0:
+            logger.error(f"Failed to execute command: {cmd}, Error: {result['stderr']}")
+            raise SSHCommandError(cmd, result["stderr"])
         self.ssh_connection.stop_port_forward()
         logger.info("Ollama server stopped and port forwarding terminated")

@@ -20,7 +20,7 @@ import unittest
 from collections import deque
 from queue import Queue
 from threading import Event
-from typing import Dict, List, Tuple, Type
+from typing import List, Type
 from unittest.mock import Mock, patch
 
 from pydantic import PrivateAttr
@@ -84,7 +84,10 @@ class TestDispatcher(unittest.TestCase):
         task = DummyTaskWorkItem(data="test")
         task._provenance = [("Task1", 1), ("Task2", 2)]
         self.dispatcher._add_provenance(task)
-        self.assertEqual(self.dispatcher.provenance, {(('Task1', 1),): 1, (('Task1', 1), ('Task2', 2)): 1})
+        self.assertEqual(
+            self.dispatcher.provenance,
+            {(("Task1", 1),): 1, (("Task1", 1), ("Task2", 2)): 1},
+        )
 
     def test_remove_provenance(self):
         task = DummyTaskWorkItem(data="test")

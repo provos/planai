@@ -14,7 +14,7 @@
 import hashlib
 import logging
 import threading
-from typing import List, Type
+from typing import List
 
 from diskcache import Cache
 from pydantic import Field, PrivateAttr
@@ -46,7 +46,7 @@ class CachedTaskWorker(TaskWorker):
         else:
             logging.info("Cache miss for %s with key: %s", self.name, cache_key)
             self.consume_work(task)
-            
+
         self.post_consume_work(task)
 
     def pre_consume_work(self, task: TaskWorkItem):

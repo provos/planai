@@ -33,9 +33,13 @@ class SSHConnection:
         self.port = port
         self.client = None
         self.forward_thread = None
-        
+
     def is_active(self):
-        return self.client is not None and self.client.get_transport() is not None and self.client.get_transport().is_active()
+        return (
+            self.client is not None
+            and self.client.get_transport() is not None
+            and self.client.get_transport().is_active()
+        )
 
     def connect(self):
         self.client = paramiko.SSHClient()
@@ -52,14 +56,19 @@ class SSHConnection:
         for key in keys:
             try:
                 self.client.connect(
-                    self.hostname, port=self.port, username=self.username, pkey=key)
-                logger.info("Successfully connected to {} as {}".format(
-                    self.hostname, self.username))
+                    self.hostname, port=self.port, username=self.username, pkey=key
+                )
+                logger.info(
+                    "Successfully connected to {} as {}".format(
+                        self.hostname, self.username
+                    )
+                )
                 return  # Exit the method if connection is successful
             except paramiko.AuthenticationException as auth_error:
                 logger.warning(
                     "Authentication with key {} failed: {}".format(
-                        key.get_base64(), auth_error)
+                        key.get_base64(), auth_error
+                    )
                 )
 
         logger.error("All agent keys failed to authenticate")
@@ -81,19 +90,24 @@ class SSHConnection:
                 except Exception as e:
                     logger.error(
                         "Incoming request to {}:{} failed: {}".format(
-                            self.chain_host, self.chain_port, repr(e))
+                            self.chain_host, self.chain_port, repr(e)
+                        )
                     )
                     return
                 if chan is None:
                     logger.error(
                         "Incoming request to {}:{} was rejected by the SSH server.".format(
-                            self.chain_host, self.chain_port)
+                            self.chain_host, self.chain_port
+                        )
                     )
                     return
 
                 logger.info(
-                    "Connected! Tunnel open {} -> {} -> {}".format(self.request.getpeername(
-                    ), chan.getpeername(), (self.chain_host, self.chain_port))
+                    "Connected! Tunnel open {} -> {} -> {}".format(
+                        self.request.getpeername(),
+                        chan.getpeername(),
+                        (self.chain_host, self.chain_port),
+                    )
                 )
                 while True:
                     r, w, x = select.select([self.request, chan], [], [])
@@ -131,16 +145,16 @@ class SSHConnection:
         stdin, stdout, stderr = self.client.exec_command(command)
         exit_status = stdout.channel.recv_exit_status()
         return {
-            'exit_status': exit_status,
-            'stdout': stdout.read().decode('utf-8'),
-            'stderr': stderr.read().decode('utf-8')
+            "exit_status": exit_status,
+            "stdout": stdout.read().decode("utf-8"),
+            "stderr": stderr.read().decode("utf-8"),
         }
 
     def stop_port_forward(self):
         if self.forward_thread:
             transport = self.client.get_transport()
             if transport:
-                transport.cancel_port_forward('', 0)
+                transport.cancel_port_forward("", 0)
             self.forward_thread.join()
             self.forward_thread = None
 

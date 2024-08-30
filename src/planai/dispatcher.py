@@ -17,7 +17,7 @@ import time
 from collections import defaultdict, deque
 from queue import Empty, Queue
 from threading import Event, Lock
-from typing import TYPE_CHECKING, DefaultDict, Dict, List, Tuple, Type
+from typing import TYPE_CHECKING, DefaultDict, Dict, List, Tuple
 
 from .task import TaskWorker, TaskWorkItem
 from .web_interface import is_quit_requested, run_web_interface
@@ -192,7 +192,7 @@ class Dispatcher:
     def _task_completed(self, task: TaskWorkItem, future):
         try:
             # This will raise an exception if the task failed
-            result = future.result()
+            _ = future.result()
 
             # Handle successful task completion
             logging.info(f"Task {task} completed successfully")

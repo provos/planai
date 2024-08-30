@@ -68,7 +68,7 @@ class TaskWorker3(JoinedTaskWorker):
         prefixes = set([task.prefix_for_input_task(TaskWorker1) for task in tasks])
         if len(prefixes) != 1:
             raise ValueError("All tasks must have the same prefix", prefixes)
-        
+
         self._processed_count += 1
 
 
