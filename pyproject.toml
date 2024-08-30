@@ -1,9 +1,20 @@
 [tool.poetry]
 name = "planai"
 version = "0.1.0"
-description = "A simple framework for coordinating classicial compute and LLM-based tasks."
-authors = ["Niels Provos <provos@gmail.com>"]
+description = "A simple framework for coordinating classical compute and LLM-based tasks."
+authors = ["Niels Provos <planai@provos.org>"]
+license = "Apache-2.0"
 readme = "README.md"
+repository = "https://github.com/provos/planai"
+documentation = "https://planai.readthedocs.io"
+keywords = ["ai", "automation", "workflow", "llm"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 packages = [
     { include = "planai", from = "src" },
 ]
@@ -17,10 +28,21 @@ ollama = "^0.3.1"
 diskcache = "^5.6.3"
 paramiko = "^3.4.1"
 openai = "^1.42.0"
-pytest = "^8.3.2"
 flask = "^3.0.3"
 
+[tool.poetry.dev-dependencies]
+pytest = "^8.3.2"
+
+[tool.poetry.group.dev.dependencies]
+sphinx = "^7.0.0"
+sphinx-rtd-theme = "^1.3.0"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+planai = "planai.cli:main"
+
+[tool.poetry.extras]
+docs = ["sphinx", "sphinx_rtd_theme"]
