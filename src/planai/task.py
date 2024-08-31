@@ -38,6 +38,11 @@ if TYPE_CHECKING:
 class TaskWorkItem(BaseModel):
     _provenance: List[Tuple[str, int]] = PrivateAttr(default_factory=list)
     _input_provenance: List["TaskWorkItem"] = PrivateAttr(default_factory=list)
+    _retry_count: int = PrivateAttr(default=0)
+
+    @property
+    def name(self) -> str:
+        return self.__class__.__name__
 
     def copy_provenance(self) -> List[Tuple[str, int]]:
         return self._provenance.copy()
@@ -91,8 +96,8 @@ class TaskWorker(BaseModel, ABC):
     is performed during the registration of consumers.
 
     Attributes:
-        name (str): The name of the task.
         output_types (Set[Type[TaskWorkItem]]): The types of work this task can output.
+        num_retries (int): The number of retries allowed for this task. Defaults to 0.
         _id (int): A private attribute to track the task's ID.
         _consumers (Dict[Type["TaskWorker"], "TaskWorker"]): A private attribute to store registered consumers.
 
@@ -102,6 +107,9 @@ class TaskWorker(BaseModel, ABC):
 
     output_types: Set[Type[TaskWorkItem]] = Field(
         default_factory=set, description="The types of work this task can output"
+    )
+    num_retries: int = Field(
+        0, description="The number of retries allowed for this task"
     )
 
     _state_lock: threading.Lock = PrivateAttr(default_factory=threading.Lock)

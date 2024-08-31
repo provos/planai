@@ -109,8 +109,8 @@ class Dispatcher:
             future = self.graph._thread_pool.submit(self._execute_task, worker, task)
 
             # Use a named function instead of a lambda to avoid closure issues
-            def task_completed_callback(future, task=task):
-                self._task_completed(task, future)
+            def task_completed_callback(future, worker=worker, task=task):
+                self._task_completed(worker, task, future)
 
             future.add_done_callback(task_completed_callback)
             return True
@@ -189,25 +189,41 @@ class Dispatcher:
         if self.active_tasks == 0 and self.work_queue.empty():
             self.task_completion_event.set()
 
-    def _task_completed(self, task: TaskWorkItem, future):
+    def _task_completed(self, worker: TaskWorker, task: TaskWorkItem, future):
+        success: bool = False
         try:
             # This will raise an exception if the task failed
             _ = future.result()
 
             # Handle successful task completion
-            logging.info(f"Task {task} completed successfully")
+            logging.info(f"Task {task.name} completed successfully")
             self.total_completed_tasks += 1
+            success = True
 
         except Exception as e:
             # Handle task failure
-            logging.exception(
-                f"Task {task.__class__.__name__} failed with exception: {str(e)}"
-            )
+            logging.exception(f"Task {task.name} failed with exception: {str(e)}")
 
             # Anything else that needs to be done when a task fails?
 
         finally:
             # This code will run whether the task succeeded or failed
+
+            # Determine whether we should retry the task
+            if not success and worker.num_retries > 0:
+                if task._retry_count < worker.num_retries:
+                    task._retry_count += 1
+                    self.work_queue.put((worker, task))
+                    logging.info(
+                        f"Retrying task {task.name} for the {task._retry_count} time"
+                    )
+                    return
+                else:
+                    logging.error(
+                        f"Task {task.name} failed after {task._retry_count} retries"
+                    )
+                    # we'll fall through and do the clean up
+
             self._remove_provenance(task)
             self.active_tasks -= 1
             if self.active_tasks == 0 and self.work_queue.empty():

@@ -62,6 +62,18 @@ class ExceptionRaisingTaskWorker(TaskWorker):
         raise ValueError("Test exception")
 
 
+class RetryTaskWorker(TaskWorker):
+    fail_attempts: int
+    _attempt_count: int = PrivateAttr(0)
+    _lock: threading.Lock = PrivateAttr(default_factory=threading.Lock)
+
+    def consume_work(self, task: DummyTaskWorkItem):
+        with self._lock:
+            self._attempt_count += 1
+            if self._attempt_count <= self.fail_attempts:
+                raise ValueError(f"Simulated failure (attempt {self._attempt_count})")
+
+
 class SingleThreadedExecutor:
     def __init__(self):
         self.tasks = []
@@ -203,6 +215,7 @@ class TestDispatcher(unittest.TestCase):
         self.assertTrue(self.dispatcher.task_completion_event.is_set())
 
     def test_task_completed(self):
+        worker = Mock(spec=TaskWorker)
         task = DummyTaskWorkItem(data="test")
         future = Mock()
         future.result.return_value = None
@@ -212,13 +225,14 @@ class TestDispatcher(unittest.TestCase):
         self.dispatcher.work_queue = Queue()  # Ensure the queue is empty
 
         with patch.object(self.dispatcher, "_remove_provenance") as mock_remove:
-            self.dispatcher._task_completed(task, future)
+            self.dispatcher._task_completed(worker, task, future)
             mock_remove.assert_called_once_with(task)
 
         self.assertEqual(self.dispatcher.active_tasks, 0)
         self.assertTrue(self.dispatcher.task_completion_event.is_set())
 
     def test_task_completed_with_remaining_tasks(self):
+        worker = Mock(spec=TaskWorker)
         task = DummyTaskWorkItem(data="test")
         future = Mock()
         future.result.return_value = None
@@ -228,7 +242,7 @@ class TestDispatcher(unittest.TestCase):
         self.dispatcher.work_queue = Queue()  # Ensure the queue is empty
 
         with patch.object(self.dispatcher, "_remove_provenance") as mock_remove:
-            self.dispatcher._task_completed(task, future)
+            self.dispatcher._task_completed(worker, task, future)
             mock_remove.assert_called_once_with(task)
 
         self.assertEqual(self.dispatcher.active_tasks, 1)
@@ -408,6 +422,86 @@ class TestDispatcherThreading(unittest.TestCase):
             self.assertIn("failed with exception: Test exception", call[0][0])
 
         # TODO: whether we should also check the number of completed tasks
+
+    @patch("planai.dispatcher.logging.info")
+    @patch("planai.dispatcher.logging.error")
+    @patch("planai.dispatcher.logging.exception")
+    def test_task_retry(self, mock_log_exception, mock_log_error, mock_log_info):
+        worker = RetryTaskWorker(num_retries=2, fail_attempts=2)
+        task = DummyTaskWorkItem(data="test-retry")
+
+        self.dispatcher.active_tasks = 1
+        self.dispatcher.work_queue = Queue()
+
+        # Simulate task execution and failure
+        future = Mock()
+        future.result.side_effect = ValueError("Simulated failure")
+
+        # First attempt
+        self.dispatcher._task_completed(worker, task, future)
+
+        # Check if task was requeued
+        self.assertEqual(self.dispatcher.work_queue.qsize(), 1)
+        self.assertEqual(task._retry_count, 1)
+        mock_log_info.assert_any_call("Retrying task DummyTaskWorkItem for the 1 time")
+
+        # Second attempt (should succeed)
+        self.dispatcher.work_queue.get()  # Remove the task from the queue
+        worker._attempt_count = 2  # Simulate successful attempt
+        future.result.side_effect = None  # Remove the exception
+        self.dispatcher._task_completed(worker, task, future)
+
+        # Check final state
+        self.assertEqual(self.dispatcher.work_queue.qsize(), 0)
+        self.assertEqual(self.dispatcher.active_tasks, 0)
+        self.assertEqual(self.dispatcher.total_completed_tasks, 1)
+
+        # Check logging calls
+        mock_log_exception.assert_called_once()
+        mock_log_error.assert_not_called()
+        mock_log_info.assert_any_call("Task DummyTaskWorkItem completed successfully")
+
+    @patch("planai.dispatcher.logging.info")
+    @patch("planai.dispatcher.logging.error")
+    @patch("planai.dispatcher.logging.exception")
+    def test_task_retry_exhausted(
+        self, mock_log_exception, mock_log_error, mock_log_info
+    ):
+        worker = RetryTaskWorker(num_retries=2, fail_attempts=3)
+        task = DummyTaskWorkItem(data="test-retry-exhausted")
+
+        self.dispatcher.active_tasks = 1
+        self.dispatcher.work_queue = Queue()
+
+        # Simulate task execution and failure
+        future = Mock()
+        future.result.side_effect = ValueError("Simulated failure")
+
+        # First attempt
+        self.dispatcher._task_completed(worker, task, future)
+        self.assertEqual(task._retry_count, 1)
+
+        # Second attempt
+        self.dispatcher.work_queue.get()  # Remove the task from the queue
+        self.dispatcher._task_completed(worker, task, future)
+        self.assertEqual(task._retry_count, 2)
+
+        # Third attempt (should not retry anymore)
+        self.dispatcher.work_queue.get()  # Remove the task from the queue
+        self.dispatcher._task_completed(worker, task, future)
+
+        # Check final state
+        self.assertEqual(self.dispatcher.work_queue.qsize(), 0)
+        self.assertEqual(self.dispatcher.active_tasks, 0)
+        self.assertEqual(self.dispatcher.total_completed_tasks, 0)
+
+        # Check logging calls
+        self.assertEqual(mock_log_exception.call_count, 3)
+        mock_log_error.assert_called_once_with(
+            "Task DummyTaskWorkItem failed after 2 retries"
+        )
+        mock_log_info.assert_any_call("Retrying task DummyTaskWorkItem for the 1 time")
+        mock_log_info.assert_any_call("Retrying task DummyTaskWorkItem for the 2 time")
 
 
 class TestDispatcherConcurrent(unittest.TestCase):
