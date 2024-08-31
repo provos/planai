@@ -5,7 +5,6 @@
 [![Python Versions](https://img.shields.io/pypi/pyversions/planai.svg)](https://pypi.org/project/planai/)
 [![Documentation Status](https://readthedocs.org/projects/planai/badge/?version=latest)](https://planai.readthedocs.io/en/latest/?badge=latest)
 
-
 **PlanAI** is an innovative system designed for complex task automation through a sophisticated graph-based architecture. It integrates traditional computations and cutting-edge AI technologies to enable versatile and efficient workflow management.
 
 ## Table of Contents
@@ -13,11 +12,11 @@
 - [Requirements](#requirements)
 - [Installation](#installation)
 - [Usage](#usage)
+- [Monitoring Dashboard](#monitoring-dashboard)
 - [Advanced Features](#advanced-features)
 - [Documentation](#documentation)
 - [Contributing](#contributing)
 - [License](#license)
-- [Roadmap](#roadmap)
 
 ## Key Features
 
@@ -52,22 +51,21 @@ poetry install
 PlanAI allows you to create complex, AI-enhanced workflows using a graph-based architecture. Here's a basic example:
 
 ```python
-from planai import Graph, TaskWorker, LLMTaskWorker, llm_from_config
-from planai.task import TaskWorkItem
-from pydantic import Field
+from planai import Graph, TaskWorker, TaskWorkitem, LLMTaskWorker, llm_from_config
 
 # Define custom TaskWorkers
 class CustomDataProcessor(TaskWorker):
     output_types = [ProcessedData]
-    
+
     def consume_work(self, task: RawData):
         processed_data = self.process(task.data)
         self.publish_work(ProcessedData(data=processed_data))
 
 # Define an LLM-powered task
 class AIAnalyzer(LLMTaskWorker):
+    prompt="Analyze the provided data and derive insights"
     output_types = [AnalysisResult]
-    
+
     def consume_work(self, task: ProcessedData):
         super().consume_work(task)
 
@@ -75,8 +73,7 @@ class AIAnalyzer(LLMTaskWorker):
 graph = Graph(name="Data Analysis Workflow")
 data_processor = CustomDataProcessor()
 ai_analyzer = AIAnalyzer(
-   llm=llm_from_config(provider="openai", model_name="gpt-4"),
-   prompt="Analyze the provided data and derive insights")
+   llm=llm_from_config(provider="openai", model_name="gpt-4"))
 
 graph.add_workers(data_processor, ai_analyzer)
 graph.set_dependency(data_processor, ai_analyzer)
@@ -84,6 +81,26 @@ graph.set_dependency(data_processor, ai_analyzer)
 initial_data = RawData(data="Some raw data")
 graph.run(initial_tasks=[(data_processor, initial_data)])
 ```
+
+## Monitoring Dashboard
+
+PlanAI includes a built-in web-based monitoring dashboard that provides real-time insights into your graph execution. This feature can be enabled by setting `run_dashboard=True` when calling the `graph.run()` method.
+
+Key features of the monitoring dashboard:
+
+- **Real-time Updates**: The dashboard uses server-sent events (SSE) to provide live updates on task statuses without requiring page refreshes.
+- **Task Categories**: Tasks are organized into three categories: Queued, Active, and Completed, allowing for easy tracking of workflow progress.
+- **Detailed Task Information**: Each task displays its ID, type, and assigned worker. Users can click on a task to view additional details such as provenance and input provenance.
+
+To enable the dashboard:
+
+```python
+graph.run(initial_tasks, run_dashboard=True)
+```
+
+When enabled, the dashboard will be accessible at `http://localhost:5000` by default. The application will continue running until manually terminated, allowing for ongoing monitoring of long-running workflows.
+
+Note: Enabling the dashboard will block the main thread, so it's recommended for development and debugging purposes. For production use, consider implementing a separate monitoring solution.
 
 ## Advanced Features
 
