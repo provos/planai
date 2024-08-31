@@ -102,7 +102,7 @@ class TaskWorker(BaseModel, ABC):
         _consumers (Dict[Type["TaskWorker"], "TaskWorker"]): A private attribute to store registered consumers.
 
     Note:
-        Any subclass of TaskWorker must implement both consume_work and publish_work methods.
+        Any subclass of TaskWorker must implement consume_work.
     """
 
     output_types: Set[Type[TaskWorkItem]] = Field(
