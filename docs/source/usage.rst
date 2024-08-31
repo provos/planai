@@ -6,9 +6,11 @@ PlanAI is a powerful framework for creating complex, AI-enhanced workflows using
 Basic Concepts
 --------------
 
-1. **TaskWorker**: The fundamental building block of a PlanAI workflow.
+1. **TaskWorker**: The fundamental building block of a PlanAI workflow. It defines how to process input and produce output.
 2. **Graph**: A structure that defines the workflow by connecting TaskWorkers.
-3. **LLMTaskWorker**: A special type of TaskWorker that integrates with Language Models.
+3. **TaskWorkItem**: The unit of work that flows through the graph. It carries data and provenance information.
+4. **Input Provenance**: A mechanism to track the history and origin of each TaskWorkItem as it moves through the workflow.
+5. **LLMTaskWorker**: A special type of TaskWorker that integrates with Language Models.
 
 Creating a Simple Workflow
 --------------------------
@@ -100,6 +102,41 @@ Note: Enabling the dashboard will block the main thread, so it's recommended for
 
 Advanced Features
 -----------------
+
+Input Provenance
+^^^^^^^^^^^^^^^^
+
+PlanAI provides powerful input provenance tracking capabilities, allowing you to trace the lineage of each TaskWorkItem:
+
+.. code-block:: python
+
+    class AnalysisTask(TaskWorker):
+        output_types = [AnalysisResult]
+
+        def consume_work(self, task: ProcessedData):
+            # Access the full provenance chain
+            provenance = task.copy_provenance()
+
+            # Find a specific input task
+            original_data = task.find_input_task(FetchedData)
+
+            # Get the immediately previous input task
+            previous_task = task.previous_input_task()
+
+            # Get the provenance chain for a specific task type
+            fetch_provenance = task.prefix_for_input_task(DataFetcher)
+
+            # Perform analysis using the provenance information
+            result = self.analyze(task.data, original_data, provenance)
+            self.publish_work(AnalysisResult(result=result), input_task=task)
+
+Input provenance allows you to:
+- Trace the full history of a TaskWorkItem
+- Find specific input tasks in the provenance chain
+- Access the immediately previous input task
+- Get the provenance chain for a specific task type
+
+This feature is particularly useful for complex workflows where understanding the origin and transformation of data is crucial.
 
 Caching Results
 ^^^^^^^^^^^^^^^
