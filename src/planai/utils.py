@@ -65,7 +65,7 @@ def measure_time():
 
 
 class PydanticDictWrapper(BaseModel):
-    """This class creates pydantic model that can be used in the pre_process method of LLMTaskWorker."""
+    """This class creates a pydantic model from a dict object that can be used in the pre_process method of LLMTaskWorker."""
 
     data: Dict[str, Any]
 
