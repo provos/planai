@@ -200,7 +200,9 @@ class Dispatcher:
 
         except Exception as e:
             # Handle task failure
-            logging.exception(f"Task {task} failed with exception: {str(e)}")
+            logging.exception(
+                f"Task {task.__class__.__name__} failed with exception: {str(e)}"
+            )
 
             # Anything else that needs to be done when a task fails?
 

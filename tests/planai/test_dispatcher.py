@@ -57,6 +57,11 @@ class DummyTaskWorker(TaskWorker):
             self.publish_work(output_task, input_task=task)
 
 
+class ExceptionRaisingTaskWorker(TaskWorker):
+    def consume_work(self, task: DummyTaskWorkItem):
+        raise ValueError("Test exception")
+
+
 class SingleThreadedExecutor:
     def __init__(self):
         self.tasks = []
@@ -361,6 +366,48 @@ class TestDispatcherThreading(unittest.TestCase):
             total_tasks,
             f"All tasks should be processed. Expected {total_tasks}, got {processed_count}",
         )
+
+    @patch("planai.dispatcher.logging.exception")
+    def test_exception_logging(self, mock_logging_exception):
+        num_tasks = 10
+
+        # Create a worker that raises an exception
+        worker = ExceptionRaisingTaskWorker()
+
+        # Add tasks to the dispatcher
+        for i in range(num_tasks):
+            task = DummyTaskWorkItem(data=f"test-{i}")
+            self.dispatcher.add_work(worker, task)
+
+        # Process all tasks
+        start_time = time.time()
+        while (
+            not self.dispatcher.work_queue.empty() or self.dispatcher.active_tasks > 0
+        ) and time.time() - start_time < 10:  # 10 second timeout
+            self.dispatcher._dispatch_once()
+            time.sleep(0.01)  # Small delay to allow for task completion
+
+        # Check that all tasks have been processed
+        self.assertEqual(
+            self.dispatcher.work_queue.qsize(), 0, "All tasks should be processed"
+        )
+        self.assertEqual(
+            self.dispatcher.active_tasks, 0, "No active tasks should remain"
+        )
+
+        # Check that exceptions were logged
+        self.assertEqual(
+            mock_logging_exception.call_count,
+            num_tasks,
+            f"Expected {num_tasks} exceptions to be logged, but got {mock_logging_exception.call_count}",
+        )
+
+        # Check the content of the logged exceptions
+        for call in mock_logging_exception.call_args_list:
+            self.assertIn("Task DummyTaskWorkItem", call[0][0])
+            self.assertIn("failed with exception: Test exception", call[0][0])
+
+        # TODO: whether we should also check the number of completed tasks
 
 
 class TestDispatcherConcurrent(unittest.TestCase):
