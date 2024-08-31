@@ -131,10 +131,22 @@ class TaskWorker(BaseModel, ABC):
 
     @property
     def name(self) -> str:
+        """
+        Returns the name of this worker class.
+
+        :return: The name of the class.
+        :rtype: str
+        """
         return self.__class__.__name__
 
     @property
     def last_input_task(self) -> Optional[TaskWorkItem]:
+        """
+        Returns the last input task consumed by this worker.
+
+        :return: The last input task as a TaskWorkItem object, or None if there is no last input task.
+        :rtype: Optional[TaskWorkItem]
+        """
         with self._state_lock:
             return self._last_input_task
 
