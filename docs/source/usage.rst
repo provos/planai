@@ -18,12 +18,11 @@ Here's a basic example of how to create and execute a simple workflow:
 .. code-block:: python
 
     from planai import Graph, TaskWorker, TaskWorkItem
-    from pydantic import Field
 
     # Define custom TaskWorkers
     class DataFetcher(TaskWorker):
         output_types = [FetchedData]
-        
+
         def consume_work(self, task: FetchRequest):
             # Fetch data from some source
             data = self.fetch_data(task.url)
@@ -31,7 +30,7 @@ Here's a basic example of how to create and execute a simple workflow:
 
     class DataProcessor(TaskWorker):
         output_types = [ProcessedData]
-        
+
         def consume_work(self, task: FetchedData):
             # Process the fetched data
             processed_data = self.process(task.data)
@@ -62,8 +61,9 @@ PlanAI allows you to easily integrate AI capabilities into your workflow using L
     from planai import LLMTaskWorker, llm_from_config
 
     class AIAnalyzer(LLMTaskWorker):
+        prompt="Analyze the processed data and provide insights."
         output_types = [AnalysisResult]
-        
+
         def consume_work(self, task: ProcessedData):
             super().consume_work(task)
 
@@ -73,10 +73,30 @@ PlanAI allows you to easily integrate AI capabilities into your workflow using L
     # Add to workflow
     ai_analyzer = AIAnalyzer(
         llm=llm,
-        prompt="Analyze the processed data and provide insights.",
     )
     graph.add_worker(ai_analyzer)
     graph.set_dependency(processor, ai_analyzer)
+
+Monitoring Dashboard
+--------------------
+
+PlanAI includes a built-in web-based monitoring dashboard that provides real-time insights into your graph execution. This feature can be enabled by setting ``run_dashboard=True`` when calling the ``graph.run()`` method.
+
+Key features of the monitoring dashboard:
+
+- **Real-time Updates**: The dashboard uses server-sent events (SSE) to provide live updates on task statuses without requiring page refreshes.
+- **Task Categories**: Tasks are organized into three categories: Queued, Active, and Completed, allowing for easy tracking of workflow progress.
+- **Detailed Task Information**: Each task displays its ID, type, and assigned worker. Users can click on a task to view additional details such as provenance and input provenance.
+
+To enable the dashboard:
+
+.. code-block:: python
+
+    graph.run(initial_tasks, run_dashboard=True)
+
+When enabled, the dashboard will be accessible at ``http://localhost:5000`` by default. The application will continue running until manually terminated, allowing for ongoing monitoring of long-running workflows.
+
+Note: Enabling the dashboard will block the main thread, so it's recommended for development and debugging purposes. For production use, consider implementing a separate monitoring solution.
 
 Advanced Features
 -----------------
@@ -92,7 +112,7 @@ Use CachedTaskWorker to avoid redundant computations:
 
     class CachedProcessor(CachedTaskWorker):
         output_types = [ProcessedData]
-        
+
         def consume_work(self, task: FetchedData):
             # Processing logic here
             pass
@@ -108,7 +128,7 @@ JoinedTaskWorker allows you to combine results from multiple upstream tasks:
 
     class DataAggregator(JoinedTaskWorker):
         output_types = [AggregatedData]
-        
+
         def consume_work(self, task: ProcessedData):
             super().consume_work(task)
 
