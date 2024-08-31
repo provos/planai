@@ -90,7 +90,8 @@ class LLMTaskWorker(TaskWorker):
     def post_process(self, response: Optional[TaskWorkItem], input_task: TaskWorkItem):
         """
         Post-processes the response from the LLM and publishes the work. Subclasses can override this method to do
-        additional processing or filtering. They should call super().post_process() after their custom logic.
+        additional processing or filtering. They should call super().post_process() if they want the task to be published
+        for downstream processing.
 
         Args:
             response (Optional[TaskWorkItem]): The response from LLM.

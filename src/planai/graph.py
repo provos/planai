@@ -57,7 +57,7 @@ class Graph(BaseModel):
         """Set a dependency between two tasks."""
         if upstream not in self.workers or downstream not in self.workers:
             raise ValueError(
-                "Both tasks must be added to the Graph before setting dependencies."
+                f"Both workers (upstream: {upstream.__class__.__name__}) (downstream: {downstream.__class__.__name__}) must be added to the Graph before setting dependencies."
             )
 
         if downstream not in self.dependencies[upstream]:

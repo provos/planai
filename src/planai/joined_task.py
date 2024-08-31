@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from abc import abstractmethod
-from typing import Dict, List, Type, Set
+from typing import Dict, List, Set, Type
 
 from pydantic import PrivateAttr
 
@@ -50,7 +50,9 @@ class JoinedTaskWorker(TaskWorker):
         if prefix not in self._joined_results:
             raise ValueError(f"Task {prefix} does not have any results to join.")
         if not self.unwatch(prefix):
-            raise ValueError(f"Trying to remove a Task {prefix} that is not being watched.")
+            raise ValueError(
+                f"Trying to remove a Task {prefix} that is not being watched."
+            )
         self.consume_work_joined(self._joined_results.pop(prefix))
 
     def _validate_connection(self) -> None:
