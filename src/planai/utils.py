@@ -11,12 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 import logging
 import os
 import time
 from contextlib import contextmanager
 from datetime import datetime
-from typing import Optional
+from typing import Any, Dict, Optional
+
+from pydantic import BaseModel
 
 
 def setup_logging(
@@ -59,3 +62,12 @@ def measure_time():
     finally:
         end_time = time.perf_counter()
         result["elapsed_time"] = (end_time - start_time) * 1000
+
+
+class PydanticDictWrapper(BaseModel):
+    """This class creates pydantic model that can be used in the pre_process method of LLMTaskWorker."""
+
+    data: Dict[str, Any]
+
+    def model_dump_json(self, **kwargs):
+        return json.dumps(self.data, **kwargs)
