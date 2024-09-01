@@ -19,7 +19,7 @@ from typing import List
 from diskcache import Cache
 from pydantic import Field, PrivateAttr
 
-from .task import TaskWorker, TaskWorkItem
+from .task import Task, TaskWorker
 
 
 class CachedTaskWorker(TaskWorker):
@@ -34,7 +34,7 @@ class CachedTaskWorker(TaskWorker):
         super().__init__(**data)
         self._cache = Cache(self.cache_dir, size_limit=self.cache_size_limit)
 
-    def _pre_consume_work(self, task: TaskWorkItem):
+    def _pre_consume_work(self, task: Task):
         self.pre_consume_work(task)
 
         cache_key = self._get_cache_key(task)
@@ -49,33 +49,33 @@ class CachedTaskWorker(TaskWorker):
 
         self.post_consume_work(task)
 
-    def pre_consume_work(self, task: TaskWorkItem):
+    def pre_consume_work(self, task: Task):
         """
         This method is called before consuming the work item. It will be called even if the task has been cached.
         It can be used for state manipulation, e.g. changing state for a class specific cache key.
 
         Args:
-            task (TaskWorkItem): The work item to be consumed.
+            task (Task): The work item to be consumed.
 
         Returns:
             None
         """
         pass
 
-    def post_consume_work(self, task: TaskWorkItem):
+    def post_consume_work(self, task: Task):
         """
         This method is called after consuming a work item in the task. It will be called even if the task has been cached.
         It can be used for state manipulation, e.g. changing state for a class specific cache key.
 
         Args:
-            task (TaskWorkItem): The work item that was consumed.
+            task (Task): The work item that was consumed.
 
         Returns:
             None
         """
         pass
 
-    def _get_cache_key(self, task: TaskWorkItem) -> str:
+    def _get_cache_key(self, task: Task) -> str:
         """Generate a unique cache key for the input task."""
         task_dict = task.model_dump()
         task_str = str(sorted(task_dict.items()))  # Ensure consistent ordering
@@ -86,18 +86,16 @@ class CachedTaskWorker(TaskWorker):
             task_str += f" - {extra_key}"
         return hashlib.sha1(task_str.encode()).hexdigest()
 
-    def extra_cache_key(self, task: TaskWorkItem) -> str:
+    def extra_cache_key(self, task: Task) -> str:
         """Can be implemented by subclasses to provide additional cache key information."""
         return ""
 
-    def _publish_cached_results(
-        self, cached_results: List[TaskWorkItem], input_task: TaskWorkItem
-    ):
+    def _publish_cached_results(self, cached_results: List[Task], input_task: Task):
         """Publish cached results."""
         for result in cached_results:
             super().publish_work(result, input_task=input_task)
 
-    def publish_work(self, task: TaskWorkItem, input_task: TaskWorkItem):
+    def publish_work(self, task: Task, input_task: Task):
         """Publish work and cache the results."""
         super().publish_work(task, input_task=input_task)
 

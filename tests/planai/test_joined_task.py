@@ -20,24 +20,24 @@ from pydantic import PrivateAttr
 from planai.dispatcher import Dispatcher
 from planai.graph import Graph
 from planai.joined_task import JoinedTaskWorker
-from planai.task import TaskWorker, TaskWorkItem
+from planai.task import Task, TaskWorker
 
 
-class Task1(TaskWorkItem):
+class Task1(Task):
     data: str
 
 
-class Task2(TaskWorkItem):
+class Task2(Task):
     data: str
     source: str
 
 
-class Task3(TaskWorkItem):
+class Task3(Task):
     data: List[str]
 
 
 class TaskWorker1(TaskWorker):
-    output_types: Set[Type[TaskWorkItem]] = {Task1}
+    output_types: Set[Type[Task]] = {Task1}
     _processed_count: int = PrivateAttr(0)
 
     def consume_work(self, task: Task1):
@@ -47,7 +47,7 @@ class TaskWorker1(TaskWorker):
 
 
 class TaskWorker2(TaskWorker):
-    output_types: Set[Type[TaskWorkItem]] = {Task2}
+    output_types: Set[Type[Task]] = {Task2}
     _processed_count: int = PrivateAttr(0)
 
     def consume_work(self, task: Task1):

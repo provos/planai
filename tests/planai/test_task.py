@@ -15,12 +15,12 @@ import unittest
 from typing import Set, Type
 from unittest.mock import Mock, patch
 
-from planai.task import TaskWorker, TaskWorkItem
+from planai.task import Task, TaskWorker
 
 
-class TestTaskWorkItem(unittest.TestCase):
+class TestTask(unittest.TestCase):
     def setUp(self):
-        self.task = TaskWorkItem()
+        self.task = Task()
 
     def test_copy_provenance(self):
         self.task._provenance = [("Task1", 1), ("Task2", 2)]
@@ -29,18 +29,18 @@ class TestTaskWorkItem(unittest.TestCase):
         self.assertIsNot(copied, self.task._provenance)
 
     def test_copy_input_provenance(self):
-        input_task1 = TaskWorkItem()
-        input_task2 = TaskWorkItem()
+        input_task1 = Task()
+        input_task2 = Task()
         self.task._input_provenance = [input_task1, input_task2]
         copied = self.task.copy_input_provenance()
         self.assertEqual(copied, [input_task1, input_task2])
         self.assertIsNot(copied, self.task._input_provenance)
 
     def test_find_input_task(self):
-        class Task1(TaskWorkItem):
+        class Task1(Task):
             pass
 
-        class Task2(TaskWorkItem):
+        class Task2(Task):
             pass
 
         task1 = Task1()
@@ -49,15 +49,15 @@ class TestTaskWorkItem(unittest.TestCase):
 
         self.assertIs(self.task.find_input_task(Task2), task2)
         self.assertIs(self.task.find_input_task(Task1), task1)
-        self.assertIsNone(self.task.find_input_task(TaskWorkItem))
+        self.assertIsNone(self.task.find_input_task(Task))
 
 
-class DummyTask(TaskWorkItem):
+class DummyTask(Task):
     pass
 
 
 class DummyWorker(TaskWorker):
-    output_types: Set[Type[TaskWorkItem]] = {DummyTask}
+    output_types: Set[Type[Task]] = {DummyTask}
 
     def consume_work(self, task: DummyTask):
         pass
@@ -149,7 +149,7 @@ class TestTaskWorker(unittest.TestCase):
         mock_dispatcher.add_work.assert_called_once_with(self.worker, task)
 
     def test_publish_work_invalid_type(self):
-        class InvalidTask(TaskWorkItem):
+        class InvalidTask(Task):
             pass
 
         with self.assertRaises(ValueError):
@@ -174,27 +174,27 @@ class TestTaskWorker(unittest.TestCase):
         self.worker._dispatch_work(task)
         consumer.consume_work.assert_called_once_with(task)
 
-    def test_validate_taskworkitem(self):
+    def test_validate_Task(self):
         class ValidConsumer(TaskWorker):
             def consume_work(self, task: DummyTask):
                 pass
 
         class InvalidConsumer(TaskWorker):
-            def consume_work(self, task: TaskWorkItem):
+            def consume_work(self, task: Task):
                 pass
 
         valid_consumer = ValidConsumer()
         invalid_consumer = InvalidConsumer()
 
-        success, _ = self.worker.validate_taskworkitem(DummyTask, valid_consumer)
+        success, _ = self.worker.validate_Task(DummyTask, valid_consumer)
         self.assertTrue(success)
 
-        success, error = self.worker.validate_taskworkitem(DummyTask, invalid_consumer)
+        success, error = self.worker.validate_Task(DummyTask, invalid_consumer)
         self.assertFalse(success)
         self.assertIsInstance(error, TypeError)
 
-    def test_get_taskworkitem_class(self):
-        self.assertEqual(self.worker.get_taskworkitem_class(), DummyTask)
+    def test_get_Task_class(self):
+        self.assertEqual(self.worker.get_Task_class(), DummyTask)
 
     def test_register_consumer(self):
         consumer = DummyWorker()
@@ -207,7 +207,7 @@ class TestTaskWorker(unittest.TestCase):
 
     def test_register_consumer_invalid_consumer(self):
         class InvalidConsumer(TaskWorker):
-            def consume_work(self, task: TaskWorkItem):
+            def consume_work(self, task: Task):
                 pass
 
         with self.assertRaises(TypeError):

@@ -21,7 +21,7 @@ from pydantic import ConfigDict, Field
 
 from .cached_task import CachedTaskWorker
 from .llm_interface import LLMInterface
-from .task import TaskWorker, TaskWorkItem
+from .task import Task, TaskWorker
 
 
 class LLMTaskWorker(TaskWorker):
@@ -39,13 +39,13 @@ class LLMTaskWorker(TaskWorker):
         if len(self.output_types) != 1:
             raise ValueError("LLMTask must have exactly one output type")
 
-    def consume_work(self, task: TaskWorkItem):
+    def consume_work(self, task: Task):
         return self._invoke_llm(task)
 
     def _output_type(self):
         return list(self.output_types)[0]
 
-    def _invoke_llm(self, task: TaskWorkItem) -> TaskWorkItem:
+    def _invoke_llm(self, task: Task) -> Task:
         prompt = dedent(
             """
         Here is your input data:
@@ -74,28 +74,28 @@ class LLMTaskWorker(TaskWorker):
 
         self.post_process(response=response, input_task=task)
 
-    def pre_process(self, task: TaskWorkItem) -> TaskWorkItem:
+    def pre_process(self, task: Task) -> Task:
         """
         Pre-processes the input task before sending it to the LLM. Subclasses can override this method to do additional
         processing or filtering.
 
         Args:
-            task (TaskWorkItem): The input task.
+            task (Task): The input task.
 
         Returns:
-            TaskWorkItem: The pre-processed task.
+            Task: The pre-processed task.
         """
         return task
 
-    def post_process(self, response: Optional[TaskWorkItem], input_task: TaskWorkItem):
+    def post_process(self, response: Optional[Task], input_task: Task):
         """
         Post-processes the response from the LLM and publishes the work. Subclasses can override this method to do
         additional processing or filtering. They should call super().post_process() if they want the task to be published
         for downstream processing.
 
         Args:
-            response (Optional[TaskWorkItem]): The response from LLM.
-            input_task (TaskWorkItem): The input task.
+            response (Optional[Task]): The response from LLM.
+            input_task (Task): The input task.
         """
         if response is not None:
             self.publish_work(task=response, input_task=input_task)
@@ -108,7 +108,7 @@ class LLMTaskWorker(TaskWorker):
 
 
 class CachedLLMTaskWorker(CachedTaskWorker, LLMTaskWorker):
-    def _get_cache_key(self, task: TaskWorkItem) -> str:
+    def _get_cache_key(self, task: Task) -> str:
         """Generate a unique cache key for the input task including the prompt template and model name."""
         upstream_cache_key = super()._get_cache_key(task)
 

@@ -8,8 +8,8 @@ Basic Concepts
 
 1. **TaskWorker**: The fundamental building block of a PlanAI workflow. It defines how to process input and produce output.
 2. **Graph**: A structure that defines the workflow by connecting TaskWorkers.
-3. **TaskWorkItem**: The unit of work that flows through the graph. It carries data and provenance information.
-4. **Input Provenance**: A mechanism to track the history and origin of each TaskWorkItem as it moves through the workflow.
+3. **Task**: The unit of work that flows through the graph. It carries data and provenance information.
+4. **Input Provenance**: A mechanism to track the history and origin of each Task as it moves through the workflow.
 5. **LLMTaskWorker**: A special type of TaskWorker that integrates with Language Models.
 
 Creating a Simple Workflow
@@ -19,7 +19,7 @@ Here's a basic example of how to create and execute a simple workflow:
 
 .. code-block:: python
 
-    from planai import Graph, TaskWorker, TaskWorkItem
+    from planai import Graph, TaskWorker, Task
 
     # Define custom TaskWorkers
     class DataFetcher(TaskWorker):
@@ -106,7 +106,7 @@ Advanced Features
 Input Provenance
 ^^^^^^^^^^^^^^^^
 
-PlanAI provides powerful input provenance tracking capabilities, allowing you to trace the lineage of each TaskWorkItem:
+PlanAI provides powerful input provenance tracking capabilities, allowing you to trace the lineage of each Task:
 
 .. code-block:: python
 
@@ -131,7 +131,7 @@ PlanAI provides powerful input provenance tracking capabilities, allowing you to
             self.publish_work(AnalysisResult(result=result), input_task=task)
 
 Input provenance allows you to:
-- Trace the full history of a TaskWorkItem
+- Trace the full history of a Task
 - Find specific input tasks in the provenance chain
 - Access the immediately previous input task
 - Get the provenance chain for a specific task type

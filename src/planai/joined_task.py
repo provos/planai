@@ -16,15 +16,15 @@ from typing import Dict, List, Set, Type
 
 from pydantic import PrivateAttr
 
-from .task import TaskWorker, TaskWorkItem
+from .task import Task, TaskWorker
 
 
 class JoinedTaskWorker(TaskWorker):
     join_type: Type[TaskWorker]
-    _joined_results: Dict[tuple, List[TaskWorkItem]] = PrivateAttr(default_factory=dict)
+    _joined_results: Dict[tuple, List[Task]] = PrivateAttr(default_factory=dict)
 
     @abstractmethod
-    def consume_work_joined(self, task: List[TaskWorkItem]):
+    def consume_work_joined(self, task: List[Task]):
         """
         A subclass needs to implement consume_work only for the type hint.
         It still needs to call the super() method in consume_work.
@@ -32,7 +32,7 @@ class JoinedTaskWorker(TaskWorker):
         """
         pass
 
-    def consume_work(self, task: TaskWorkItem):
+    def consume_work(self, task: Task):
         prefix = task.prefix_for_input_task(self.join_type)
         if prefix is None:
             raise ValueError(

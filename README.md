@@ -24,7 +24,7 @@
 - **Hybrid TaskWorkers**: Combine conventional computations (e.g., API calls) with powerful LLM-driven operations, leveraging Retrieval-Augmented Generation (RAG) capabilities.
 - **Type Safety with Pydantic**: Ensure data integrity and type consistency across workflows with Pydantic-validated input and output.
 - **Intelligent Data Routing**: Utilize type-aware routing to efficiently manage data flow between nodes, adapting to multiple downstream consumers.
-- **Input Provenance Tracking**: Trace the lineage and origin of each TaskWorkItem as it flows through the workflow, enabling detailed analysis and debugging of complex processes.
+- **Input Provenance Tracking**: Trace the lineage and origin of each Task as it flows through the workflow, enabling detailed analysis and debugging of complex processes.
 
 ## Requirements
 
@@ -52,7 +52,7 @@ poetry install
 PlanAI allows you to create complex, AI-enhanced workflows using a graph-based architecture. Here's a basic example:
 
 ```python
-from planai import Graph, TaskWorker, TaskWorkitem, LLMTaskWorker, llm_from_config
+from planai import Graph, TaskWorker, Task, LLMTaskWorker, llm_from_config
 
 # Define custom TaskWorkers
 class CustomDataProcessor(TaskWorker):

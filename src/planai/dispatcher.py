@@ -19,7 +19,7 @@ from queue import Empty, Queue
 from threading import Event, Lock
 from typing import TYPE_CHECKING, DefaultDict, Deque, Dict, List, Tuple
 
-from .task import TaskWorker, TaskWorkItem
+from .task import Task, TaskWorker
 from .web_interface import is_quit_requested, run_web_interface
 
 if TYPE_CHECKING:
@@ -46,24 +46,24 @@ class Dispatcher:
         self.active_tasks = 0
         self.task_completion_event = threading.Event()
         self.web_port = web_port
-        self.debug_active_tasks: Dict[int, Tuple[TaskWorker, TaskWorkItem]] = {}
-        self.completed_tasks: Deque[Tuple[TaskWorker, TaskWorkItem]] = deque(
+        self.debug_active_tasks: Dict[int, Tuple[TaskWorker, Task]] = {}
+        self.completed_tasks: Deque[Tuple[TaskWorker, Task]] = deque(
             maxlen=100
         )  # Keep last 100 completed tasks
-        self.failed_tasks: Deque[Tuple[TaskWorker, TaskWorkItem]] = deque(
+        self.failed_tasks: Deque[Tuple[TaskWorker, Task]] = deque(
             maxlen=100
         )  # Keep last 100 failed tasks
         self.total_completed_tasks = 0
         self.task_id_counter = 0
         self.task_lock = threading.Lock()
 
-    def _add_provenance(self, task: TaskWorkItem):
+    def _add_provenance(self, task: Task):
         with self.provenance_lock:
             for i in range(1, len(task._provenance) + 1):
                 prefix = tuple(task._provenance[:i])
                 self.provenance[prefix] = self.provenance.get(prefix, 0) + 1
 
-    def _remove_provenance(self, task: TaskWorkItem):
+    def _remove_provenance(self, task: Task):
         to_notify = set()
         with self.provenance_lock:
             for i in range(1, len(task._provenance) + 1):
@@ -131,7 +131,7 @@ class Dispatcher:
         ):
             self._dispatch_once()
 
-    def _execute_task(self, worker: TaskWorker, task: TaskWorkItem):
+    def _execute_task(self, worker: TaskWorker, task: Task):
         task_id = self._get_next_task_id()
         with self.task_lock:
             self.debug_active_tasks[task_id] = (worker, task)
@@ -150,7 +150,7 @@ class Dispatcher:
             self.task_id_counter += 1
             return self.task_id_counter
 
-    def _task_to_dict(self, worker: TaskWorker, task: TaskWorkItem) -> Dict:
+    def _task_to_dict(self, worker: TaskWorker, task: Task) -> Dict:
         return {
             "id": self._get_task_id(task),
             "type": type(task).__name__,
@@ -180,7 +180,7 @@ class Dispatcher:
                 for worker, task in self.completed_tasks
             ]
 
-    def _get_task_id(self, task: TaskWorkItem) -> str:
+    def _get_task_id(self, task: Task) -> str:
         # Use the last entry in the _provenance list as the task ID
         if task._provenance:
             return f"{task._provenance[-1][0]}_{task._provenance[-1][1]}"
@@ -193,7 +193,7 @@ class Dispatcher:
         if self.active_tasks == 0 and self.work_queue.empty():
             self.task_completion_event.set()
 
-    def _task_completed(self, worker: TaskWorker, task: TaskWorkItem, future):
+    def _task_completed(self, worker: TaskWorker, task: Task, future):
         success: bool = False
         try:
             # This will raise an exception if the task failed
@@ -240,7 +240,7 @@ class Dispatcher:
             if self.active_tasks == 0 and self.work_queue.empty():
                 self.task_completion_event.set()
 
-    def add_work(self, worker: TaskWorker, task: TaskWorkItem):
+    def add_work(self, worker: TaskWorker, task: Task):
         self._add_provenance(task)
         self.work_queue.put((worker, task))
 

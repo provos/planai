@@ -35,9 +35,9 @@ if TYPE_CHECKING:
     from .graph import Graph
 
 
-class TaskWorkItem(BaseModel):
+class Task(BaseModel):
     _provenance: List[Tuple[str, int]] = PrivateAttr(default_factory=list)
-    _input_provenance: List["TaskWorkItem"] = PrivateAttr(default_factory=list)
+    _input_provenance: List["Task"] = PrivateAttr(default_factory=list)
     _retry_count: int = PrivateAttr(default=0)
 
     @property
@@ -47,20 +47,18 @@ class TaskWorkItem(BaseModel):
     def copy_provenance(self) -> List[Tuple[str, int]]:
         return self._provenance.copy()
 
-    def copy_input_provenance(self) -> List["TaskWorkItem"]:
+    def copy_input_provenance(self) -> List["Task"]:
         return self._input_provenance.copy()
 
-    def find_input_task(
-        self, task_class: Type["TaskWorkItem"]
-    ) -> Optional["TaskWorkItem"]:
+    def find_input_task(self, task_class: Type["Task"]) -> Optional["Task"]:
         """
         Find the most recent input task of the specified class in the input provenance.
 
         Args:
-            task_class (Type[TaskWorkItem]): The class of the task to find.
+            task_class (Type[Task]): The class of the task to find.
 
         Returns:
-            Optional[TaskWorkItem]: The most recent task of the specified class,
+            Optional[Task]: The most recent task of the specified class,
                                     or None if no such task is found.
         """
         for task in reversed(self._input_provenance):
@@ -78,7 +76,7 @@ class TaskWorkItem(BaseModel):
         Finds the provenance chain for the most recent input task of the specified class.
 
         Args:
-            task_class (Type[TaskWorkItem]): The class of the task to find.
+            task_class (Type[Task]): The class of the task to find.
         Returns:
             ProvenanceChain: The provenance chain for the most recent input task of the specified class.
         """
@@ -96,7 +94,7 @@ class TaskWorker(BaseModel, ABC):
     is performed during the registration of consumers.
 
     Attributes:
-        output_types (Set[Type[TaskWorkItem]]): The types of work this task can output.
+        output_types (Set[Type[Task]]): The types of work this task can output.
         num_retries (int): The number of retries allowed for this task. Defaults to 0.
         _id (int): A private attribute to track the task's ID.
         _consumers (Dict[Type["TaskWorker"], "TaskWorker"]): A private attribute to store registered consumers.
@@ -105,7 +103,7 @@ class TaskWorker(BaseModel, ABC):
         Any subclass of TaskWorker must implement consume_work.
     """
 
-    output_types: Set[Type[TaskWorkItem]] = Field(
+    output_types: Set[Type[Task]] = Field(
         default_factory=set, description="The types of work this task can output"
     )
     num_retries: int = Field(
@@ -118,7 +116,7 @@ class TaskWorker(BaseModel, ABC):
         default_factory=dict
     )
     _graph: Optional["Graph"] = PrivateAttr(default=None)
-    _last_input_task: Optional[TaskWorkItem] = PrivateAttr(default=None)
+    _last_input_task: Optional[Task] = PrivateAttr(default=None)
     _instance_id: uuid.UUID = PrivateAttr(default_factory=uuid.uuid4)
 
     def __hash__(self):
@@ -140,12 +138,12 @@ class TaskWorker(BaseModel, ABC):
         return self.__class__.__name__
 
     @property
-    def last_input_task(self) -> Optional[TaskWorkItem]:
+    def last_input_task(self) -> Optional[Task]:
         """
         Returns the last input task consumed by this worker.
 
-        :return: The last input task as a TaskWorkItem object, or None if there is no last input task.
-        :rtype: Optional[TaskWorkItem]
+        :return: The last input task as a Task object, or None if there is no last input task.
+        :rtype: Optional[Task]
         """
         with self._state_lock:
             return self._last_input_task
@@ -178,7 +176,7 @@ class TaskWorker(BaseModel, ABC):
         Watches for this task provenance to be completed in the graph.
 
         Parameters:
-            worker (Type["TaskWorkItem"]): The worker to watch.
+            worker (Type["Task"]): The worker to watch.
 
         Returns:
             True if the watch was added, False if the watch was already present.
@@ -192,7 +190,7 @@ class TaskWorker(BaseModel, ABC):
         Removes the watch for this task provenance to be completed in the graph.
 
         Parameters:
-            worker (Type["TaskWorkItem"]): The worker to unwatch.
+            worker (Type["Task"]): The worker to unwatch.
 
         Returns:
             True if the watch was removed, False if the watch was not present.
@@ -201,7 +199,7 @@ class TaskWorker(BaseModel, ABC):
             raise ValueError("Prefix must be a tuple")
         return self._graph._dispatcher.unwatch(prefix, self)
 
-    def _pre_consume_work(self, task: TaskWorkItem):
+    def _pre_consume_work(self, task: Task):
         with self._state_lock:
             self._last_input_task = task
         self.consume_work(task)
@@ -213,7 +211,7 @@ class TaskWorker(BaseModel, ABC):
         pass
 
     @abstractmethod
-    def consume_work(self, task: TaskWorkItem):
+    def consume_work(self, task: Task):
         """
         Abstract method to consume a work item.
 
@@ -221,19 +219,19 @@ class TaskWorker(BaseModel, ABC):
         as it may be called concurrently by multiple threads.
 
         Args:
-            task (TaskWorkItem): The work item to be consumed.
+            task (Task): The work item to be consumed.
         """
         pass
 
-    def publish_work(self, task: TaskWorkItem, input_task: Optional[TaskWorkItem]):
+    def publish_work(self, task: Task, input_task: Optional[Task]):
         """
         Publish a work item.
 
         This method handles the publishing of work items, including provenance tracking and consumer routing.
 
         Args:
-            task (TaskWorkItem): The work item to be published.
-            input_task (TaskWorkItem): The input task that led to this work item.
+            task (Task): The work item to be published.
+            input_task (Task): The input task that led to this work item.
 
         Raises:
             ValueError: If the task type is not in the output_types or if no consumer is registered for the task type.
@@ -283,20 +281,20 @@ class TaskWorker(BaseModel, ABC):
         """Called to notify the worker that no tasks with provenance of task_name are remaining."""
         pass
 
-    def _dispatch_work(self, task: TaskWorkItem):
+    def _dispatch_work(self, task: Task):
         consumer = self._consumers.get(task.__class__)
         consumer.consume_work(task)
 
-    def validate_taskworkitem(
-        self, task_cls: Type[TaskWorkItem], consumer: "TaskWorker"
+    def validate_Task(
+        self, task_cls: Type[Task], consumer: "TaskWorker"
     ) -> Tuple[bool, Exception]:
         """
-        Validate that a consumer can handle a specific TaskWorkItem type.
+        Validate that a consumer can handle a specific Task type.
 
         This method checks if the consumer has a properly typed consume_work method for the given task class.
 
         Args:
-            task_cls (Type[TaskWorkItem]): The TaskWorkItem subclass to validate.
+            task_cls (Type[Task]): The Task subclass to validate.
             consumer (TaskWorker): The consumer to validate against.
 
         Returns:
@@ -328,14 +326,14 @@ class TaskWorker(BaseModel, ABC):
 
         return True, None
 
-    def get_taskworkitem_class(self) -> Type[TaskWorkItem]:
+    def get_Task_class(self) -> Type[Task]:
         """
-        Get the TaskWorkItem subclass that this worker can consume.
+        Get the Task subclass that this worker can consume.
 
-        This method inspects the consume_work method to determine the type of TaskWorkItem it can handle.
+        This method inspects the consume_work method to determine the type of Task it can handle.
 
         Returns:
-            Type[TaskWorkItem]: The TaskWorkItem subclass this worker can consume.
+            Type[Task]: The Task subclass this worker can consume.
 
         Raises:
             AttributeError: If the consume_work method is not defined.
@@ -360,25 +358,25 @@ class TaskWorker(BaseModel, ABC):
             )
         return first_param_type
 
-    def register_consumer(self, task_cls: Type[TaskWorkItem], consumer: "TaskWorker"):
+    def register_consumer(self, task_cls: Type[Task], consumer: "TaskWorker"):
         """
-        Register a consumer for a specific TaskWorkItem type.
+        Register a consumer for a specific Task type.
 
-        This method performs type checking to ensure that the consumer can handle the specified TaskWorkItem type.
+        This method performs type checking to ensure that the consumer can handle the specified Task type.
 
         Args:
-            task_cls (Type[TaskWorkItem]): The TaskWorkItem subclass to register a consumer for.
+            task_cls (Type[Task]): The Task subclass to register a consumer for.
             consumer (TaskWorker): The consumer to register.
 
         Raises:
-            TypeError: If task_cls is not a subclass of TaskWorkItem or if the consumer cannot handle the task type.
+            TypeError: If task_cls is not a subclass of Task or if the consumer cannot handle the task type.
             ValueError: If the task type is not in the output_types or if a consumer is already registered for the task type.
         """
-        # Ensure task_cls is a subclass of TaskWorkItem
-        if not issubclass(task_cls, TaskWorkItem):
-            raise TypeError(f"{task_cls.__name__} is not a subclass of TaskWorkItem")
+        # Ensure task_cls is a subclass of Task
+        if not issubclass(task_cls, Task):
+            raise TypeError(f"{task_cls.__name__} is not a subclass of Task")
 
-        success, error = self.validate_taskworkitem(task_cls, consumer)
+        success, error = self.validate_Task(task_cls, consumer)
         if not success:
             raise error
 
@@ -399,11 +397,11 @@ class TaskWorker(BaseModel, ABC):
 
 
 def main():
-    class MagicTaskWork(TaskWorkItem):
+    class MagicTaskWork(Task):
         magic: Any = Field(..., title="Magic", description="Magic value")
 
     class SpecificTask(TaskWorker):
-        output_types: Set[Type[TaskWorkItem]] = {MagicTaskWork}
+        output_types: Set[Type[Task]] = {MagicTaskWork}
 
         def consume_work(self, task: MagicTaskWork):
             print(

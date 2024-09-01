@@ -27,20 +27,20 @@ from pydantic import PrivateAttr
 
 from planai.dispatcher import Dispatcher
 from planai.graph import Graph
-from planai.task import TaskWorker, TaskWorkItem
+from planai.task import Task, TaskWorker
 
 
-class DummyTaskWorkItem(TaskWorkItem):
+class DummyTask(Task):
     data: str
 
 
 class DummyTaskWorkerSimple(TaskWorker):
-    def consume_work(self, task: DummyTaskWorkItem):
+    def consume_work(self, task: DummyTask):
         pass
 
 
 class DummyTaskWorker(TaskWorker):
-    output_types: List[Type[TaskWorkItem]] = [DummyTaskWorkItem]
+    output_types: List[Type[Task]] = [DummyTask]
     publish: bool = True
     _processed_count: int = PrivateAttr(0)
 
@@ -48,17 +48,17 @@ class DummyTaskWorker(TaskWorker):
         super().__init__(**data)
         self._processed_count = 0
 
-    def consume_work(self, task: DummyTaskWorkItem):
+    def consume_work(self, task: DummyTask):
         time.sleep(random.uniform(0.001, 0.01))  # Simulate some work
         self._processed_count += 1
         if self.publish and random.random() < 0.7:  # 70% chance to produce output
-            output_task = DummyTaskWorkItem(data=f"Output from {self.name}")
+            output_task = DummyTask(data=f"Output from {self.name}")
             logging.debug(f"Produced output: {output_task.data}")
             self.publish_work(output_task, input_task=task)
 
 
 class ExceptionRaisingTaskWorker(TaskWorker):
-    def consume_work(self, task: DummyTaskWorkItem):
+    def consume_work(self, task: DummyTask):
         raise ValueError("Test exception")
 
 
@@ -67,7 +67,7 @@ class RetryTaskWorker(TaskWorker):
     _attempt_count: int = PrivateAttr(0)
     _lock: threading.Lock = PrivateAttr(default_factory=threading.Lock)
 
-    def consume_work(self, task: DummyTaskWorkItem):
+    def consume_work(self, task: DummyTask):
         with self._lock:
             self._attempt_count += 1
             if self._attempt_count <= self.fail_attempts:
@@ -98,7 +98,7 @@ class TestDispatcher(unittest.TestCase):
         self.dispatcher.stop_event = Event()
 
     def test_add_provenance(self):
-        task = DummyTaskWorkItem(data="test")
+        task = DummyTask(data="test")
         task._provenance = [("Task1", 1), ("Task2", 2)]
         self.dispatcher._add_provenance(task)
         self.assertEqual(
@@ -107,7 +107,7 @@ class TestDispatcher(unittest.TestCase):
         )
 
     def test_remove_provenance(self):
-        task = DummyTaskWorkItem(data="test")
+        task = DummyTask(data="test")
         task._provenance = [("Task1", 1), ("Task2", 2)]
         self.dispatcher._add_provenance(task)
 
@@ -126,23 +126,21 @@ class TestDispatcher(unittest.TestCase):
 
     def test_watch(self):
         notifier = Mock(spec=TaskWorker)
-        result = self.dispatcher.watch((DummyTaskWorkItem.__name__, 1), notifier)
+        result = self.dispatcher.watch((DummyTask.__name__, 1), notifier)
         self.assertTrue(result)
-        self.assertIn((DummyTaskWorkItem.__name__, 1), self.dispatcher.notifiers)
-        self.assertIn(
-            notifier, self.dispatcher.notifiers[(DummyTaskWorkItem.__name__, 1)]
-        )
+        self.assertIn((DummyTask.__name__, 1), self.dispatcher.notifiers)
+        self.assertIn(notifier, self.dispatcher.notifiers[(DummyTask.__name__, 1)])
 
     def test_unwatch(self):
         notifier = Mock(spec=TaskWorker)
-        self.dispatcher.notifiers = {(DummyTaskWorkItem.__name__, 1): [notifier]}
-        result = self.dispatcher.unwatch((DummyTaskWorkItem.__name__, 1), notifier)
+        self.dispatcher.notifiers = {(DummyTask.__name__, 1): [notifier]}
+        result = self.dispatcher.unwatch((DummyTask.__name__, 1), notifier)
         self.assertTrue(result)
-        self.assertNotIn((DummyTaskWorkItem.__name__, 1), self.dispatcher.notifiers)
+        self.assertNotIn((DummyTask.__name__, 1), self.dispatcher.notifiers)
 
     def test_dispatch(self):
         worker = Mock(spec=TaskWorker)
-        task = DummyTaskWorkItem(data="test")
+        task = DummyTask(data="test")
         self.dispatcher.work_queue.put((worker, task))
 
         # Run dispatch once
@@ -165,7 +163,7 @@ class TestDispatcher(unittest.TestCase):
     def test_execute_task(self):
         worker = Mock(spec=TaskWorker)
         future = Mock()
-        task = DummyTaskWorkItem(data="test")
+        task = DummyTask(data="test")
         self.dispatcher._execute_task(worker, task)
         self.dispatcher._task_completed(worker, task, future)
         worker._pre_consume_work.assert_called_once_with(task)
@@ -173,41 +171,41 @@ class TestDispatcher(unittest.TestCase):
 
     def test_task_to_dict(self):
         worker = DummyTaskWorkerSimple()
-        task = DummyTaskWorkItem(data="test")
+        task = DummyTask(data="test")
         task._provenance = [("Task1", 1)]
-        task._input_provenance = [DummyTaskWorkItem(data="input")]
+        task._input_provenance = [DummyTask(data="input")]
         result = self.dispatcher._task_to_dict(worker, task)
         self.assertIsInstance(result, dict)
-        self.assertEqual(result["type"], "DummyTaskWorkItem")
+        self.assertEqual(result["type"], "DummyTask")
         self.assertEqual(result["worker"], "DummyTaskWorkerSimple")
         self.assertEqual(result["provenance"], ["Task1_1"])
 
     def test_get_queued_tasks(self):
         worker = DummyTaskWorkerSimple()
-        task = DummyTaskWorkItem(data="test")
+        task = DummyTask(data="test")
         self.dispatcher.work_queue.put((worker, task))
         result = self.dispatcher.get_queued_tasks()
         self.assertIsInstance(result, list)
         self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]["type"], "DummyTaskWorkItem")
+        self.assertEqual(result[0]["type"], "DummyTask")
 
     def test_get_active_tasks(self):
         worker = DummyTaskWorkerSimple()
-        task = DummyTaskWorkItem(data="test")
+        task = DummyTask(data="test")
         self.dispatcher.debug_active_tasks = {1: (worker, task)}
         result = self.dispatcher.get_active_tasks()
         self.assertIsInstance(result, list)
         self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]["type"], "DummyTaskWorkItem")
+        self.assertEqual(result[0]["type"], "DummyTask")
 
     def test_get_completed_tasks(self):
         worker = DummyTaskWorkerSimple()
-        task = DummyTaskWorkItem(data="test")
+        task = DummyTask(data="test")
         self.dispatcher.completed_tasks = deque([(worker, task)])
         result = self.dispatcher.get_completed_tasks()
         self.assertIsInstance(result, list)
         self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]["type"], "DummyTaskWorkItem")
+        self.assertEqual(result[0]["type"], "DummyTask")
 
     def test_notify_completed(self):
         future = Mock()
@@ -218,7 +216,7 @@ class TestDispatcher(unittest.TestCase):
 
     def test_task_completed(self):
         worker = Mock(spec=TaskWorker)
-        task = DummyTaskWorkItem(data="test")
+        task = DummyTask(data="test")
         future = Mock()
         future.result.return_value = None
 
@@ -235,7 +233,7 @@ class TestDispatcher(unittest.TestCase):
 
     def test_task_completed_with_remaining_tasks(self):
         worker = Mock(spec=TaskWorker)
-        task = DummyTaskWorkItem(data="test")
+        task = DummyTask(data="test")
         future = Mock()
         future.result.return_value = None
 
@@ -252,7 +250,7 @@ class TestDispatcher(unittest.TestCase):
 
     def test_add_work(self):
         worker = Mock(spec=TaskWorker)
-        task = DummyTaskWorkItem(data="test")
+        task = DummyTask(data="test")
         with patch.object(self.dispatcher, "_add_provenance") as mock_add:
             self.dispatcher.add_work(worker, task)
             mock_add.assert_called_once_with(task)
@@ -291,7 +289,7 @@ class TestDispatcherThreading(unittest.TestCase):
         def add_work():
             for _ in range(num_tasks_per_thread):
                 worker = Mock(spec=TaskWorker)
-                task = DummyTaskWorkItem(data="test")
+                task = DummyTask(data="test")
                 self.dispatcher.add_work(worker, task)
 
         threads = [threading.Thread(target=add_work) for _ in range(num_threads)]
@@ -312,7 +310,7 @@ class TestDispatcherThreading(unittest.TestCase):
 
         def modify_provenance():
             for _ in range(num_operations):
-                task = DummyTaskWorkItem(data="test")
+                task = DummyTask(data="test")
                 task._provenance = [("Task1", 1)]
                 self.dispatcher._add_provenance(task)
                 self.dispatcher._remove_provenance(task)
@@ -340,7 +338,7 @@ class TestDispatcherThreading(unittest.TestCase):
 
         def worker_task(worker):
             for i in range(num_tasks_per_worker):
-                task = DummyTaskWorkItem(data=f"test-{worker.name}-{i}")
+                task = DummyTask(data=f"test-{worker.name}-{i}")
                 self.dispatcher.add_work(worker, task)
 
         # Use a real ThreadPoolExecutor for this test
@@ -392,7 +390,7 @@ class TestDispatcherThreading(unittest.TestCase):
 
         # Add tasks to the dispatcher
         for i in range(num_tasks):
-            task = DummyTaskWorkItem(data=f"test-{i}")
+            task = DummyTask(data=f"test-{i}")
             self.dispatcher.add_work(worker, task)
 
         # Process all tasks
@@ -420,7 +418,7 @@ class TestDispatcherThreading(unittest.TestCase):
 
         # Check the content of the logged exceptions
         for call in mock_logging_exception.call_args_list:
-            self.assertIn("Task DummyTaskWorkItem", call[0][0])
+            self.assertIn("Task DummyTask", call[0][0])
             self.assertIn("failed with exception: Test exception", call[0][0])
 
         # TODO: whether we should also check the number of completed tasks
@@ -430,7 +428,7 @@ class TestDispatcherThreading(unittest.TestCase):
     @patch("planai.dispatcher.logging.exception")
     def test_task_retry(self, mock_log_exception, mock_log_error, mock_log_info):
         worker = RetryTaskWorker(num_retries=2, fail_attempts=2)
-        task = DummyTaskWorkItem(data="test-retry")
+        task = DummyTask(data="test-retry")
 
         self.dispatcher.active_tasks = 1
         self.dispatcher.work_queue = Queue()
@@ -445,7 +443,7 @@ class TestDispatcherThreading(unittest.TestCase):
         # Check if task was requeued
         self.assertEqual(self.dispatcher.work_queue.qsize(), 1)
         self.assertEqual(task._retry_count, 1)
-        mock_log_info.assert_any_call("Retrying task DummyTaskWorkItem for the 1 time")
+        mock_log_info.assert_any_call("Retrying task DummyTask for the 1 time")
 
         # Second attempt (should succeed)
         self.dispatcher.work_queue.get()  # Remove the task from the queue
@@ -462,7 +460,7 @@ class TestDispatcherThreading(unittest.TestCase):
         # Check logging calls
         mock_log_exception.assert_called_once()
         mock_log_error.assert_not_called()
-        mock_log_info.assert_any_call("Task DummyTaskWorkItem completed successfully")
+        mock_log_info.assert_any_call("Task DummyTask completed successfully")
 
     @patch("planai.dispatcher.logging.info")
     @patch("planai.dispatcher.logging.error")
@@ -471,7 +469,7 @@ class TestDispatcherThreading(unittest.TestCase):
         self, mock_log_exception, mock_log_error, mock_log_info
     ):
         worker = RetryTaskWorker(num_retries=2, fail_attempts=3)
-        task = DummyTaskWorkItem(data="test-retry-exhausted")
+        task = DummyTask(data="test-retry-exhausted")
 
         self.dispatcher.active_tasks = 1
         self.dispatcher.work_queue = Queue()
@@ -502,11 +500,9 @@ class TestDispatcherThreading(unittest.TestCase):
 
         # Check logging calls
         self.assertEqual(mock_log_exception.call_count, 3)
-        mock_log_error.assert_called_once_with(
-            "Task DummyTaskWorkItem failed after 2 retries"
-        )
-        mock_log_info.assert_any_call("Retrying task DummyTaskWorkItem for the 1 time")
-        mock_log_info.assert_any_call("Retrying task DummyTaskWorkItem for the 2 time")
+        mock_log_error.assert_called_once_with("Task DummyTask failed after 2 retries")
+        mock_log_info.assert_any_call("Retrying task DummyTask for the 1 time")
+        mock_log_info.assert_any_call("Retrying task DummyTask for the 2 time")
 
     def test_exception_handling_end_to_end(self):
         dispatcher = Dispatcher(self.graph)
@@ -517,7 +513,7 @@ class TestDispatcherThreading(unittest.TestCase):
         self.graph.add_workers(worker)
 
         # Create a task
-        task = DummyTaskWorkItem(data="test_exception")
+        task = DummyTask(data="test_exception")
 
         # Set up a thread to run the dispatcher
         dispatcher_thread = threading.Thread(target=dispatcher.dispatch)
@@ -570,7 +566,7 @@ class TestDispatcherThreading(unittest.TestCase):
                 Mock(result=Mock(side_effect=ValueError("Test exception"))),
             )
         self.assertIn(
-            "Task DummyTaskWorkItem failed with exception: Test exception", cm.output[0]
+            "Task DummyTask failed with exception: Test exception", cm.output[0]
         )
 
         self.graph._thread_pool.shutdown(wait=True)
@@ -591,7 +587,7 @@ class TestDispatcherConcurrent(unittest.TestCase):
         graph.set_dependency(worker1, worker2).next(worker3)
 
         # Create initial tasks
-        initial_tasks = [DummyTaskWorkItem(data=f"Initial {i}") for i in range(100)]
+        initial_tasks = [DummyTask(data=f"Initial {i}") for i in range(100)]
 
         # Start the dispatcher in a separate thread
         dispatch_thread = threading.Thread(target=dispatcher.dispatch)

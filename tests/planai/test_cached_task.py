@@ -16,7 +16,7 @@ from typing import List, Type
 from unittest.mock import patch
 
 from planai.cached_task import CachedTaskWorker, TaskWorker
-from planai.task import TaskWorkItem
+from planai.task import Task
 
 
 # Mock Cache
@@ -31,25 +31,25 @@ class MockCache:
         self.store[key] = value
 
 
-# Dummy TaskWorkItem classes
-class DummyInputTask(TaskWorkItem):
+# Dummy Task classes
+class DummyInputTask(Task):
     data: str
 
 
-class DummyOutputTask(TaskWorkItem):
+class DummyOutputTask(Task):
     processed_data: str
 
 
 # DummyCachedTaskWorker
 class DummyCachedTaskWorker(CachedTaskWorker):
-    output_types: List[Type[TaskWorkItem]] = [DummyOutputTask]
+    output_types: List[Type[Task]] = [DummyOutputTask]
 
     def consume_work(self, task: DummyInputTask):
         processed_data = f"Processed: {task.data}"
         result = DummyOutputTask(processed_data=processed_data)
         self.publish_work(task=result, input_task=task)
 
-    def extra_cache_key(self, task: TaskWorkItem) -> str:
+    def extra_cache_key(self, task: Task) -> str:
         return "dummy_extra_key"
 
 

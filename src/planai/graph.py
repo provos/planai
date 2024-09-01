@@ -18,7 +18,7 @@ from typing import Dict, List, Optional, Set, Tuple, Type
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from .dispatcher import Dispatcher
-from .task import TaskWorker, TaskWorkItem
+from .task import Task, TaskWorker
 
 
 class Graph(BaseModel):
@@ -63,7 +63,7 @@ class Graph(BaseModel):
         if downstream not in self.dependencies[upstream]:
             self.dependencies[upstream].append(downstream)
             upstream.register_consumer(
-                task_cls=downstream.get_taskworkitem_class(),
+                task_cls=downstream.get_Task_class(),
                 consumer=downstream,
             )
 
@@ -75,7 +75,7 @@ class Graph(BaseModel):
 
     def run(
         self,
-        initial_tasks: List[Tuple[TaskWorker, TaskWorkItem]],
+        initial_tasks: List[Tuple[TaskWorker, Task]],
         run_dashboard: bool = False,
     ) -> None:
         """
@@ -85,8 +85,8 @@ class Graph(BaseModel):
         It manages the entire execution flow of the graph until completion.
 
         Args:
-            initial_tasks (List[Tuple[TaskWorker, TaskWorkItem]]): A list of tuples, each containing
-                a TaskWorker and its corresponding TaskWorkItem to initiate the graph execution.
+            initial_tasks (List[Tuple[TaskWorker, Task]]): A list of tuples, each containing
+                a TaskWorker and its corresponding Task to initiate the graph execution.
             run_dashboard (bool, optional): If True, starts a web interface for monitoring the
                 graph execution. Defaults to False.
 
@@ -116,7 +116,7 @@ class Graph(BaseModel):
             worker.init()
 
         for worker, task in initial_tasks:
-            success, error = worker.validate_taskworkitem(type(task), worker)
+            success, error = worker.validate_Task(type(task), worker)
             if not success:
                 raise error
 
@@ -139,19 +139,19 @@ class Graph(BaseModel):
 
 
 def main():
-    # Define custom TaskWorkItem classes
-    class Task1WorkItem(TaskWorkItem):
+    # Define custom Task classes
+    class Task1WorkItem(Task):
         data: str
 
-    class Task2WorkItem(TaskWorkItem):
+    class Task2WorkItem(Task):
         processed_data: str
 
-    class Task3WorkItem(TaskWorkItem):
+    class Task3WorkItem(Task):
         final_result: str
 
     # Define custom TaskWorker classes
     class Task1Worker(TaskWorker):
-        output_types: Set[Type[TaskWorkItem]] = {Task2WorkItem}
+        output_types: Set[Type[Task]] = {Task2WorkItem}
 
         def consume_work(self, task: Task1WorkItem):
             print(f"Task1 consuming: {task.data}")
@@ -159,7 +159,7 @@ def main():
             self.publish_work(Task2WorkItem(processed_data=processed), input_task=task)
 
     class Task2Worker(TaskWorker):
-        output_types: Set[Type[TaskWorkItem]] = {Task3WorkItem}
+        output_types: Set[Type[Task]] = {Task3WorkItem}
 
         def consume_work(self, task: Task2WorkItem):
             print(f"Task2 consuming: {task.processed_data}")
@@ -167,7 +167,7 @@ def main():
             self.publish_work(Task3WorkItem(final_result=final), input_task=task)
 
     class Task3Worker(TaskWorker):
-        output_types: Set[Type[TaskWorkItem]] = set()
+        output_types: Set[Type[Task]] = set()
 
         def consume_work(self, task: Task3WorkItem):
             print(f"Task3 consuming: {task.final_result}")
