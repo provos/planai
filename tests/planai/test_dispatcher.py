@@ -164,10 +164,12 @@ class TestDispatcher(unittest.TestCase):
 
     def test_execute_task(self):
         worker = Mock(spec=TaskWorker)
+        future = Mock()
         task = DummyTaskWorkItem(data="test")
         self.dispatcher._execute_task(worker, task)
+        self.dispatcher._task_completed(worker, task, future)
         worker._pre_consume_work.assert_called_once_with(task)
-        self.assertIn(task, [t[2] for t in self.dispatcher.completed_tasks])
+        self.assertIn(task, [t[1] for t in self.dispatcher.completed_tasks])
 
     def test_task_to_dict(self):
         worker = DummyTaskWorkerSimple()
@@ -201,7 +203,7 @@ class TestDispatcher(unittest.TestCase):
     def test_get_completed_tasks(self):
         worker = DummyTaskWorkerSimple()
         task = DummyTaskWorkItem(data="test")
-        self.dispatcher.completed_tasks = deque([(1, worker, task)])
+        self.dispatcher.completed_tasks = deque([(worker, task)])
         result = self.dispatcher.get_completed_tasks()
         self.assertIsInstance(result, list)
         self.assertEqual(len(result), 1)
@@ -447,6 +449,7 @@ class TestDispatcherThreading(unittest.TestCase):
 
         # Second attempt (should succeed)
         self.dispatcher.work_queue.get()  # Remove the task from the queue
+        self.dispatcher.active_tasks += 1
         worker._attempt_count = 2  # Simulate successful attempt
         future.result.side_effect = None  # Remove the exception
         self.dispatcher._task_completed(worker, task, future)
@@ -483,11 +486,13 @@ class TestDispatcherThreading(unittest.TestCase):
 
         # Second attempt
         self.dispatcher.work_queue.get()  # Remove the task from the queue
+        self.dispatcher.active_tasks += 1
         self.dispatcher._task_completed(worker, task, future)
         self.assertEqual(task._retry_count, 2)
 
         # Third attempt (should not retry anymore)
         self.dispatcher.work_queue.get()  # Remove the task from the queue
+        self.dispatcher.active_tasks += 1
         self.dispatcher._task_completed(worker, task, future)
 
         # Check final state
@@ -502,6 +507,73 @@ class TestDispatcherThreading(unittest.TestCase):
         )
         mock_log_info.assert_any_call("Retrying task DummyTaskWorkItem for the 1 time")
         mock_log_info.assert_any_call("Retrying task DummyTaskWorkItem for the 2 time")
+
+    def test_exception_handling_end_to_end(self):
+        dispatcher = Dispatcher(self.graph)
+        self.graph._dispatcher = dispatcher
+
+        # Create an ExceptionRaisingTaskWorker
+        worker = ExceptionRaisingTaskWorker()
+        self.graph.add_workers(worker)
+
+        # Create a task
+        task = DummyTaskWorkItem(data="test_exception")
+
+        # Set up a thread to run the dispatcher
+        dispatcher_thread = threading.Thread(target=dispatcher.dispatch)
+        dispatcher_thread.start()
+
+        # Add the work to the dispatcher
+        dispatcher.add_work(worker, task)
+
+        # Wait for the task to be processed
+        dispatcher.wait_for_completion()
+
+        # Stop the dispatcher
+        dispatcher.stop()
+        dispatcher_thread.join(timeout=5)
+
+        # Assertions
+        self.assertEqual(dispatcher.work_queue.qsize(), 0, "Work queue should be empty")
+        self.assertEqual(dispatcher.active_tasks, 0, "No active tasks should remain")
+        self.assertEqual(
+            dispatcher.total_completed_tasks,
+            0,
+            "No tasks should be marked as completed",
+        )
+        self.assertEqual(
+            len(dispatcher.failed_tasks),
+            1,
+            "One task should be in the failed tasks list",
+        )
+
+        # Check the failed task
+        failed_worker, failed_task = dispatcher.failed_tasks[0]
+        self.assertIsInstance(failed_worker, ExceptionRaisingTaskWorker)
+        self.assertEqual(failed_task.data, "test_exception")
+
+        # Check that the provenance was properly removed
+        self.assertEqual(len(dispatcher.provenance), 0, "Provenance should be empty")
+
+        # Verify that the task is not in the active tasks list
+        self.assertEqual(
+            len(dispatcher.debug_active_tasks),
+            0,
+            "No tasks should be in the active tasks list",
+        )
+
+        # Check that the exception was logged
+        with self.assertLogs(level="ERROR") as cm:
+            dispatcher._task_completed(
+                worker,
+                task,
+                Mock(result=Mock(side_effect=ValueError("Test exception"))),
+            )
+        self.assertIn(
+            "Task DummyTaskWorkItem failed with exception: Test exception", cm.output[0]
+        )
+
+        self.graph._thread_pool.shutdown(wait=True)
 
 
 class TestDispatcherConcurrent(unittest.TestCase):

@@ -17,7 +17,7 @@ import time
 from collections import defaultdict, deque
 from queue import Empty, Queue
 from threading import Event, Lock
-from typing import TYPE_CHECKING, DefaultDict, Dict, List, Tuple
+from typing import TYPE_CHECKING, DefaultDict, Deque, Dict, List, Tuple
 
 from .task import TaskWorker, TaskWorkItem
 from .web_interface import is_quit_requested, run_web_interface
@@ -46,8 +46,13 @@ class Dispatcher:
         self.active_tasks = 0
         self.task_completion_event = threading.Event()
         self.web_port = web_port
-        self.debug_active_tasks: Dict[str, Tuple[TaskWorker, TaskWorkItem]] = {}
-        self.completed_tasks: deque = deque(maxlen=100)  # Keep last 100 completed tasks
+        self.debug_active_tasks: Dict[int, Tuple[TaskWorker, TaskWorkItem]] = {}
+        self.completed_tasks: Deque[Tuple[TaskWorker, TaskWorkItem]] = deque(
+            maxlen=100
+        )  # Keep last 100 completed tasks
+        self.failed_tasks: Deque[Tuple[TaskWorker, TaskWorkItem]] = deque(
+            maxlen=100
+        )  # Keep last 100 failed tasks
         self.total_completed_tasks = 0
         self.task_id_counter = 0
         self.task_lock = threading.Lock()
@@ -133,15 +138,14 @@ class Dispatcher:
 
         try:
             worker._pre_consume_work(task)
+        except Exception:
+            raise  # Re-raise the caught exception
         finally:
             with self.task_lock:
                 if task_id in self.debug_active_tasks:
                     del self.debug_active_tasks[task_id]
-                    self.completed_tasks.appendleft(
-                        (task_id, worker, task)
-                    )  # may need to move this to _task_completed
 
-    def _get_next_task_id(self):
+    def _get_next_task_id(self) -> int:
         with self.task_lock:
             self.task_id_counter += 1
             return self.task_id_counter
@@ -173,7 +177,7 @@ class Dispatcher:
         with self.task_lock:
             return [
                 self._task_to_dict(worker, task)
-                for task_id, worker, task in self.completed_tasks
+                for worker, task in self.completed_tasks
             ]
 
     def _get_task_id(self, task: TaskWorkItem) -> str:
@@ -210,19 +214,26 @@ class Dispatcher:
             # This code will run whether the task succeeded or failed
 
             # Determine whether we should retry the task
-            if not success and worker.num_retries > 0:
-                if task._retry_count < worker.num_retries:
-                    task._retry_count += 1
-                    self.work_queue.put((worker, task))
-                    logging.info(
-                        f"Retrying task {task.name} for the {task._retry_count} time"
-                    )
-                    return
-                else:
-                    logging.error(
-                        f"Task {task.name} failed after {task._retry_count} retries"
-                    )
-                    # we'll fall through and do the clean up
+            if not success:
+                if worker.num_retries > 0:
+                    if task._retry_count < worker.num_retries:
+                        task._retry_count += 1
+                        self.active_tasks -= 1
+                        self.work_queue.put((worker, task))
+                        logging.info(
+                            f"Retrying task {task.name} for the {task._retry_count} time"
+                        )
+                        return
+
+                with self.task_lock:
+                    self.failed_tasks.appendleft((worker, task))
+                logging.error(
+                    f"Task {task.name} failed after {task._retry_count} retries"
+                )
+                # we'll fall through and do the clean up
+            else:
+                with self.task_lock:
+                    self.completed_tasks.appendleft((worker, task))
 
             self._remove_provenance(task)
             self.active_tasks -= 1
