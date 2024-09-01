@@ -442,7 +442,7 @@ class TestDispatcherThreading(unittest.TestCase):
 
         # Check if task was requeued
         self.assertEqual(self.dispatcher.work_queue.qsize(), 1)
-        self.assertEqual(task._retry_count, 1)
+        self.assertEqual(task.retry_count, 1)
         mock_log_info.assert_any_call("Retrying task DummyTask for the 1 time")
 
         # Second attempt (should succeed)
@@ -480,13 +480,13 @@ class TestDispatcherThreading(unittest.TestCase):
 
         # First attempt
         self.dispatcher._task_completed(worker, task, future)
-        self.assertEqual(task._retry_count, 1)
+        self.assertEqual(task.retry_count, 1)
 
         # Second attempt
         self.dispatcher.work_queue.get()  # Remove the task from the queue
         self.dispatcher.active_tasks += 1
         self.dispatcher._task_completed(worker, task, future)
-        self.assertEqual(task._retry_count, 2)
+        self.assertEqual(task.retry_count, 2)
 
         # Third attempt (should not retry anymore)
         self.dispatcher.work_queue.get()  # Remove the task from the queue

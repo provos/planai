@@ -44,6 +44,20 @@ class Task(BaseModel):
     def name(self) -> str:
         return self.__class__.__name__
 
+    @property
+    def retry_count(self) -> int:
+        """
+        Read-only property to access the current retry count.
+        """
+        return self._retry_count
+
+    def increment_retry_count(self) -> None:
+        """
+        Increments the retry count by 1.
+        """
+        self._retry_count += 1
+        return True
+
     def copy_provenance(self) -> List[Tuple[str, int]]:
         return self._provenance.copy()
 
