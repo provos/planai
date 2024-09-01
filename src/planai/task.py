@@ -382,7 +382,7 @@ class TaskWorker(BaseModel, ABC):
 
         if task_cls not in self.output_types:
             raise ValueError(
-                f"Task {self.name} cannot publish work of type {task_cls.__name__}"
+                f"Downstream consumer {consumer.name} only accepts work of type {task_cls.__name__} but Worker {self.name} does not produce it"
             )
 
         if task_cls in self._consumers:
