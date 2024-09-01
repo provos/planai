@@ -36,11 +36,9 @@ if TYPE_CHECKING:
 
 
 class Task(BaseModel):
-    retry_count: int = Field(
-        0, description="The number of attempted retries for this task"
-    )
     _provenance: List[Tuple[str, int]] = PrivateAttr(default_factory=list)
     _input_provenance: List["Task"] = PrivateAttr(default_factory=list)
+    _retry_count: int = PrivateAttr(default=0)
 
     @property
     def name(self) -> str:

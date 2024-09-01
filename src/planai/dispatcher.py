@@ -216,19 +216,19 @@ class Dispatcher:
             # Determine whether we should retry the task
             if not success:
                 if worker.num_retries > 0:
-                    if task.retry_count < worker.num_retries:
-                        task.retry_count += 1
+                    if task._retry_count < worker.num_retries:
+                        task._retry_count += 1
                         self.active_tasks -= 1
                         self.work_queue.put((worker, task))
                         logging.info(
-                            f"Retrying task {task.name} for the {task.retry_count} time"
+                            f"Retrying task {task.name} for the {task._retry_count} time"
                         )
                         return
 
                 with self.task_lock:
                     self.failed_tasks.appendleft((worker, task))
                 logging.error(
-                    f"Task {task.name} failed after {task.retry_count} retries"
+                    f"Task {task.name} failed after {task._retry_count} retries"
                 )
                 # we'll fall through and do the clean up
             else:
