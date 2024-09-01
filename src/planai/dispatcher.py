@@ -150,7 +150,7 @@ class Dispatcher:
             self.task_id_counter += 1
             return self.task_id_counter
 
-    def _task_to_dict(self, worker: TaskWorker, task: Task, error: str = '') -> Dict:
+    def _task_to_dict(self, worker: TaskWorker, task: Task, error: str = "") -> Dict:
         data = {
             "id": self._get_task_id(task),
             "type": type(task).__name__,
