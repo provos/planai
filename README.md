@@ -3,7 +3,7 @@
 [![PyPI version](https://badge.fury.io/py/planai.svg)](https://badge.fury.io/py/planai)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python Versions](https://img.shields.io/pypi/pyversions/planai.svg)](https://pypi.org/project/planai/)
-[![Documentation Status](https://readthedocs.org/projects/planai/badge/?version=latest)](https://planai.readthedocs.io/en/latest/?badge=latest)
+[![Documentation Status](https://readthedocs.org/projects/planai/badge/?version=latest)](https://docs.getplanai.com/en/latest/?badge=latest)
 
 **PlanAI** is an innovative system designed for complex task automation through a sophisticated graph-based architecture. It integrates traditional computations and cutting-edge AI technologies to enable versatile and efficient workflow management.
 
@@ -115,7 +115,7 @@ For more detailed examples and advanced usage, please refer to the `examples/` d
 
 ## Documentation
 
-Full documentation for PlanAI is available at [https://planai.readthedocs.io/](https://planai.readthedocs.io/)
+Full documentation for PlanAI is available at [https://docs.getplanai.com/](https://docs.getplanai.com/)
 
 ## Contributing
 
