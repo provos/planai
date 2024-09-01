@@ -285,7 +285,7 @@ class TaskWorker(BaseModel, ABC):
         consumer = self._consumers.get(task.__class__)
         consumer.consume_work(task)
 
-    def validate_Task(
+    def validate_task(
         self, task_cls: Type[Task], consumer: "TaskWorker"
     ) -> Tuple[bool, Exception]:
         """
@@ -326,7 +326,7 @@ class TaskWorker(BaseModel, ABC):
 
         return True, None
 
-    def get_Task_class(self) -> Type[Task]:
+    def get_task_class(self) -> Type[Task]:
         """
         Get the Task subclass that this worker can consume.
 
@@ -376,7 +376,7 @@ class TaskWorker(BaseModel, ABC):
         if not issubclass(task_cls, Task):
             raise TypeError(f"{task_cls.__name__} is not a subclass of Task")
 
-        success, error = self.validate_Task(task_cls, consumer)
+        success, error = self.validate_task(task_cls, consumer)
         if not success:
             raise error
 

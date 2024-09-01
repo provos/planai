@@ -174,7 +174,7 @@ class TestTaskWorker(unittest.TestCase):
         self.worker._dispatch_work(task)
         consumer.consume_work.assert_called_once_with(task)
 
-    def test_validate_Task(self):
+    def test_validate_task(self):
         class ValidConsumer(TaskWorker):
             def consume_work(self, task: DummyTask):
                 pass
@@ -186,15 +186,15 @@ class TestTaskWorker(unittest.TestCase):
         valid_consumer = ValidConsumer()
         invalid_consumer = InvalidConsumer()
 
-        success, _ = self.worker.validate_Task(DummyTask, valid_consumer)
+        success, _ = self.worker.validate_task(DummyTask, valid_consumer)
         self.assertTrue(success)
 
-        success, error = self.worker.validate_Task(DummyTask, invalid_consumer)
+        success, error = self.worker.validate_task(DummyTask, invalid_consumer)
         self.assertFalse(success)
         self.assertIsInstance(error, TypeError)
 
-    def test_get_Task_class(self):
-        self.assertEqual(self.worker.get_Task_class(), DummyTask)
+    def test_get_task_class(self):
+        self.assertEqual(self.worker.get_task_class(), DummyTask)
 
     def test_register_consumer(self):
         consumer = DummyWorker()

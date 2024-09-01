@@ -63,7 +63,7 @@ class Graph(BaseModel):
         if downstream not in self.dependencies[upstream]:
             self.dependencies[upstream].append(downstream)
             upstream.register_consumer(
-                task_cls=downstream.get_Task_class(),
+                task_cls=downstream.get_task_class(),
                 consumer=downstream,
             )
 
@@ -116,7 +116,7 @@ class Graph(BaseModel):
             worker.init()
 
         for worker, task in initial_tasks:
-            success, error = worker.validate_Task(type(task), worker)
+            success, error = worker.validate_task(type(task), worker)
             if not success:
                 raise error
 
