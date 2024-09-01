@@ -47,11 +47,13 @@ def stream():
         queued_tasks = dispatcher.get_queued_tasks()
         active_tasks = dispatcher.get_active_tasks()
         completed_tasks = dispatcher.get_completed_tasks()
+        failed_tasks = dispatcher.get_failed_tasks()
 
         data = {
             "queued": queued_tasks,
             "active": active_tasks,
             "completed": completed_tasks,
+            "failed": failed_tasks,
         }
 
         return data

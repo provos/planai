@@ -47,7 +47,7 @@ class Dispatcher:
         self.task_completion_event = threading.Event()
         self.web_port = web_port
         self.debug_active_tasks: Dict[int, Tuple[TaskWorker, Task]] = {}
-        self.completed_tasks: Deque[Tuple[TaskWorker, Task]] = deque(
+        self.completed_tasks: Deque[Tuple[TaskWorker, Task, str]] = deque(
             maxlen=100
         )  # Keep last 100 completed tasks
         self.failed_tasks: Deque[Tuple[TaskWorker, Task]] = deque(
@@ -150,8 +150,8 @@ class Dispatcher:
             self.task_id_counter += 1
             return self.task_id_counter
 
-    def _task_to_dict(self, worker: TaskWorker, task: Task) -> Dict:
-        return {
+    def _task_to_dict(self, worker: TaskWorker, task: Task, error: str = '') -> Dict:
+        data = {
             "id": self._get_task_id(task),
             "type": type(task).__name__,
             "worker": worker.name,
@@ -160,6 +160,9 @@ class Dispatcher:
                 input_task.model_dump() for input_task in task._input_provenance
             ],
         }
+        if error:
+            data["error"] = error
+        return data
 
     def get_queued_tasks(self) -> List[Dict]:
         return [
@@ -180,6 +183,13 @@ class Dispatcher:
                 for worker, task in self.completed_tasks
             ]
 
+    def get_failed_tasks(self) -> List[Dict]:
+        with self.task_lock:
+            return [
+                self._task_to_dict(worker, task, error)
+                for worker, task, error in self.failed_tasks
+            ]
+
     def _get_task_id(self, task: Task) -> str:
         # Use the last entry in the _provenance list as the task ID
         if task._provenance:
@@ -195,6 +205,7 @@ class Dispatcher:
 
     def _task_completed(self, worker: TaskWorker, task: Task, future):
         success: bool = False
+        error_message: str = ""
         try:
             # This will raise an exception if the task failed
             _ = future.result()
@@ -206,6 +217,7 @@ class Dispatcher:
 
         except Exception as e:
             # Handle task failure
+            error_message = str(e)
             logging.exception(f"Task {task.name} failed with exception: {str(e)}")
 
             # Anything else that needs to be done when a task fails?
@@ -226,7 +238,7 @@ class Dispatcher:
                         return
 
                 with self.task_lock:
-                    self.failed_tasks.appendleft((worker, task))
+                    self.failed_tasks.appendleft((worker, task, error_message))
                 logging.error(
                     f"Task {task.name} failed after {task.retry_count} retries"
                 )

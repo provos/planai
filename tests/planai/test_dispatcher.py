@@ -544,7 +544,7 @@ class TestDispatcherThreading(unittest.TestCase):
         )
 
         # Check the failed task
-        failed_worker, failed_task = dispatcher.failed_tasks[0]
+        failed_worker, failed_task, error = dispatcher.failed_tasks[0]
         self.assertIsInstance(failed_worker, ExceptionRaisingTaskWorker)
         self.assertEqual(failed_task.data, "test_exception")
 

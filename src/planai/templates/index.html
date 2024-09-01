@@ -117,6 +117,9 @@
     <h2>Active Tasks</h2>
     <div id="active-tasks" class="task-list"></div>
 
+    <h2>Failed Tasks</h2>
+    <div id="failed-tasks" class="task-list"></div>
+
     <h2>Completed Tasks</h2>
     <div id="completed-tasks" class="task-list"></div>
 
@@ -147,6 +150,7 @@
             updateTaskList('queued-tasks', data.queued);
             updateTaskList('active-tasks', data.active);
             updateTaskList('completed-tasks', data.completed);
+            updateTaskList('failed-tasks', data.failed);
         }
 
         function updateTaskList(elementId, tasks) {
@@ -159,27 +163,33 @@
                     taskElement.className = 'task-item';
                     element.appendChild(taskElement);
                 }
+
+                // Add a red border for failed tasks
+                const isFailed = elementId === 'failed-tasks';
+                const borderStyle = isFailed ? 'border: 2px solid red;' : '';
+
                 taskElement.innerHTML = `
-                <div class="task-item" onclick="toggleProvenance('${task.id}')">
-                    <strong>ID:</strong> ${task.id}<br>
-                    <strong>Type:</strong> ${task.type}<br>
-                    <strong>Worker:</strong> ${task.worker}
-                    <div id="provenance-${task.id}" class="provenance-info">
-                        <h4>Provenance:</h4>
-                        <ul>
-                            ${task.provenance.map(p => `<li>${p}</li>`).join('')}
-                        </ul>
-                        <h4>Input Provenance:</h4>
-                        <ul>
-                            ${task.input_provenance.map(inputTask => `
-                                <li class="input-provenance-item">
-                                    ${renderObject(inputTask)}
-                                </li>
-                            `).join('')}
-                        </ul>
+                    <div class="task-item" onclick="toggleProvenance('${task.id}')" style="${borderStyle}">
+                        <strong>ID:</strong> ${task.id}<br>
+                        <strong>Type:</strong> ${task.type}<br>
+                        <strong>Worker:</strong> ${task.worker}
+                        ${isFailed ? `<br><strong>Error:</strong> ${task.error || 'Unknown error'}` : ''}
+                        <div id="provenance-${task.id}" class="provenance-info">
+                            <h4>Provenance:</h4>
+                            <ul>
+                                ${task.provenance.map(p => `<li>${p}</li>`).join('')}
+                            </ul>
+                            <h4>Input Provenance:</h4>
+                            <ul>
+                                ${task.input_provenance.map(inputTask => `
+                                    <li class="input-provenance-item">
+                                        ${renderObject(inputTask)}
+                                    </li>
+                                `).join('')}
+                            </ul>
+                        </div>
                     </div>
-                </div>
-            `;
+                `;
             });
 
             // Remove tasks that no longer exist
@@ -190,6 +200,7 @@
                 }
             });
         }
+
 
         function renderObject(obj, indent = '') {
             return Object.entries(obj).map(([key, value]) => {
