@@ -61,7 +61,7 @@ class LLMTaskWorker(TaskWorker):
         parser = PydanticOutputParser(pydantic_object=self._output_type())
 
         # allow subclasses to customize the prompt based on the input task
-        prompt = self.format_prompt(task)
+        task_prompt = self.format_prompt(task)
 
         # allow subclasses to pre-process the task and present it more clearly to the LLM
         processed_task = self.pre_process(task)
@@ -71,7 +71,7 @@ class LLMTaskWorker(TaskWorker):
             output_schema=self._output_type(),
             system="You are a helpful AI assistant. Please help the user with the following task and produce output in JSON.",
             task=processed_task.model_dump_json(indent=2),
-            instructions=prompt,
+            instructions=task_prompt,
             format_instructions=parser.get_format_instructions(),
         )
 
@@ -117,7 +117,7 @@ class LLMTaskWorker(TaskWorker):
         else:
             logging.error(
                 "LLM did not return a valid response for task %s with provenance %s",
-                input_task.__class__.__name__,
+                input_task.name,
                 input_task._provenance,
             )
 

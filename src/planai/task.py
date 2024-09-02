@@ -16,6 +16,7 @@ import logging
 import threading
 import uuid
 from abc import ABC, abstractmethod
+from contextlib import contextmanager
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -100,6 +101,17 @@ class Task(BaseModel):
         return None
 
 
+class WorkBufferContext:
+    def __init__(self, worker):
+        self.worker = worker
+
+    def __enter__(self):
+        self.worker._init_work_buffer()
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.worker._flush_work_buffer()
+
+
 class TaskWorker(BaseModel, ABC):
     """
     Base class for all task workers.
@@ -133,6 +145,11 @@ class TaskWorker(BaseModel, ABC):
     _last_input_task: Optional[Task] = PrivateAttr(default=None)
     _instance_id: uuid.UUID = PrivateAttr(default_factory=uuid.uuid4)
     _local: threading.local = PrivateAttr(default_factory=threading.local)
+    _work_buffer_context: Optional[WorkBufferContext] = PrivateAttr(default=None)
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        self._work_buffer_context = WorkBufferContext(self)
 
     def __hash__(self):
         return hash(self._instance_id)
@@ -243,9 +260,8 @@ class TaskWorker(BaseModel, ABC):
     def _pre_consume_work(self, task: Task):
         with self._state_lock:
             self._last_input_task = task
-        self._init_work_buffer()
-        self.consume_work(task)
-        self.flush_work_buffer()
+        with self._work_buffer_context:
+            self.consume_work(task)
 
     def init(self):
         """
@@ -315,9 +331,14 @@ class TaskWorker(BaseModel, ABC):
         self._init_work_buffer()
         self._local.work_buffer.append((consumer, task))
 
-    def flush_work_buffer(self):
+    def _flush_work_buffer(self):
         self._init_work_buffer()
         if self._graph and self._graph._dispatcher:
+            logging.info(
+                "Worker %s flushing work buffer with %d items",
+                self.name,
+                len(self._local.work_buffer),
+            )
             self._graph._dispatcher.add_multiple_work(self._local.work_buffer)
         else:
             for consumer, task in self._local.work_buffer:

@@ -72,8 +72,9 @@ class JoinedTaskWorker(TaskWorker):
         sorted_tasks = sorted(
             self._joined_results[prefix], key=attrgetter("_provenance")
         )
-        self.consume_work_joined(sorted_tasks)
-        del self._joined_results[prefix]
+        with self._work_buffer_context:
+            self.consume_work_joined(sorted_tasks)
+            del self._joined_results[prefix]
 
     def _validate_connection(self) -> None:
         """

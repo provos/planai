@@ -35,19 +35,20 @@ class CachedTaskWorker(TaskWorker):
         self._cache = Cache(self.cache_dir, size_limit=self.cache_size_limit)
 
     def _pre_consume_work(self, task: Task):
-        self.pre_consume_work(task)
+        with self._work_buffer_context:
+            self.pre_consume_work(task)
 
-        cache_key = self._get_cache_key(task)
-        cached_results = self._cache.get(cache_key)
+            cache_key = self._get_cache_key(task)
+            cached_results = self._cache.get(cache_key)
 
-        if cached_results is not None:
-            logging.info("Cache hit for %s with key: %s", self.name, cache_key)
-            self._publish_cached_results(cached_results, task)
-        else:
-            logging.info("Cache miss for %s with key: %s", self.name, cache_key)
-            self.consume_work(task)
+            if cached_results is not None:
+                logging.info("Cache hit for %s with key: %s", self.name, cache_key)
+                self._publish_cached_results(cached_results, task)
+            else:
+                logging.info("Cache miss for %s with key: %s", self.name, cache_key)
+                self.consume_work(task)
 
-        self.post_consume_work(task)
+            self.post_consume_work(task)
 
     def pre_consume_work(self, task: Task):
         """
