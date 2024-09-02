@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import logging
+import threading
 from abc import abstractmethod
 from operator import attrgetter
 from typing import Dict, List, Set, Type
@@ -35,6 +36,7 @@ class JoinedTaskWorker(TaskWorker):
 
     join_type: Type[TaskWorker]
     _joined_results: Dict[tuple, List[Task]] = PrivateAttr(default_factory=dict)
+    _lock: threading.Lock = PrivateAttr(default_factory=threading.Lock)
 
     @abstractmethod
     def consume_work_joined(self, task: List[Task]):
@@ -51,14 +53,19 @@ class JoinedTaskWorker(TaskWorker):
             raise ValueError(
                 f"Task {task} does not have a prefix for {self.join_type.__name__} in provenance."
             )
-        if prefix not in self._joined_results:
+        need_watch = False
+        with self._lock:
+            if prefix not in self._joined_results:
+                need_watch = True
+
+            # we accumulate the results by the prefix described by join_type
+            # we will deliver them to the sub-class when we get notified
+            self._joined_results.setdefault(prefix, []).append(task)
+
+        if need_watch:
             # we will register the watch for the prefix when we see it for the first time.
             logging.info("Starting watch for %s in %s", prefix, self.name)
             self.watch(prefix)
-
-        # we accumulate the results by the prefix described by join_type
-        # we will deliver them to the sub-class when we get notified
-        self._joined_results.setdefault(prefix, []).append(task)
 
     def notify(self, prefix: str):
         if prefix not in self._joined_results:
