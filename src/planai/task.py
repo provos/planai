@@ -84,7 +84,7 @@ class Task(BaseModel):
         return self._input_provenance[-1] if self._input_provenance else None
 
     def prefix_for_input_task(
-        self, task_class: Type["TaskWorker"]
+        self, task_class: Type["Task"]
     ) -> Optional["ProvenanceChain"]:
         """
         Finds the provenance chain for the most recent input task of the specified class.
@@ -132,6 +132,7 @@ class TaskWorker(BaseModel, ABC):
     _graph: Optional["Graph"] = PrivateAttr(default=None)
     _last_input_task: Optional[Task] = PrivateAttr(default=None)
     _instance_id: uuid.UUID = PrivateAttr(default_factory=uuid.uuid4)
+    _local: threading.local = PrivateAttr(default_factory=threading.local)
 
     def __hash__(self):
         return hash(self._instance_id)
@@ -140,6 +141,13 @@ class TaskWorker(BaseModel, ABC):
         if isinstance(other, TaskWorker):
             return self._instance_id == other._instance_id
         return False
+
+    def _init_work_buffer(self):
+        if not hasattr(self._local, "work_buffer"):
+            self._local.work_buffer = []
+
+    def _clear_work_buffer(self):
+        self._local.work_buffer = []
 
     @property
     def name(self) -> str:
@@ -185,19 +193,38 @@ class TaskWorker(BaseModel, ABC):
         self._graph.set_dependency(self, downstream)
         return downstream
 
-    def watch(self, prefix: "ProvenanceChain") -> bool:
+    def watch(self, prefix: "ProvenanceChain", task: Optional[Task] = None) -> bool:
         """
-        Watches for this task provenance to be completed in the graph.
+        Watches for the completion of a specific provenance chain prefix in the task graph.
+
+        This method sets up a watch on a given prefix in the provenance chain. It will be notified
+        in its notify method when this prefix is no longer part of any active task's provenance, indicating
+        that all tasks with this prefix have been completed.
 
         Parameters:
-            worker (Type["Task"]): The worker to watch.
+        -----------
+        prefix : ProvenanceChain
+            The prefix to watch. Must be a tuple representing a part of a task's provenance chain.
+            This is the sequence of task identifiers leading up to (but not including) the current task.
+
+        task : Optional[Task], default=None
+            The task associated with this watch operation. This parameter is optional and may be
+            used for additional context or functionality in the underlying implementation.
 
         Returns:
-            True if the watch was added, False if the watch was already present.
+        --------
+        bool
+            True if the watch was successfully added for the given prefix.
+            False if a watch for this prefix was already present.
+
+        Raises:
+        -------
+        ValueError
+            If the provided prefix is not a tuple.
         """
         if not isinstance(prefix, tuple):
             raise ValueError("Prefix must be a tuple")
-        return self._graph._dispatcher.watch(prefix, self)
+        return self._graph._dispatcher.watch(prefix, self, task)
 
     def unwatch(self, prefix: "ProvenanceChain") -> bool:
         """
@@ -216,7 +243,9 @@ class TaskWorker(BaseModel, ABC):
     def _pre_consume_work(self, task: Task):
         with self._state_lock:
             self._last_input_task = task
+        self._init_work_buffer()
         self.consume_work(task)
+        self.flush_work_buffer()
 
     def init(self):
         """
@@ -282,10 +311,18 @@ class TaskWorker(BaseModel, ABC):
             consumer.name,
             task.__class__.__name__,
         )
+
+        self._init_work_buffer()
+        self._local.work_buffer.append((consumer, task))
+
+    def flush_work_buffer(self):
+        self._init_work_buffer()
         if self._graph and self._graph._dispatcher:
-            self._graph._dispatcher.add_work(consumer, task)
+            self._graph._dispatcher.add_multiple_work(self._local.work_buffer)
         else:
-            self._dispatch_work(task)
+            for consumer, task in self._local.work_buffer:
+                self._dispatch_work(task)
+        self._clear_work_buffer()
 
     def completed(self):
         """Called to let the worker know that it has finished processing all work."""

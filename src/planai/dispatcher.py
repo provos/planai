@@ -17,7 +17,16 @@ import time
 from collections import defaultdict, deque
 from queue import Empty, Queue
 from threading import Event, Lock
-from typing import TYPE_CHECKING, DefaultDict, Deque, Dict, List, Tuple
+from typing import (
+    TYPE_CHECKING,
+    DefaultDict,
+    Deque,
+    Dict,
+    Generator,
+    List,
+    Optional,
+    Tuple,
+)
 
 from .task import Task, TaskWorker
 from .web_interface import is_quit_requested, run_web_interface
@@ -58,17 +67,20 @@ class Dispatcher:
         self.task_id_counter = 0
         self.task_lock = threading.Lock()
 
+    def _generate_prefixes(self, task: Task) -> Generator[Tuple, None, None]:
+        provenance = task._provenance
+        for i in range(1, len(provenance) + 1):
+            yield tuple(provenance[:i])
+
     def _add_provenance(self, task: Task):
-        with self.provenance_lock:
-            for i in range(1, len(task._provenance) + 1):
-                prefix = tuple(task._provenance[:i])
+        for prefix in self._generate_prefixes(task):
+            with self.provenance_lock:
                 self.provenance[prefix] = self.provenance.get(prefix, 0) + 1
 
     def _remove_provenance(self, task: Task):
         to_notify = set()
-        with self.provenance_lock:
-            for i in range(1, len(task._provenance) + 1):
-                prefix = tuple(task._provenance[:i])
+        for prefix in self._generate_prefixes(task):
+            with self.provenance_lock:
                 self.provenance[prefix] -= 1
                 if self.provenance[prefix] == 0:
                     del self.provenance[prefix]
@@ -77,14 +89,60 @@ class Dispatcher:
         for prefix in to_notify:
             self._notify_task_completion(prefix, task)
 
-    def watch(self, prefix: ProvenanceChain, notifier: TaskWorker) -> bool:
+    def watch(
+        self, prefix: ProvenanceChain, notifier: TaskWorker, task: Optional[Task] = None
+    ) -> bool:
+        """
+        Watches the given prefix and notifies the specified notifier when the prefix is no longer tracked
+        as part of the provenance of all tasks.
+
+        This method sets up a watch on a specific prefix in the provenance chain. When the prefix is
+        no longer part of any task's provenance, the provided notifier will be called with the prefix
+        as an argument. If the prefix is already not part of any task's provenance, the notifier may
+        be called immediately.
+
+        Parameters:
+        -----------
+        prefix : ProvenanceChain
+            The prefix to watch. Must be a tuple representing a part of a task's provenance chain.
+
+        notifier : TaskWorker
+            The object to be notified when the watched prefix is no longer in use.
+            Its notify method will be called with the watched prefix as an argument.
+
+        task : Task
+            The task associated with this watch operation if it was called from consume_work.
+
+        Returns:
+        --------
+        bool
+            True if the notifier was successfully added to the watch list for the given prefix.
+            False if the notifier was already in the watch list for this prefix.
+
+        Raises:
+        -------
+        ValueError
+            If the provided prefix is not a tuple.
+        """
         if not isinstance(prefix, tuple):
             raise ValueError("Prefix must be a tuple")
+
+        added = False
         with self.notifiers_lock:
             if notifier not in self.notifiers[prefix]:
                 self.notifiers[prefix].append(notifier)
-                return True
-        return False
+                added = True
+
+        if task is not None:
+            should_notify = False
+            with self.provenance_lock:
+                if self.provenance.get(prefix, 0) == 0:
+                    should_notify = True
+
+            if should_notify:
+                self._notify_task_completion(prefix, task)
+
+        return added
 
     def unwatch(self, prefix: ProvenanceChain, notifier: TaskWorker) -> bool:
         if not isinstance(prefix, tuple):
@@ -265,6 +323,15 @@ class Dispatcher:
     def add_work(self, worker: TaskWorker, task: Task):
         self._add_provenance(task)
         self.work_queue.put((worker, task))
+
+    def add_multiple_work(self, work_items: List[Tuple[TaskWorker, Task]]):
+        # the ordering of adding provenance first is important for join tasks to
+        # work correctly. Otherwise, caching may lead to fast execution of tasks
+        # before all the provenance is added.
+        for worker, task in work_items:
+            self._add_provenance(task)
+        for item in work_items:
+            self.work_queue.put(item)
 
     def stop(self):
         self.stop_event.set()

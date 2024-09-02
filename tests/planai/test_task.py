@@ -99,11 +99,11 @@ class TestTaskWorker(unittest.TestCase):
         graph._dispatcher = mock_dispatcher
         task = DummyTask()
         task._provenance = [("DummyTask", 1)]
-        result = self.worker.watch(task.prefix_for_input_task(DummyTask))
-        self.assertIsNotNone(task.prefix_for_input_task(DummyTask))
-        mock_dispatcher.watch.assert_called_once_with(
-            task.prefix_for_input_task(DummyTask), self.worker
-        )
+        prefix = task.prefix_for_input_task(DummyTask)
+        self.assertIsNotNone(prefix)
+        result = self.worker.watch(prefix)
+        self.assertIsNotNone(prefix)
+        mock_dispatcher.watch.assert_called_once_with(prefix, self.worker, None)
         self.assertEqual(result, mock_dispatcher.watch.return_value)
 
     def test_unwatch(self):
@@ -141,12 +141,13 @@ class TestTaskWorker(unittest.TestCase):
         self.worker.register_consumer(DummyTask, self.worker)
 
         self.worker.publish_work(task, input_task)
+        self.worker.flush_work_buffer()
 
         self.assertEqual(len(task._provenance), 1)
         self.assertEqual(task._provenance[0][0], self.worker.name)
         self.assertEqual(len(task._input_provenance), 1)
         self.assertIs(task._input_provenance[0], input_task)
-        mock_dispatcher.add_work.assert_called_once_with(self.worker, task)
+        mock_dispatcher.add_multiple_work.assert_called_once_with([(self.worker, task)])
 
     def test_publish_work_invalid_type(self):
         class InvalidTask(Task):
