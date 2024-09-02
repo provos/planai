@@ -23,7 +23,7 @@ from threading import Event
 from typing import List, Type
 from unittest.mock import Mock, patch
 
-from pydantic import PrivateAttr
+from pydantic import Field, PrivateAttr
 
 from planai.dispatcher import Dispatcher
 from planai.graph import Graph
@@ -72,6 +72,19 @@ class RetryTaskWorker(TaskWorker):
             self._attempt_count += 1
             if self._attempt_count <= self.fail_attempts:
                 raise ValueError(f"Simulated failure (attempt {self._attempt_count})")
+
+
+class SuccessFailTaskWorker(TaskWorker):
+    failure_rate: float = Field(default=0.3, ge=0.0, le=1.0)
+
+    def __init__(self, failure_rate=0.3, **data):
+        super().__init__(**data)
+        self.failure_rate = failure_rate
+
+    def consume_work(self, task: DummyTask):
+        if random.random() < self.failure_rate:
+            raise ValueError("Simulated failure")
+        time.sleep(random.uniform(0.001, 0.01))  # Simulate some work
 
 
 class SingleThreadedExecutor:
@@ -638,6 +651,92 @@ class TestDispatcherConcurrent(unittest.TestCase):
         ), f"Completed tasks {dispatcher.total_completed_tasks} should match total processed ({total_processed})"
 
         graph._thread_pool.shutdown(wait=False)
+
+    def test_concurrent_success_and_failures(self):
+        graph = Graph(name="Test Graph")
+        dispatcher = Dispatcher(graph)
+        graph._dispatcher = dispatcher
+
+        num_workers = 5
+        tasks_per_worker = 200
+        total_tasks = num_workers * tasks_per_worker
+
+        # Create workers with different failure rates
+        workers = [
+            SuccessFailTaskWorker(failure_rate=i * 0.1) for i in range(num_workers)
+        ]
+        graph.add_workers(*workers)
+
+        # Start the dispatcher in a separate thread
+        dispatch_thread = threading.Thread(target=dispatcher.dispatch)
+        dispatch_thread.start()
+
+        # Function to add work for a single worker
+        def add_work_for_worker(worker):
+            for _ in range(tasks_per_worker):
+                task = DummyTask(data=f"Task for {worker.name}")
+                dispatcher.add_work(worker, task)
+
+        # Start adding work in separate threads
+        add_work_threads = []
+        for worker in workers:
+            thread = threading.Thread(target=add_work_for_worker, args=(worker,))
+            add_work_threads.append(thread)
+            thread.start()
+
+        # Wait for all work to be added
+        for thread in add_work_threads:
+            thread.join()
+
+        # Wait for dispatcher to complete all tasks
+        dispatcher.wait_for_completion()
+        dispatcher.stop()
+        dispatch_thread.join()
+
+        # Calculate expected failures and successes
+        expected_failures = sum(
+            int(tasks_per_worker * worker.failure_rate) for worker in workers
+        )
+        expected_successes = total_tasks - expected_failures
+
+        # Check results
+        actual_failures = dispatcher.total_failed_tasks
+        actual_successes = dispatcher.total_completed_tasks
+
+        print(
+            f"Expected failures: {expected_failures}, Actual failures: {actual_failures}"
+        )
+        print(
+            f"Expected successes: {expected_successes}, Actual successes: {actual_successes}"
+        )
+
+        # Assert with a small margin of error (e.g., 5% of total tasks)
+        margin = total_tasks * 0.05
+        self.assertAlmostEqual(
+            actual_failures,
+            expected_failures,
+            delta=margin,
+            msg=f"Failed tasks count is off by more than {margin}",
+        )
+        self.assertAlmostEqual(
+            actual_successes,
+            expected_successes,
+            delta=margin,
+            msg=f"Completed tasks count is off by more than {margin}",
+        )
+
+        # Verify that all tasks are accounted for
+        self.assertEqual(
+            actual_failures + actual_successes,
+            total_tasks,
+            "Total of failed and completed tasks should equal total tasks",
+        )
+
+        # Verify that the work queue is empty and there are no active tasks
+        self.assertEqual(dispatcher.work_queue.qsize(), 0, "Work queue should be empty")
+        self.assertEqual(dispatcher.active_tasks, 0, "No active tasks should remain")
+
+        graph._thread_pool.shutdown(wait=True)
 
 
 if __name__ == "__main__":

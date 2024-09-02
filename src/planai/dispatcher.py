@@ -54,6 +54,7 @@ class Dispatcher:
             maxlen=100
         )  # Keep last 100 failed tasks
         self.total_completed_tasks = 0
+        self.total_failed_tasks = 0
         self.task_id_counter = 0
         self.task_lock = threading.Lock()
 
@@ -103,14 +104,16 @@ class Dispatcher:
                 to_notify.append((notifier, prefix))
 
         for notifier, prefix in to_notify:
-            self.active_tasks += 1
+            with self.task_lock:
+                self.active_tasks += 1
             future = self.graph._thread_pool.submit(notifier.notify, prefix)
             future.add_done_callback(self._notify_completed)
 
     def _dispatch_once(self) -> bool:
         try:
             worker, task = self.work_queue.get(timeout=1)
-            self.active_tasks += 1
+            with self.task_lock:
+                self.active_tasks += 1
             future = self.graph._thread_pool.submit(self._execute_task, worker, task)
 
             # Use a named function instead of a lambda to avoid closure issues
@@ -124,11 +127,7 @@ class Dispatcher:
             return False
 
     def dispatch(self):
-        while (
-            not self.stop_event.is_set()
-            or not self.work_queue.empty()
-            or self.active_tasks > 0
-        ):
+        while not self.stop_event.is_set() or not self.work_queue.empty():
             self._dispatch_once()
 
     def _execute_task(self, worker: TaskWorker, task: Task):
@@ -199,9 +198,10 @@ class Dispatcher:
             return f"unknown_{id(task)}"
 
     def _notify_completed(self, future):
-        self.active_tasks -= 1
-        if self.active_tasks == 0 and self.work_queue.empty():
-            self.task_completion_event.set()
+        with self.task_lock:
+            self.active_tasks -= 1
+            if self.active_tasks == 0 and self.work_queue.empty():
+                self.task_completion_event.set()
 
     def _task_completed(self, worker: TaskWorker, task: Task, future):
         success: bool = False
@@ -212,7 +212,6 @@ class Dispatcher:
 
             # Handle successful task completion
             logging.info(f"Task {task.name} completed successfully")
-            self.total_completed_tasks += 1
             success = True
 
         except Exception as e:
@@ -230,8 +229,9 @@ class Dispatcher:
                 if worker.num_retries > 0:
                     if task.retry_count < worker.num_retries:
                         task.increment_retry_count()
-                        self.active_tasks -= 1
-                        self.work_queue.put((worker, task))
+                        with self.task_lock:
+                            self.active_tasks -= 1
+                            self.work_queue.put((worker, task))
                         logging.info(
                             f"Retrying task {task.name} for the {task.retry_count} time"
                         )
@@ -239,6 +239,7 @@ class Dispatcher:
 
                 with self.task_lock:
                     self.failed_tasks.appendleft((worker, task, error_message))
+                    self.total_failed_tasks += 1
                 logging.error(
                     f"Task {task.name} failed after {task.retry_count} retries"
                 )
@@ -246,11 +247,13 @@ class Dispatcher:
             else:
                 with self.task_lock:
                     self.completed_tasks.appendleft((worker, task))
+                    self.total_completed_tasks += 1
 
             self._remove_provenance(task)
-            self.active_tasks -= 1
-            if self.active_tasks == 0 and self.work_queue.empty():
-                self.task_completion_event.set()
+            with self.task_lock:
+                self.active_tasks -= 1
+                if self.active_tasks == 0 and self.work_queue.empty():
+                    self.task_completion_event.set()
 
     def add_work(self, worker: TaskWorker, task: Task):
         self._add_provenance(task)
