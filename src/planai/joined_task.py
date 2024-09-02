@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
 from abc import abstractmethod
 from typing import Dict, List, Set, Type
 
@@ -40,6 +41,7 @@ class JoinedTaskWorker(TaskWorker):
             )
         if prefix not in self._joined_results:
             # we will register the watch for the prefix when we see it for the first time.
+            logging.info("Starting watch for %s in %s", prefix, self.name)
             self.watch(prefix)
 
         # we accumulate the results by the prefix described by join_type
