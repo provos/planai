@@ -75,7 +75,7 @@ class Dispatcher:
                     to_notify.add(prefix)
 
         for prefix in to_notify:
-            self._notify_task_completion(prefix)
+            self._notify_task_completion(prefix, task)
 
     def watch(self, prefix: ProvenanceChain, notifier: TaskWorker) -> bool:
         if not isinstance(prefix, tuple):
@@ -97,7 +97,7 @@ class Dispatcher:
                 return True
         return False
 
-    def _notify_task_completion(self, prefix: tuple):
+    def _notify_task_completion(self, prefix: tuple, task: Task):
         to_notify = []
         with self.notifiers_lock:
             for notifier in self.notifiers[prefix]:
@@ -106,8 +106,13 @@ class Dispatcher:
         for notifier, prefix in to_notify:
             with self.task_lock:
                 self.active_tasks += 1
+
+            # Use a named function instead of a lambda to avoid closure issues
+            def task_completed_callback(future, worker=notifier, task=task):
+                self._task_completed(worker, task, future)
+
             future = self.graph._thread_pool.submit(notifier.notify, prefix)
-            future.add_done_callback(self._notify_completed)
+            future.add_done_callback(task_completed_callback)
 
     def _dispatch_once(self) -> bool:
         try:
@@ -127,7 +132,15 @@ class Dispatcher:
             return False
 
     def dispatch(self):
-        while not self.stop_event.is_set() or not self.work_queue.empty():
+        while True:
+            # making sure that we can access active_tasks in a thread-safe way
+            with self.task_lock:
+                if (
+                    self.stop_event.is_set()
+                    and self.work_queue.empty()
+                    and self.active_tasks == 0
+                ):
+                    break
             self._dispatch_once()
 
     def _execute_task(self, worker: TaskWorker, task: Task):
@@ -196,12 +209,6 @@ class Dispatcher:
         else:
             # Fallback in case _provenance is empty
             return f"unknown_{id(task)}"
-
-    def _notify_completed(self, future):
-        with self.task_lock:
-            self.active_tasks -= 1
-            if self.active_tasks == 0 and self.work_queue.empty():
-                self.task_completion_event.set()
 
     def _task_completed(self, worker: TaskWorker, task: Task, future):
         success: bool = False

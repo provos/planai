@@ -127,13 +127,14 @@ class TestDispatcher(unittest.TestCase):
         with patch.object(self.dispatcher, "_notify_task_completion") as mock_notify:
             self.dispatcher._remove_provenance(task)
             self.assertEqual(self.dispatcher.provenance, {})
-            mock_notify.assert_any_call((("Task1", 1),))
-            mock_notify.assert_any_call((("Task1", 1), ("Task2", 2)))
+            mock_notify.assert_any_call((("Task1", 1),), task)
+            mock_notify.assert_any_call((("Task1", 1), ("Task2", 2)), task)
 
     def test_notify_task_completion(self):
         notifier = Mock(spec=TaskWorker)
+        task = DummyTask(data="test")
         self.dispatcher.notifiers = {(("Task1", 1),): [notifier]}
-        self.dispatcher._notify_task_completion((("Task1", 1),))
+        self.dispatcher._notify_task_completion((("Task1", 1),), task)
         self.assertEqual(self.dispatcher.active_tasks, 1)
         notifier.notify.assert_called_once_with((("Task1", 1),))
 
@@ -222,8 +223,10 @@ class TestDispatcher(unittest.TestCase):
 
     def test_notify_completed(self):
         future = Mock()
+        worker = DummyTaskWorkerSimple()
+        task = DummyTask(data="test")
         self.dispatcher.active_tasks = 1
-        self.dispatcher._notify_completed(future)
+        self.dispatcher._task_completed(worker, task, future)
         self.assertEqual(self.dispatcher.active_tasks, 0)
         self.assertTrue(self.dispatcher.task_completion_event.is_set())
 
