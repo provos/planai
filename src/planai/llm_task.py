@@ -26,6 +26,10 @@ from .task import Task, TaskWorker
 
 class LLMTaskWorker(TaskWorker):
     model_config = ConfigDict(arbitrary_types_allowed=True)
+    llm_output_type: Optional[Task] = Field(
+        None,
+        description="The output type of the LLM if it differs from the task output type",
+    )
 
     llm: LLMInterface = Field(
         ..., title="LLM", description="The LLM to use for the task"
@@ -43,6 +47,9 @@ class LLMTaskWorker(TaskWorker):
         return self._invoke_llm(task)
 
     def _output_type(self):
+        if self.llm_output_type is not None:
+            return self.llm_output_type
+        # the convention is that we pick the first output type if llm_output_type is not set
         return list(self.output_types)[0]
 
     def _invoke_llm(self, task: Task) -> Task:
