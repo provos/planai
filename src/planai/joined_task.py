@@ -13,6 +13,7 @@
 # limitations under the License.
 import logging
 from abc import abstractmethod
+from operator import attrgetter
 from typing import Dict, List, Set, Type
 
 from pydantic import PrivateAttr
@@ -21,6 +22,17 @@ from .task import Task, TaskWorker
 
 
 class JoinedTaskWorker(TaskWorker):
+    """
+    A JoinedTaskWorker waits for the completion of a specific set of upstream tasks
+    based on the provided join_type.
+
+    It will watch the input provenance for the worker
+    specified in join_type and accumulate the results until all tasks with that input provenance
+    are completed. Usually that means that the join_type worker needs to be at least two-hops
+    upstream from this consumer as otherwise there won't be any results to join, i.e. there will
+    ever only be one task with the input provenance of the immediate upstream worker.
+    """
+
     join_type: Type[TaskWorker]
     _joined_results: Dict[tuple, List[Task]] = PrivateAttr(default_factory=dict)
 
@@ -55,7 +67,13 @@ class JoinedTaskWorker(TaskWorker):
             raise ValueError(
                 f"Trying to remove a Task {prefix} that is not being watched."
             )
-        self.consume_work_joined(self._joined_results.pop(prefix))
+        # Sort the tasks based on their _provenance before sending them
+        # This allows for better caching and reproducibility
+        sorted_tasks = sorted(
+            self._joined_results[prefix], key=attrgetter("_provenance")
+        )
+        self.consume_work_joined(sorted_tasks)
+        del self._joined_results[prefix]
 
     def _validate_connection(self) -> None:
         """
@@ -75,7 +93,7 @@ class JoinedTaskWorker(TaskWorker):
 
         if self._graph is None:
             raise ValueError(
-                f"{self.__class__.__name__} is not associated with a Graph. Call set_graph() first."
+                f"{self.name} is not associated with a Graph. Call set_graph() first."
             )
 
         def dfs_search(
@@ -96,7 +114,13 @@ class JoinedTaskWorker(TaskWorker):
 
             return False
 
-        if not dfs_search(self, self.join_type, set()):
+        visited = set()
+        if not dfs_search(self, self.join_type, visited):
             raise ValueError(
-                f"{self.join_type.__name__} is not found in the upstream path of {self.__class__.__name__}"
+                f"{self.join_type.__name__} is not found in the upstream path of {self.name}"
+            )
+
+        if len(visited) <= 1:
+            raise ValueError(
+                f"Joining on the immediate upstream worker {self.join_type} in {self.name} will never yield more than one result."
             )
