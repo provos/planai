@@ -100,15 +100,41 @@ class Task(BaseModel):
         return None
 
 
+import logging
+import threading
+
+
 class WorkBufferContext:
-    def __init__(self, worker):
-        self.worker = worker
+    def __init__(self, worker, input_task=None):
+        self.worker: "TaskWorker" = worker
+        self.input_task: "Task" = input_task
+        self.work_buffer: List[Tuple["TaskWorker", "Task"]] = []
 
     def __enter__(self):
-        self.worker._init_work_buffer()
+        self.worker._local.ctx = self
+        return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self.worker._flush_work_buffer()
+        self._flush_work_buffer()
+
+    def _flush_work_buffer(self):
+        self.worker._cache_up_call(
+            self.input_task, [entry[1] for entry in self.work_buffer]
+        )
+        if self.worker._graph and self.worker._graph._dispatcher:
+            logging.info(
+                "Worker %s flushing work buffer with %d items",
+                self.worker.name,
+                len(self.work_buffer),
+            )
+            self.worker._graph._dispatcher.add_multiple_work(self.work_buffer)
+        else:
+            for consumer, task in self.work_buffer:
+                self.worker._dispatch_work(task)
+        self.work_buffer.clear()
+
+    def add_to_buffer(self, consumer: 'TaskWorker', task: "Task"):
+        self.work_buffer.append((consumer, task))
 
 
 class TaskWorker(BaseModel, ABC):
@@ -144,11 +170,9 @@ class TaskWorker(BaseModel, ABC):
     _last_input_task: Optional[Task] = PrivateAttr(default=None)
     _instance_id: uuid.UUID = PrivateAttr(default_factory=uuid.uuid4)
     _local: threading.local = PrivateAttr(default_factory=threading.local)
-    _work_buffer_context: Optional[WorkBufferContext] = PrivateAttr(default=None)
 
     def __init__(self, **data):
         super().__init__(**data)
-        self._work_buffer_context = WorkBufferContext(self)
 
     def __hash__(self):
         return hash(self._instance_id)
@@ -158,12 +182,8 @@ class TaskWorker(BaseModel, ABC):
             return self._instance_id == other._instance_id
         return False
 
-    def _init_work_buffer(self):
-        if not hasattr(self._local, "work_buffer"):
-            self._local.work_buffer = []
-
-    def _clear_work_buffer(self):
-        self._local.work_buffer = []
+    def work_buffer_context(self, input_task=None):
+        return WorkBufferContext(self, input_task)
 
     @property
     def name(self) -> str:
@@ -259,7 +279,7 @@ class TaskWorker(BaseModel, ABC):
     def _pre_consume_work(self, task: Task):
         with self._state_lock:
             self._last_input_task = task
-        with self._work_buffer_context:
+        with self.work_buffer_context(task):
             self.consume_work(task)
 
     def init(self):
@@ -327,22 +347,11 @@ class TaskWorker(BaseModel, ABC):
             task.__class__.__name__,
         )
 
-        self._init_work_buffer()
-        self._local.work_buffer.append((consumer, task))
+        # this requires that anything that might call publish_work is wrapped in a work_buffer_context
+        self._local.ctx.add_to_buffer(consumer, task)
 
-    def _flush_work_buffer(self):
-        self._init_work_buffer()
-        if self._graph and self._graph._dispatcher:
-            logging.info(
-                "Worker %s flushing work buffer with %d items",
-                self.name,
-                len(self._local.work_buffer),
-            )
-            self._graph._dispatcher.add_multiple_work(self._local.work_buffer)
-        else:
-            for consumer, task in self._local.work_buffer:
-                self._dispatch_work(task)
-        self._clear_work_buffer()
+    def _cache_up_call(self, input_task: Task, output_tasks: List[Task]):
+        pass
 
     def completed(self):
         """Called to let the worker know that it has finished processing all work."""

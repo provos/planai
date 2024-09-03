@@ -140,8 +140,8 @@ class TestTaskWorker(unittest.TestCase):
         task = DummyTask()
         self.worker.register_consumer(DummyTask, self.worker)
 
-        self.worker.publish_work(task, input_task)
-        self.worker._flush_work_buffer()
+        with self.worker.work_buffer_context(input_task):
+            self.worker.publish_work(task, input_task)
 
         self.assertEqual(len(task._provenance), 1)
         self.assertEqual(task._provenance[0][0], self.worker.name)

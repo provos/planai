@@ -35,7 +35,7 @@ class CachedTaskWorker(TaskWorker):
         self._cache = Cache(self.cache_dir, size_limit=self.cache_size_limit)
 
     def _pre_consume_work(self, task: Task):
-        with self._work_buffer_context:
+        with self.work_buffer_context(task):
             self.pre_consume_work(task)
 
             cache_key = self._get_cache_key(task)
@@ -96,16 +96,12 @@ class CachedTaskWorker(TaskWorker):
         for result in cached_results:
             super().publish_work(result, input_task=input_task)
 
-    def publish_work(self, task: Task, input_task: Task):
-        """Publish work and cache the results."""
-        super().publish_work(task, input_task=input_task)
+    def _cache_up_call(self, input_task: Task, cached_results: List[Task]):
 
         cache_key = self._get_cache_key(input_task)
         try:
             # since the cache key includes the name of this task worker, we can use the lock in this class
             with self._lock:
-                cached_results = self._cache.get(cache_key, default=[])
-                cached_results.append(task)
                 self._cache.set(cache_key, cached_results)
             logging.info("Task %s cached results for key: %s", self.name, cache_key)
         except Exception as e:

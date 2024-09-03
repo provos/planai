@@ -119,7 +119,8 @@ class TestCachedTaskWorker(unittest.TestCase):
         input_task = DummyInputTask(data="test")
         output_task = DummyOutputTask(processed_data="Processed: test")
 
-        self.worker.publish_work(output_task, input_task)
+        with self.worker.work_buffer_context(input_task):
+            self.worker.publish_work(output_task, input_task)
 
         cache_key = self.worker._get_cache_key(input_task)
         cached_results = self.mock_cache.get(cache_key)
@@ -136,14 +137,13 @@ class TestCachedTaskWorker(unittest.TestCase):
                 self.mock_cache, "set", side_effect=Exception("Cache error")
             ):
                 with self.assertLogs(level="ERROR") as log:
-                    self.worker.publish_work(output_task, input_task)
+                    with self.worker.work_buffer_context(input_task):
+                        self.worker.publish_work(output_task, input_task)
                     self.assertIn(
                         "ERROR:root:Error caching results for key", log.output[0]
                     )
 
-            mock_super_publish.assert_called_once_with(
-                output_task, input_task=input_task
-            )
+            mock_super_publish.assert_called_once_with(output_task, input_task)
 
 
 if __name__ == "__main__":

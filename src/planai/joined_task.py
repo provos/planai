@@ -79,7 +79,7 @@ class JoinedTaskWorker(TaskWorker):
         sorted_tasks = sorted(
             self._joined_results[prefix], key=attrgetter("_provenance")
         )
-        with self._work_buffer_context:
+        with self.work_buffer_context(sorted_tasks[0]):
             self.consume_work_joined(sorted_tasks)
             del self._joined_results[prefix]
 
