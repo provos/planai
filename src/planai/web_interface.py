@@ -41,7 +41,7 @@ def stream():
             if current_data != last_data:
                 yield f"data: {json.dumps(current_data)}\n\n"
             last_data = current_data
-            time.sleep(1)
+            time.sleep(0.2)
 
     def get_current_data():
         queued_tasks = dispatcher.get_queued_tasks()
@@ -57,6 +57,24 @@ def stream():
         }
 
         return data
+
+    return Response(event_stream(), mimetype="text/event-stream")
+
+
+@app.route("/trace_stream")
+def trace_stream():
+    def event_stream():
+        last_trace = None
+        while True:
+            current_trace = dispatcher.get_traces()
+            if current_trace != last_trace:
+                # Convert tuple keys to strings
+                serializable_trace = {
+                    "_".join(map(str, k)): v for k, v in current_trace.items()
+                }
+                yield f"data: {json.dumps(serializable_trace)}\n\n"
+            last_trace = current_trace
+            time.sleep(0.2)
 
     return Response(event_stream(), mimetype="text/event-stream")
 

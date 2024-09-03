@@ -102,6 +102,30 @@
         .nested-object {
             margin-left: 20px;
         }
+
+        .trace-list {
+            background-color: var(--task-list-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 20px;
+        }
+
+        .trace-prefix {
+            background-color: var(--task-item-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+
+        .trace-prefix h4 {
+            margin-top: 0;
+        }
+
+        .trace-prefix ul {
+            padding-left: 20px;
+        }
     </style>
 </head>
 
@@ -110,6 +134,9 @@
     <button id="theme-toggle">Toggle Dark Mode</button>
     <h1>PlanAI Dispatcher Dashboard</h1>
     <button id="quit-button">Quit</button>
+
+    <h2>Provenance Trace</h2>
+    <div id="trace-visualization" class="trace-list"></div>
 
     <h2>Queued Tasks</h2>
     <div id="queued-tasks" class="task-list"></div>
@@ -201,7 +228,6 @@
             });
         }
 
-
         function renderObject(obj, indent = '') {
             return Object.entries(obj).map(([key, value]) => {
                 if (value === null) return `${indent}<strong>${key}:</strong> null`;
@@ -224,7 +250,65 @@
             }
         }
 
+        // Trace visualization
+        let traceEventSource;
 
+        function setupTraceEventSource() {
+            traceEventSource = new EventSource("/trace_stream");
+
+            traceEventSource.onmessage = function (event) {
+                const traceData = JSON.parse(event.data);
+                updateTraceVisualization(traceData);
+            };
+
+            traceEventSource.onerror = function (error) {
+                traceEventSource.close();
+                setTimeout(setupTraceEventSource, 1000);
+            };
+        }
+
+        setupTraceEventSource();
+
+        function updateTraceVisualization(traceData) {
+            const traceElement = document.getElementById('trace-visualization');
+            traceElement.innerHTML = '';
+
+            for (const [prefixStr, entries] of Object.entries(traceData)) {
+                const prefixElement = document.createElement('div');
+                prefixElement.className = 'trace-prefix';
+
+                const prefix = prefixStr.split('_').join(', ');
+
+                prefixElement.innerHTML = `<h4>Prefix: (${prefix})</h4>`;
+
+                const table = document.createElement('table');
+                table.className = 'trace-table';
+
+                // Create table header
+                const headerRow = table.insertRow();
+                ['Worker', 'Action', 'Task', 'Count', 'Status'].forEach(header => {
+                    const th = document.createElement('th');
+                    th.textContent = header;
+                    headerRow.appendChild(th);
+                });
+
+                // Populate table with entry data
+                entries.forEach(entry => {
+                    const row = table.insertRow();
+                    row.className = entry.action + (entry.count === 0 ? ' zero-count' : '');
+                    ['worker', 'action', 'task', 'count', 'status'].forEach(key => {
+                        const cell = row.insertCell();
+                        cell.textContent = entry[key];
+                    });
+                });
+
+                prefixElement.appendChild(table);
+                traceElement.appendChild(prefixElement);
+            }
+        }
+
+
+        // Quit button functionality
         document.getElementById('quit-button').addEventListener('click', function () {
             fetch('/quit', { method: 'POST' })
                 .then(response => response.json())
@@ -234,6 +318,7 @@
                     }
                 });
         });
+
         // Theme toggle functionality
         const themeToggle = document.getElementById('theme-toggle');
         const prefersDarkScheme = window.matchMedia("(prefers-color-scheme: dark)");

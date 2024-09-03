@@ -225,6 +225,21 @@ class TaskWorker(BaseModel, ABC):
         self._graph.set_dependency(self, downstream)
         return downstream
 
+    def trace(self, prefix: "ProvenanceChain"):
+        """
+        Traces the provenance chain for a given prefix in the graph.
+
+        This method sets up a trace on a given prefix in the provenance chain. It will be visible
+        in the dispatcher dashboard.
+
+        Parameters:
+        -----------
+        prefix : ProvenanceChain
+            The prefix to trace. Must be a tuple representing a part of a task's provenance chain.
+            This is the sequence of task identifiers leading up to (but not including) the current task.
+        """
+        self._graph._dispatcher.trace(prefix)
+
     def watch(self, prefix: "ProvenanceChain", task: Optional[Task] = None) -> bool:
         """
         Watches for the completion of a specific provenance chain prefix in the task graph.
