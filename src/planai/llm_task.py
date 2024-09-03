@@ -14,7 +14,7 @@
 import hashlib
 import logging
 from textwrap import dedent
-from typing import Optional
+from typing import Optional, Type
 
 from langchain_core.output_parsers import PydanticOutputParser
 from pydantic import ConfigDict, Field
@@ -26,7 +26,7 @@ from .task import Task, TaskWorker
 
 class LLMTaskWorker(TaskWorker):
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    llm_output_type: Optional[Task] = Field(
+    llm_output_type: Optional[Type[Task]] = Field(
         None,
         description="The output type of the LLM if it differs from the task output type",
     )
@@ -40,8 +40,10 @@ class LLMTaskWorker(TaskWorker):
 
     def __init__(self, **data):
         super().__init__(**data)
-        if len(self.output_types) != 1:
-            raise ValueError("LLMTask must have exactly one output type")
+        if self.llm_output_type is None and len(self.output_types) != 1:
+            raise ValueError(
+                "LLMTask must either have llm_output_type or exactly one output_type"
+            )
 
     def consume_work(self, task: Task):
         return self._invoke_llm(task)
