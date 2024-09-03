@@ -18,6 +18,24 @@ from unittest.mock import Mock, patch
 from planai.task import Task, TaskWorker
 
 
+def copy_work_buffer(work_buffer):
+    return [
+        (worker.model_copy(deep=False), task.model_copy(deep=False))
+        for worker, task in work_buffer
+    ]
+
+
+class CopyingMock(Mock):
+    def __call__(self, *args, **kwargs):
+        if (
+            args
+            and isinstance(args[0], list)
+            and all(isinstance(item, tuple) for item in args[0])
+        ):
+            args = (copy_work_buffer(args[0]),) + args[1:]
+        return super().__call__(*args, **kwargs)
+
+
 class TestTask(unittest.TestCase):
     def setUp(self):
         self.task = Task()
@@ -135,6 +153,13 @@ class TestTaskWorker(unittest.TestCase):
         self.worker._graph = graph
         mock_dispatcher = Mock()
         graph._dispatcher = mock_dispatcher
+
+        # Create a side effect function that copies the input
+        def copy_input(work_buffer):
+            return work_buffer.copy()
+
+        # Set the side effect on the mock
+        mock_dispatcher.add_multiple_work = CopyingMock()
 
         input_task = DummyTask()
         task = DummyTask()
