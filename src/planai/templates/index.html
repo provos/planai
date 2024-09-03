@@ -13,6 +13,10 @@
             --task-list-bg: #f9f9f9;
             --task-item-bg: #ffffff;
             --border-color: #dddddd;
+            --adding-color: #e6ffe6;
+            --removing-color: #ffe6e6;
+            --notification-color: #ffff99;
+            --notification-hover-color: #ffff66;
         }
 
         [data-theme="dark"] {
@@ -22,7 +26,12 @@
             --task-list-bg: #2a2a2a;
             --task-item-bg: #333333;
             --border-color: #444444;
+            --adding-color: #1a4d1a;
+            --removing-color: #4d1a1a;
+            --notification-color: #4d4d00;
+            --notification-hover-color: #666600;
         }
+
 
         body {
             font-family: Arial, sans-serif;
@@ -125,6 +134,93 @@
 
         .trace-prefix ul {
             padding-left: 20px;
+        }
+
+        .table-wrapper {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+        }
+
+        .trace-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .trace-table th {
+            position: sticky;
+            top: 0;
+            background-color: var(--header-color);
+            color: var(--bg-color);
+            z-index: 1;
+        }
+
+        .trace-table th,
+        .trace-table td {
+            border: 1px solid var(--border-color);
+            padding: 8px;
+            text-align: left;
+        }
+
+        .trace-table td {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 150px;
+        }
+
+        .trace-table .status-cell {
+            max-width: 300px;
+            white-space: normal;
+            word-wrap: break-word;
+        }
+
+        .trace-table tr:nth-child(even) {
+            background-color: var(--task-list-bg);
+        }
+
+        .trace-table tr:hover {
+            background-color: var(--task-item-bg);
+        }
+
+        .trace-table .adding {
+            background-color: var(--adding-color);
+        }
+
+        .trace-table .removing {
+            background-color: var(--removing-color);
+        }
+
+        .trace-table .zero-count {
+            font-weight: bold;
+        }
+
+        .trace-table .notification-row {
+            background-color: var(--notification-color);
+        }
+
+        .trace-table .notification-row:hover {
+            background-color: var(--notification-hover-color);
+        }
+
+        .table-wrapper::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 30px;
+            background: linear-gradient(to top, var(--bg-color-alpha-80), transparent);
+            pointer-events: none;
+        }
+
+        .notification-counter {
+            background-color: var(--notification-color);
+            color: var(--text-color);
+            padding: 5px 10px;
+            border-radius: 10px;
+            display: inline-block;
+            margin-bottom: 10px;
         }
     </style>
 </head>
@@ -281,6 +377,9 @@
 
                 prefixElement.innerHTML = `<h4>Prefix: (${prefix})</h4>`;
 
+                const tableWrapper = document.createElement('div');
+                tableWrapper.className = 'table-wrapper';
+
                 const table = document.createElement('table');
                 table.className = 'trace-table';
 
@@ -295,17 +394,27 @@
                 // Populate table with entry data
                 entries.forEach(entry => {
                     const row = table.insertRow();
-                    row.className = entry.action + (entry.count === 0 ? ' zero-count' : '');
-                    ['worker', 'action', 'task', 'count', 'status'].forEach(key => {
+                    row.className = entry.action;
+                    if (entry.count === 0) row.classList.add('zero-count');
+                    if (entry.status.includes('Notifying:')) row.classList.add('notification-row');
+
+                    ['worker', 'action', 'task', 'count'].forEach(key => {
                         const cell = row.insertCell();
                         cell.textContent = entry[key];
                     });
+
+                    // Handle status separately to allow for wrapping
+                    const statusCell = row.insertCell();
+                    statusCell.className = 'status-cell';
+                    statusCell.textContent = entry.status;
                 });
 
-                prefixElement.appendChild(table);
+                tableWrapper.appendChild(table);
+                prefixElement.appendChild(tableWrapper);
                 traceElement.appendChild(prefixElement);
             }
         }
+
 
 
         // Quit button functionality
