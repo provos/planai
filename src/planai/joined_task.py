@@ -17,7 +17,7 @@ from abc import abstractmethod
 from operator import attrgetter
 from typing import Dict, List, Set, Type
 
-from pydantic import PrivateAttr
+from pydantic import Field, PrivateAttr
 
 from .task import Task, TaskWorker
 
@@ -35,6 +35,9 @@ class JoinedTaskWorker(TaskWorker):
     """
 
     join_type: Type[TaskWorker]
+    enable_trace: bool = Field(
+        default=False, description="Enable tracing for the join_type in the dashboard."
+    )
     _joined_results: Dict[tuple, List[Task]] = PrivateAttr(default_factory=dict)
     _lock: threading.Lock = PrivateAttr(default_factory=threading.Lock)
 
@@ -64,6 +67,8 @@ class JoinedTaskWorker(TaskWorker):
 
         if need_watch:
             # we will register the watch for the prefix when we see it for the first time.
+            if self.enable_trace:
+                self.trace(prefix)
             logging.info("Starting watch for %s in %s", prefix, self.name)
             self.watch(prefix)
 
