@@ -227,7 +227,8 @@ class Dispatcher:
             "worker": worker.name,
             "provenance": [f"{worker}_{id}" for worker, id in task._provenance],
             "input_provenance": [
-                input_task.model_dump() for input_task in task._input_provenance
+                {input_task.name: input_task.model_dump()}
+                for input_task in task._input_provenance
             ],
         }
         if error:
