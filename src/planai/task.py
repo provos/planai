@@ -100,10 +100,6 @@ class Task(BaseModel):
         return None
 
 
-import logging
-import threading
-
-
 class WorkBufferContext:
     def __init__(self, worker, input_task=None):
         self.worker: "TaskWorker" = worker
@@ -133,7 +129,7 @@ class WorkBufferContext:
                 self.worker._dispatch_work(task)
         self.work_buffer.clear()
 
-    def add_to_buffer(self, consumer: 'TaskWorker', task: "Task"):
+    def add_to_buffer(self, consumer: "TaskWorker", task: "Task"):
         self.work_buffer.append((consumer, task))
 
 
