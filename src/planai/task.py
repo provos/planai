@@ -112,11 +112,12 @@ class WorkBufferContext:
 
     def __exit__(self, exc_type, exc_value, traceback):
         self._flush_work_buffer()
+        self.worker._local.ctx = None
+
+    def get_input_and_outputs(self):
+        return self.input_task, [entry[1] for entry in self.work_buffer]
 
     def _flush_work_buffer(self):
-        self.worker._cache_up_call(
-            self.input_task, [entry[1] for entry in self.work_buffer]
-        )
         if self.worker._graph and self.worker._graph._dispatcher:
             logging.info(
                 "Worker %s flushing work buffer with %d items",
@@ -151,7 +152,8 @@ class TaskWorker(BaseModel, ABC):
     """
 
     output_types: Set[Type[Task]] = Field(
-        default_factory=set, description="The types of work this task can output"
+        default_factory=set,
+        description="The types of work this task can output",
     )
     num_retries: int = Field(
         0, description="The number of retries allowed for this task"
@@ -178,7 +180,9 @@ class TaskWorker(BaseModel, ABC):
             return self._instance_id == other._instance_id
         return False
 
-    def work_buffer_context(self, input_task=None):
+    def work_buffer_context(self, input_task):
+        if input_task is None:
+            raise ValueError("Input task cannot be None")
         return WorkBufferContext(self, input_task)
 
     @property
@@ -360,9 +364,6 @@ class TaskWorker(BaseModel, ABC):
 
         # this requires that anything that might call publish_work is wrapped in a work_buffer_context
         self._local.ctx.add_to_buffer(consumer, task)
-
-    def _cache_up_call(self, input_task: Task, output_tasks: List[Task]):
-        pass
 
     def completed(self):
         """Called to let the worker know that it has finished processing all work."""

@@ -11,8 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
 import unittest
-from typing import List, Type
+from collections import defaultdict
+from typing import Dict, List, Type
 from unittest.mock import patch
 
 from planai.cached_task import CachedTaskWorker, TaskWorker
@@ -23,12 +25,22 @@ from planai.task import Task
 class MockCache:
     def __init__(self):
         self.store = {}
+        self.set_stats: Dict[str, int] = defaultdict(int)
+        self.get_stats: Dict[str, int] = defaultdict(int)
 
     def get(self, key, default=None):
+        logging.debug("Getting key: %s", key)
+        self.get_stats[key] += 1
         return self.store.get(key, default)
 
     def set(self, key, value):
+        logging.debug("Setting key: %s", key)
         self.store[key] = value
+        self.set_stats[key] += 1
+
+    def clear_stats(self):
+        self.set_stats.clear()
+        self.get_stats.clear()
 
 
 # Dummy Task classes
@@ -79,6 +91,7 @@ class TestCachedTaskWorker(unittest.TestCase):
 
     def test_pre_consume_work_cache_miss(self):
         task = DummyInputTask(data="test")
+        cache_key = self.worker._get_cache_key(task)
         with patch(
             "test_cached_task.DummyCachedTaskWorker.consume_work"
         ) as mock_consume:
@@ -92,12 +105,15 @@ class TestCachedTaskWorker(unittest.TestCase):
                     mock_pre_consume.assert_called_once_with(task)
                     mock_consume.assert_called_once_with(task)
                     mock_post_consume.assert_called_once_with(task)
+        self.assertEqual(self.mock_cache.get_stats[cache_key], 1)
+        self.assertEqual(self.mock_cache.set_stats[cache_key], 1)
 
     def test_pre_consume_work_cache_hit(self):
         task = DummyInputTask(data="test")
         cached_result = [DummyOutputTask(processed_data="Cached: test")]
         cache_key = self.worker._get_cache_key(task)
-        self.mock_cache.set(cache_key, cached_result)
+        self.mock_cache.set(cache_key, [cached_result, task])
+        self.mock_cache.clear_stats()
 
         with patch(
             "test_cached_task.DummyCachedTaskWorker.consume_work"
@@ -114,23 +130,26 @@ class TestCachedTaskWorker(unittest.TestCase):
                         mock_consume.assert_not_called()
                         mock_publish.assert_called_once_with(cached_result, task)
                         mock_post_consume.assert_called_once_with(task)
+        self.assertEqual(self.mock_cache.get_stats[cache_key], 1)
+        self.assertEqual(self.mock_cache.set_stats[cache_key], 0)
 
     def test_publish_work(self):
         input_task = DummyInputTask(data="test")
-        output_task = DummyOutputTask(processed_data="Processed: test")
 
         with self.worker.work_buffer_context(input_task):
-            self.worker.publish_work(output_task, input_task)
+            self.worker._pre_consume_work(input_task)
 
         cache_key = self.worker._get_cache_key(input_task)
-        cached_results = self.mock_cache.get(cache_key)
+        cached_results, cached_task = self.mock_cache.get(cache_key)
         self.assertIsNotNone(cached_results)
         self.assertEqual(len(cached_results), 1)
-        self.assertEqual(cached_results[0], output_task)
+        self.assertEqual(cached_results[0].processed_data, "Processed: test")
+        self.assertEqual(cached_task, input_task)
+        self.assertEqual(self.mock_cache.get_stats[cache_key], 2)
+        self.assertEqual(self.mock_cache.set_stats[cache_key], 1)
 
     def test_publish_work_exception(self):
         input_task = DummyInputTask(data="test")
-        output_task = DummyOutputTask(processed_data="Processed: test")
 
         with patch.object(TaskWorker, "publish_work") as mock_super_publish:
             with patch.object(
@@ -138,12 +157,12 @@ class TestCachedTaskWorker(unittest.TestCase):
             ):
                 with self.assertLogs(level="ERROR") as log:
                     with self.worker.work_buffer_context(input_task):
-                        self.worker.publish_work(output_task, input_task)
+                        self.worker._pre_consume_work(input_task)
                     self.assertIn(
                         "ERROR:root:Error caching results for key", log.output[0]
                     )
 
-            mock_super_publish.assert_called_once_with(output_task, input_task)
+            mock_super_publish.assert_called_once()
 
 
 if __name__ == "__main__":

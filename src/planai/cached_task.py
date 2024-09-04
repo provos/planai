@@ -11,8 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import argparse
 import hashlib
 import logging
+import sys
 import threading
 from typing import List
 
@@ -39,14 +41,17 @@ class CachedTaskWorker(TaskWorker):
             self.pre_consume_work(task)
 
             cache_key = self._get_cache_key(task)
-            cached_results = self._cache.get(cache_key)
+            result = self._cache.get(cache_key)
 
-            if cached_results is not None:
+            if result is not None:
+                cached_results, _ = result
                 logging.info("Cache hit for %s with key: %s", self.name, cache_key)
                 self._publish_cached_results(cached_results, task)
             else:
                 logging.info("Cache miss for %s with key: %s", self.name, cache_key)
                 self.consume_work(task)
+                input_task, outputs = self._local.ctx.get_input_and_outputs()
+                self._set_cache(input_task, outputs)
 
             self.post_consume_work(task)
 
@@ -96,13 +101,49 @@ class CachedTaskWorker(TaskWorker):
         for result in cached_results:
             super().publish_work(result, input_task=input_task)
 
-    def _cache_up_call(self, input_task: Task, cached_results: List[Task]):
-
+    def _set_cache(self, input_task: Task, cached_results: List[Task]):
         cache_key = self._get_cache_key(input_task)
         try:
-            # since the cache key includes the name of this task worker, we can use the lock in this class
-            with self._lock:
-                self._cache.set(cache_key, cached_results)
+            self._cache.set(cache_key, [cached_results, input_task])
             logging.info("Task %s cached results for key: %s", self.name, cache_key)
         except Exception as e:
             logging.error("Error caching results for key %s: %s", cache_key, str(e))
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Read and print entries from a diskcache."
+    )
+    parser.add_argument(
+        "--output_task_filter", help="Filter for output task type", default=None
+    )
+    parser.add_argument("cache_dir", help="Directory of the diskcache to read")
+    args = parser.parse_args()
+
+    try:
+        cache = Cache(args.cache_dir)
+        print(f"Reading cache from: {args.cache_dir}")
+        print("-----------------------------")
+
+        if len(cache) == 0:
+            print("The cache is empty.")
+        else:
+            for key in cache:
+                value, input = cache.get(key)
+                if args.output_task_filter:
+                    if not any(
+                        [task.name == args.output_task_filter for task in value]
+                    ):
+                        continue
+                print(f"Key: {key}")
+                print(f"Value: {value}")
+                print(f"Input: {input.name}: {str(input)[:100]}...")
+                print("-----------------------------")
+
+    except Exception as e:
+        print(f"Error reading cache: {str(e)}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
