@@ -16,12 +16,12 @@ import threading
 import time
 from typing import TYPE_CHECKING, Optional
 
-from flask import Flask, Response, jsonify, render_template
+from flask import Flask, Response, jsonify, render_template, send_from_directory
 
 if TYPE_CHECKING:
     from .dispatcher import Dispatcher
 
-app = Flask(__name__, template_folder="templates")
+app = Flask(__name__, template_folder="templates", static_folder="static")
 
 dispatcher: Optional["Dispatcher"] = None
 quit_event = threading.Event()
@@ -30,6 +30,11 @@ quit_event = threading.Event()
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.route("/static/<path:path>")
+def send_static(path):
+    return send_from_directory("static", path)
 
 
 @app.route("/stream")
