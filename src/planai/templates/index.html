@@ -158,7 +158,13 @@
 
                 const prefix = prefixStr.split('_').join(', ');
 
-                prefixElement.innerHTML = `<h4>Prefix: (${prefix})</h4>`;
+                const headerElement = document.createElement('h4');
+                headerElement.textContent = `Prefix: (${prefix})`;
+                headerElement.onclick = function () {
+                    this.parentElement.classList.toggle('expanded');
+                };
+
+                prefixElement.appendChild(headerElement);
 
                 const tableWrapper = document.createElement('div');
                 tableWrapper.className = 'table-wrapper';
@@ -197,7 +203,6 @@
                 traceElement.appendChild(prefixElement);
             }
         }
-
 
 
         // Quit button functionality
