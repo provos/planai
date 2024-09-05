@@ -41,45 +41,30 @@ def send_static(path):
 def stream():
     def event_stream():
         last_data = None
+        last_trace = None
         while True:
             current_data = get_current_data()
-            if current_data != last_data:
-                yield f"data: {json.dumps(current_data)}\n\n"
+            current_trace = get_current_trace()
+
+            if current_data != last_data or current_trace != last_trace:
+                combined_data = {"tasks": current_data, "trace": current_trace}
+                yield f"data: {json.dumps(combined_data)}\n\n"
+
             last_data = current_data
+            last_trace = current_trace
             time.sleep(0.2)
 
     def get_current_data():
-        queued_tasks = dispatcher.get_queued_tasks()
-        active_tasks = dispatcher.get_active_tasks()
-        completed_tasks = dispatcher.get_completed_tasks()
-        failed_tasks = dispatcher.get_failed_tasks()
-
-        data = {
-            "queued": queued_tasks,
-            "active": active_tasks,
-            "completed": completed_tasks,
-            "failed": failed_tasks,
+        return {
+            "queued": dispatcher.get_queued_tasks(),
+            "active": dispatcher.get_active_tasks(),
+            "completed": dispatcher.get_completed_tasks(),
+            "failed": dispatcher.get_failed_tasks(),
         }
 
-        return data
-
-    return Response(event_stream(), mimetype="text/event-stream")
-
-
-@app.route("/trace_stream")
-def trace_stream():
-    def event_stream():
-        last_trace = None
-        while True:
-            current_trace = dispatcher.get_traces()
-            if current_trace != last_trace:
-                # Convert tuple keys to strings
-                serializable_trace = {
-                    "_".join(map(str, k)): v for k, v in current_trace.items()
-                }
-                yield f"data: {json.dumps(serializable_trace)}\n\n"
-            last_trace = current_trace
-            time.sleep(0.2)
+    def get_current_trace():
+        trace = dispatcher.get_traces()
+        return {"_".join(map(str, k)): v for k, v in trace.items()}
 
     return Response(event_stream(), mimetype="text/event-stream")
 

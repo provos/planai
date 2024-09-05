@@ -8,7 +8,6 @@
     <link rel="stylesheet" href="/static/styles.css">
 </head>
 
-
 <body>
     <button id="theme-toggle">Toggle Dark Mode</button>
     <h1>PlanAI Dispatcher Dashboard</h1>
@@ -38,7 +37,8 @@
 
             eventSource.onmessage = function (event) {
                 const data = JSON.parse(event.data);
-                updateTaskLists(data);
+                updateTaskLists(data.tasks);
+                updateTraceVisualization(data.trace);
                 reconnectAttempt = 0;
             };
 
@@ -129,25 +129,6 @@
             }
         }
 
-        // Trace visualization
-        let traceEventSource;
-
-        function setupTraceEventSource() {
-            traceEventSource = new EventSource("/trace_stream");
-
-            traceEventSource.onmessage = function (event) {
-                const traceData = JSON.parse(event.data);
-                updateTraceVisualization(traceData);
-            };
-
-            traceEventSource.onerror = function (error) {
-                traceEventSource.close();
-                setTimeout(setupTraceEventSource, 1000);
-            };
-        }
-
-        setupTraceEventSource();
-
         function updateTraceVisualization(traceData) {
             const traceElement = document.getElementById('trace-visualization');
             traceElement.innerHTML = '';
@@ -203,7 +184,6 @@
                 traceElement.appendChild(prefixElement);
             }
         }
-
 
         // Quit button functionality
         document.getElementById('quit-button').addEventListener('click', function () {
