@@ -131,6 +131,13 @@
 
         function updateTraceVisualization(traceData) {
             const traceElement = document.getElementById('trace-visualization');
+            const expandedPrefixes = new Set();
+
+            // Store currently expanded prefixes
+            traceElement.querySelectorAll('.trace-prefix.expanded').forEach(el => {
+                expandedPrefixes.add(el.querySelector('h4').textContent.trim());
+            });
+
             traceElement.innerHTML = '';
 
             for (const [prefixStr, entries] of Object.entries(traceData)) {
@@ -182,6 +189,11 @@
                 tableWrapper.appendChild(table);
                 prefixElement.appendChild(tableWrapper);
                 traceElement.appendChild(prefixElement);
+
+                // Restore expanded state if it was previously expanded
+                if (expandedPrefixes.has(headerElement.textContent.trim())) {
+                    prefixElement.classList.add('expanded');
+                }
             }
         }
 
