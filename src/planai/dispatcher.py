@@ -273,7 +273,7 @@ class Dispatcher:
         try:
             # since we are storing a lot of references to the task, we need to make sure
             # that we are not storing the same task object in multiple places
-            worker._pre_consume_work(task.copy())
+            worker._pre_consume_work(task.model_copy())
         except Exception:
             raise  # Re-raise the caught exception
         finally:
@@ -409,7 +409,7 @@ class Dispatcher:
                     self.task_completion_event.set()
 
     def add_work(self, worker: TaskWorker, task: Task):
-        task_copy = task.copy()
+        task_copy = task.model_copy()
         self._add_provenance(task_copy)
         self.work_queue.put((worker, task_copy))
 
