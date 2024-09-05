@@ -196,6 +196,16 @@ class TaskWorker(BaseModel, ABC):
         return self.__class__.__name__
 
     @property
+    def lock(self) -> threading.Lock:
+        """
+        Returns the lock object for this worker.
+
+        :return: The lock object.
+        :rtype: threading.Lock
+        """
+        return self._state_lock
+
+    @property
     def last_input_task(self) -> Optional[Task]:
         """
         Returns the last input task consumed by this worker.
