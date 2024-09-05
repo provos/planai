@@ -37,6 +37,10 @@ class LLMTaskWorker(TaskWorker):
     prompt: str = Field(
         ..., title="Prompt", description="The prompt to use for the task"
     )
+    system_prompt: str = Field(
+        "You are a helpful AI assistant. Please help the user with the following task and produce output in JSON.",
+        description="The system prompt to use for the task",
+    )
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -78,7 +82,7 @@ class LLMTaskWorker(TaskWorker):
         response = self.llm.generate_pydantic(
             prompt_template=prompt,
             output_schema=self._output_type(),
-            system="You are a helpful AI assistant. Please help the user with the following task and produce output in JSON.",
+            system=self.system_prompt,
             task=processed_task.model_dump_json(indent=2),
             instructions=task_prompt,
             format_instructions=parser.get_format_instructions(),
