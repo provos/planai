@@ -62,7 +62,7 @@ class Task(BaseModel):
         return self._provenance.copy()
 
     def copy_input_provenance(self) -> List["Task"]:
-        return self._input_provenance.copy()
+        return [input.model_copy() for input in self._input_provenance]
 
     def find_input_task(self, task_class: Type["Task"]) -> Optional["Task"]:
         """
@@ -337,7 +337,9 @@ class TaskWorker(BaseModel, ABC):
         # Copy provenance from input task if provided
         if input_task is not None:
             task._provenance = input_task.copy_provenance()
-            task._input_provenance = input_task.copy_input_provenance() + [input_task]
+            task._input_provenance = input_task.copy_input_provenance() + [
+                input_task.model_copy()
+            ]
         else:
             task._provenance = []
             task._input_provenance = []

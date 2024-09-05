@@ -171,7 +171,7 @@ class TestTaskWorker(unittest.TestCase):
         self.assertEqual(len(task._provenance), 1)
         self.assertEqual(task._provenance[0][0], self.worker.name)
         self.assertEqual(len(task._input_provenance), 1)
-        self.assertIs(task._input_provenance[0], input_task)
+        self.assertEqual(task._input_provenance[0], input_task)
         mock_dispatcher.add_multiple_work.assert_called_once_with([(self.worker, task)])
 
     def test_publish_work_invalid_type(self):
