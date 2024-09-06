@@ -17,8 +17,9 @@ from openai import OpenAI
 
 
 class OpenAIWrapper:
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, max_tokens: int = 4096):
         self.client = OpenAI(api_key=api_key)
+        self.max_tokens = max_tokens
 
     def generate(
         self,
@@ -59,6 +60,7 @@ class OpenAIWrapper:
         api_params = {
             "model": model,
             "messages": messages,
+            "max_tokens": self.max_tokens,
         }
 
         if format == "json":
