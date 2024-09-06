@@ -24,6 +24,7 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.pydantic_v1 import BaseModel
 from ollama import Client
 
+from .anthropic import AnthropicWrapper
 from .openai import OpenAIWrapper
 from .remote_ollama import RemoteOllama
 from .ssh import SSHConnection
@@ -39,9 +40,11 @@ class LLMInterface:
         model_name: str = "llama2",
         log_dir: str = "logs",
         client: Optional[Any] = None,
+        support_json_mode: bool = True,
     ):
         self.model_name = model_name
         self.client = client if client else Client()
+        self.support_json_mode = support_json_mode
 
         self.logger = setup_logging(
             logs_dir=log_dir, logs_prefix="llm_interface", logger_name=__name__
@@ -127,6 +130,8 @@ class LLMInterface:
             raw_response = self._cached_generate(
                 prompt=formatted_prompt, system=system, format="json"
             )["response"].strip()
+            if not self.support_json_mode:
+                raw_response = self._strip_text_from_json_response(raw_response)
 
             error_message, response = self._parse_response(raw_response, parser)
 
@@ -161,6 +166,7 @@ class LLMInterface:
 def llm_from_config(
     provider: Literal["ollama", "remote_ollama", "openai"] = "ollama",
     model_name: str = "llama3",
+    max_tokens: int = 4096,
     hostname: Optional[str] = None,
     username: Optional[str] = None,
     log_dir: str = "logs",
@@ -171,6 +177,16 @@ def llm_from_config(
             if api_key is None:
                 raise ValueError("OPENAI_API_KEY not found in environment variables")
             wrapper = OpenAIWrapper(api_key=api_key)
+            return LLMInterface(
+                model_name=model_name,
+                log_dir=log_dir,
+                client=wrapper,
+            )
+        case "anthropic":
+            api_key = os.getenv("ANTHROPIC_API_KEY")
+            if api_key is None:
+                raise ValueError("ANTHROPIC_API_KEY not found in environment variables")
+            wrapper = AnthropicWrapper(api_key=api_key)
             return LLMInterface(
                 model_name=model_name,
                 log_dir=log_dir,
