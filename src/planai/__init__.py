@@ -16,7 +16,7 @@
 from .cached_task import CachedTaskWorker
 from .graph import Graph
 from .joined_task import JoinedTaskWorker
-from .llm_interface import llm_from_config
+from .llm_config import llm_from_config
 from .llm_task import CachedLLMTaskWorker, LLMTaskWorker
 from .task import Task, TaskWorker
 from .utils import PydanticDictWrapper

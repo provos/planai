@@ -13,9 +13,8 @@
 # limitations under the License.
 import hashlib
 import logging
-import os
 import re
-from typing import Any, Dict, Literal, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import diskcache
 from dotenv import load_dotenv
@@ -24,10 +23,6 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.pydantic_v1 import BaseModel
 from ollama import Client
 
-from .anthropic import AnthropicWrapper
-from .openai import OpenAIWrapper
-from .remote_ollama import RemoteOllama
-from .ssh import SSHConnection
 from .utils import setup_logging
 
 # Load environment variables from .env.local file
@@ -161,52 +156,3 @@ class LLMInterface:
             error_message = str(e)
             response = None
         return error_message, response
-
-
-def llm_from_config(
-    provider: Literal["ollama", "remote_ollama", "openai"] = "ollama",
-    model_name: str = "llama3",
-    max_tokens: int = 4096,
-    hostname: Optional[str] = None,
-    username: Optional[str] = None,
-    log_dir: str = "logs",
-) -> LLMInterface:
-    match provider:
-        case "openai":
-            api_key = os.getenv("OPENAI_API_KEY")
-            if api_key is None:
-                raise ValueError("OPENAI_API_KEY not found in environment variables")
-            wrapper = OpenAIWrapper(api_key=api_key)
-            return LLMInterface(
-                model_name=model_name,
-                log_dir=log_dir,
-                client=wrapper,
-            )
-        case "anthropic":
-            api_key = os.getenv("ANTHROPIC_API_KEY")
-            if api_key is None:
-                raise ValueError("ANTHROPIC_API_KEY not found in environment variables")
-            wrapper = AnthropicWrapper(api_key=api_key)
-            return LLMInterface(
-                model_name=model_name,
-                log_dir=log_dir,
-                client=wrapper,
-            )
-        case "remote_ollama":
-            ssh = SSHConnection(
-                hostname=hostname,
-                username=username,
-            )
-            client = RemoteOllama(ssh_connection=ssh, model_name=model_name)
-            return LLMInterface(
-                model_name=model_name,
-                log_dir=log_dir,
-                client=client,
-            )
-        case "ollama":
-            return LLMInterface(
-                model_name=model_name,
-                log_dir=log_dir,
-            )
-
-    raise ValueError(f"Invalid LLM provider in config: {provider}")
