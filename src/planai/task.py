@@ -39,6 +39,8 @@ class Task(BaseModel):
     _provenance: List[Tuple[str, int]] = PrivateAttr(default_factory=list)
     _input_provenance: List["Task"] = PrivateAttr(default_factory=list)
     _retry_count: int = PrivateAttr(default=0)
+    _start_time: Optional[float] = PrivateAttr(default=None)
+    _end_time: Optional[float] = PrivateAttr(default=None)
 
     @property
     def name(self) -> str:

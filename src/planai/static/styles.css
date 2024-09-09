@@ -230,3 +230,33 @@ h2 {
     display: inline-block;
     margin-bottom: 10px;
 }
+
+.elapsed-time {
+    font-weight: bold;
+    color: #4a90e2;
+    /* A nice blue color that stands out */
+    background-color: rgba(74, 144, 226, 0.1);
+    /* Light blue background */
+    padding: 2px 6px;
+    border-radius: 4px;
+    display: inline-block;
+    margin-left: 5px;
+    transition: background-color 0.3s ease;
+}
+
+[data-theme="dark"] .elapsed-time {
+    color: #61dafb;
+    /* A brighter blue for dark mode */
+    background-color: rgba(97, 218, 251, 0.1);
+    /* Light blue background for dark mode */
+}
+
+.elapsed-time:hover {
+    background-color: rgba(74, 144, 226, 0.2);
+    /* Slightly darker on hover */
+}
+
+[data-theme="dark"] .elapsed-time:hover {
+    background-color: rgba(97, 218, 251, 0.2);
+    /* Slightly darker on hover for dark mode */
+}

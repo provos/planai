@@ -6,12 +6,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PlanAI Dispatcher Dashboard</title>
     <link rel="stylesheet" href="/static/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
     <button id="theme-toggle">Toggle Dark Mode</button>
     <h1>PlanAI Dispatcher Dashboard</h1>
     <button id="quit-button">Quit</button>
+
+    <h2>Worker Statistics</h2>
+    <div id="worker-stats"></div>
 
     <h2>Provenance Trace</h2>
     <div id="trace-visualization" class="trace-list"></div>
@@ -39,6 +43,7 @@
                 const data = JSON.parse(event.data);
                 updateTaskLists(data.tasks);
                 updateTraceVisualization(data.trace);
+                updateWorkerStats(data.stats);
                 reconnectAttempt = 0;
             };
 
@@ -59,8 +64,18 @@
             updateTaskList('failed-tasks', data.failed);
         }
 
+        function formatTime(seconds) {
+            if (seconds === null || isNaN(seconds)) return 'N/A';
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const remainingSeconds = Math.floor(seconds % 60);
+            return `${hours}h ${minutes}m ${remainingSeconds}s`;
+        }
+
         function updateTaskList(elementId, tasks) {
             const element = document.getElementById(elementId);
+            const now = Date.now() / 1000; // Current time in seconds
+
             tasks.forEach(task => {
                 let taskElement = document.getElementById(`task-${task.id}`);
                 if (!taskElement) {
@@ -74,28 +89,38 @@
                 const isFailed = elementId === 'failed-tasks';
                 const borderStyle = isFailed ? 'border: 2px solid red;' : '';
 
+                let timeInfo = '';
+                if (elementId === 'active-tasks') {
+                    const elapsedTime = task.start_time ? now - task.start_time : 0;
+                    timeInfo = `<br><strong>Elapsed Time:</strong> <span class="elapsed-time" data-start="${task.start_time}">${formatTime(elapsedTime)}</span>`;
+                } else if (elementId === 'completed-tasks' && task.start_time && task.end_time) {
+                    const totalTime = task.end_time - task.start_time;
+                    timeInfo = `<br><strong>Total Time:</strong> ${formatTime(totalTime)}`;
+                }
+
                 taskElement.innerHTML = `
-                    <div class="task-item" onclick="toggleProvenance('${task.id}')" style="${borderStyle}">
-                        <strong>ID:</strong> ${task.id}<br>
-                        <strong>Type:</strong> ${task.type}<br>
-                        <strong>Worker:</strong> ${task.worker}
-                        ${isFailed ? `<br><strong>Error:</strong> ${task.error || 'Unknown error'}` : ''}
-                        <div id="provenance-${task.id}" class="provenance-info">
-                            <h4>Provenance:</h4>
-                            <ul>
-                                ${task.provenance.map(p => `<li>${p}</li>`).join('')}
-                            </ul>
-                            <h4>Input Provenance:</h4>
-                            <ul>
-                                ${task.input_provenance.map(inputTask => `
-                                    <li class="input-provenance-item">
-                                        ${renderObject(inputTask)}
-                                    </li>
-                                `).join('')}
-                            </ul>
-                        </div>
-                    </div>
-                `;
+            <div class="task-item" onclick="toggleProvenance('${task.id}')" style="${borderStyle}">
+                <strong>ID:</strong> ${task.id}<br>
+                <strong>Type:</strong> ${task.type}<br>
+                <strong>Worker:</strong> ${task.worker}
+                ${timeInfo}
+                ${isFailed ? `<br><strong>Error:</strong> ${task.error || 'Unknown error'}` : ''}
+                <div id="provenance-${task.id}" class="provenance-info">
+                    <h4>Provenance:</h4>
+                    <ul>
+                        ${task.provenance.map(p => `<li>${p}</li>`).join('')}
+                    </ul>
+                    <h4>Input Provenance:</h4>
+                    <ul>
+                        ${task.input_provenance.map(inputTask => `
+                            <li class="input-provenance-item">
+                                ${renderObject(inputTask)}
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+            </div>
+        `;
             });
 
             // Remove tasks that no longer exist
@@ -106,6 +131,21 @@
                 }
             });
         }
+
+        function updateElapsedTime() {
+            const now = Date.now() / 1000;
+            document.querySelectorAll('.elapsed-time').forEach(element => {
+                const startTime = parseFloat(element.getAttribute('data-start'));
+                if (startTime) {
+                    const elapsedTime = now - startTime;
+                    element.textContent = formatTime(elapsedTime);
+                }
+            });
+        }
+
+        // Set up interval to update elapsed time every second
+        setInterval(updateElapsedTime, 1000);
+
 
         function renderObject(obj, indent = '') {
             return Object.entries(obj).map(([key, value]) => {
@@ -195,6 +235,92 @@
                     prefixElement.classList.add('expanded');
                 }
             }
+        }
+
+        // Execution statistics chart
+        let workerChart;
+
+        function updateWorkerStats(workerStats) {
+            const workerStatsElement = document.getElementById('worker-stats');
+            workerStatsElement.innerHTML = ''; // Clear previous content
+
+            const canvas = document.createElement('canvas');
+            canvas.id = 'workerStatsChart';
+            workerStatsElement.appendChild(canvas);
+
+            const ctx = canvas.getContext('2d');
+
+            const labels = Object.keys(workerStats);
+            const minData = labels.map(worker => workerStats[worker].min);
+            const medianData = labels.map(worker => workerStats[worker].median);
+            const maxData = labels.map(worker => workerStats[worker].max);
+            const stdDevData = labels.map(worker => workerStats[worker].stdDev);
+
+            if (workerChart) {
+                workerChart.destroy();
+            }
+
+            workerChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Min',
+                            data: minData,
+                            backgroundColor: 'rgba(75, 192, 192, 0.6)',
+                        },
+                        {
+                            label: 'Median',
+                            data: medianData,
+                            backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                        },
+                        {
+                            label: 'Max',
+                            data: maxData,
+                            backgroundColor: 'rgba(255, 99, 132, 0.6)',
+                        },
+                        {
+                            label: 'Std Dev',
+                            data: stdDevData,
+                            backgroundColor: 'rgba(255, 206, 86, 0.6)',
+                            type: 'line',
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Execution Time (seconds)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Worker Execution Statistics'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function (context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += context.parsed.y.toFixed(2) + ' seconds';
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
         }
 
         // Quit button functionality

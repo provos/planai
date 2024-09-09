@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import logging
+import statistics
 import sys
 import threading
 import time
@@ -62,12 +63,15 @@ class Dispatcher:
         self.task_completion_event = threading.Event()
         self.web_port = web_port
         self.debug_active_tasks: Dict[int, Tuple[TaskWorker, Task]] = {}
-        self.completed_tasks: Deque[Tuple[TaskWorker, Task, str]] = deque(
+        self.completed_tasks: Deque[Tuple[TaskWorker, Task]] = deque(
             maxlen=100
         )  # Keep last 100 completed tasks
-        self.failed_tasks: Deque[Tuple[TaskWorker, Task]] = deque(
+        self.failed_tasks: Deque[Tuple[TaskWorker, Task, str]] = deque(
             maxlen=100
         )  # Keep last 100 failed tasks
+        self.worker_stats: Dict[str, List[float]] = defaultdict(
+            list
+        )  # keeps track of execution times for each worker
         self.total_completed_tasks = 0
         self.total_failed_tasks = 0
         self.task_id_counter = 0
@@ -270,6 +274,10 @@ class Dispatcher:
         with self.task_lock:
             self.debug_active_tasks[task_id] = (worker, task)
 
+        # keep track of some basic timing information
+        task._start_time = time.time()
+        task._end_time = None
+
         try:
             # since we are storing a lot of references to the task, we need to make sure
             # that we are not storing the same task object in multiple places
@@ -281,6 +289,8 @@ class Dispatcher:
                 if task_id in self.debug_active_tasks:
                     del self.debug_active_tasks[task_id]
 
+            task._end_time = time.time()
+
     def _get_next_task_id(self) -> int:
         with self.task_lock:
             self.task_id_counter += 1
@@ -291,6 +301,8 @@ class Dispatcher:
             "id": self._get_task_id(task),
             "type": type(task).__name__,
             "worker": worker.name,
+            "start_time": task._start_time,
+            "end_time": task._end_time,
             "provenance": [f"{worker}_{id}" for worker, id in task._provenance],
             "input_provenance": [
                 {input_task.name: input_task.model_dump()}
@@ -331,6 +343,28 @@ class Dispatcher:
                 for worker, task, error in self.failed_tasks
             ]
 
+    def get_execution_statistics(self):
+        stats = {}
+        with self.task_lock:
+            for worker, times in self.worker_stats.items():
+                if times:
+                    stats[worker] = {
+                        "min": min(times),
+                        "median": statistics.median(times),
+                        "max": max(times),
+                        "stdDev": statistics.stdev(times) if len(times) > 1 else 0,
+                        "count": len(times),
+                    }
+                else:
+                    stats[worker] = {
+                        "min": 0,
+                        "median": 0,
+                        "max": 0,
+                        "stdDev": 0,
+                        "count": 0,
+                    }
+        return stats
+
     def _get_task_id(self, task: Task) -> str:
         # Use the last entry in the _provenance list as the task ID
         if task._provenance:
@@ -354,6 +388,12 @@ class Dispatcher:
                     f"Notification for worker {worker.name} completed successfully"
                 )
             success = True
+
+            # collect execution stats
+            if task and task._start_time and task._end_time:
+                execution_time = task._end_time - task._start_time
+                with self.task_lock:
+                    self.worker_stats[worker.name].append(execution_time)
 
         except Exception as e:
             # Handle task failure

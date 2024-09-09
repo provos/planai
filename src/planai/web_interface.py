@@ -47,7 +47,11 @@ def stream():
             current_trace = get_current_trace()
 
             if current_data != last_data or current_trace != last_trace:
-                combined_data = {"tasks": current_data, "trace": current_trace}
+                combined_data = {
+                    "tasks": current_data,
+                    "trace": current_trace,
+                    "stats": dispatcher.get_execution_statistics(),
+                }
                 yield f"data: {json.dumps(combined_data)}\n\n"
 
             last_data = current_data
