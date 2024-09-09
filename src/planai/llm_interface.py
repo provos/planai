@@ -14,7 +14,7 @@
 import hashlib
 import logging
 import re
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, Callable
 
 import diskcache
 from dotenv import load_dotenv
@@ -35,10 +35,11 @@ class LLMInterface:
         model_name: str = "llama2",
         log_dir: str = "logs",
         client: Optional[Any] = None,
+        host: Optional[str] = None,
         support_json_mode: bool = True,
     ):
         self.model_name = model_name
-        self.client = client if client else Client()
+        self.client = client if client else Client(host=host)
         self.support_json_mode = support_json_mode
 
         self.logger = setup_logging(
@@ -91,6 +92,7 @@ class LLMInterface:
         output_schema: BaseModel,
         system: str = "",
         logger: Optional[logging.Logger] = None,
+        debug_saver: Optional[Callable[[str, str], None]] = None,
         **kwargs,
     ) -> Optional[BaseModel]:
         """
@@ -137,6 +139,9 @@ class LLMInterface:
                 f"Your previous response did not follow the JSON format instructions. Here is the error message {error_message}\n\n"
                 f"Try again and closly follow these instructions:\n{formatted_prompt}"
             )
+
+        if debug_saver is not None:
+            debug_saver(prompt=formatted_prompt, response=raw_response)
 
         return response
 

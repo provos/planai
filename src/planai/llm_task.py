@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import hashlib
+import json
 import logging
+from pathlib import Path
 from textwrap import dedent
 from typing import Optional, Type
 
@@ -41,6 +43,11 @@ class LLMTaskWorker(TaskWorker):
         "You are a helpful AI assistant. Please help the user with the following task and produce output in JSON.",
         description="The system prompt to use for the task",
     )
+    debug_mode: bool = Field(
+        False,
+        description="Whether to run the LLM to save prompts and responses in json for debugging",
+    )
+    debug_dir: str = Field("debug", description="The directory to save debug output in")
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -86,6 +93,7 @@ class LLMTaskWorker(TaskWorker):
             task=processed_task.model_dump_json(indent=2),
             instructions=task_prompt,
             format_instructions=parser.get_format_instructions(),
+            debug_saver=self._save_debug_output if self.debug_mode else None,
         )
 
         self.post_process(response=response, input_task=task)
@@ -133,6 +141,30 @@ class LLMTaskWorker(TaskWorker):
                 input_task.name,
                 input_task._provenance,
             )
+
+    def _save_debug_output(self, prompt: str, response: Optional[Task]):
+        """
+        Save the prompt and response in JSON format for debugging purposes.
+
+        Args:
+            prompt (str): The prompt used for the LLM.
+            response (Optional[Task]): The response from the LLM.
+            task_prompt (str): The prompt based on the input task.
+        """
+        if response is None:
+            return
+
+        output = Path(self.debug_dir) / f"{self.name}.json"
+        if not output.parent.exists():
+            output.parent.mkdir(parents=True, exist_ok=True)
+
+        output_dict = {
+            "prompt_template": prompt,
+            "response": response.model_dump() if response is not None else None,
+        }
+
+        with open(output, "a", encoding="utf-8") as f:
+            json.dump(output_dict, f, indent=2)
 
 
 class CachedLLMTaskWorker(CachedTaskWorker, LLMTaskWorker):

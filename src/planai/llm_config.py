@@ -12,6 +12,7 @@ def llm_from_config(
     provider: Literal["ollama", "remote_ollama", "openai"] = "ollama",
     model_name: str = "llama3",
     max_tokens: int = 4096,
+    host: Optional[str] = None,
     hostname: Optional[str] = None,
     username: Optional[str] = None,
     log_dir: str = "logs",
@@ -53,6 +54,7 @@ def llm_from_config(
             return LLMInterface(
                 model_name=model_name,
                 log_dir=log_dir,
+                host=host,
             )
 
     raise ValueError(f"Invalid LLM provider in config: {provider}")
