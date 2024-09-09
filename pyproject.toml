@@ -18,6 +18,7 @@ classifiers = [
 packages = [
     { include = "planai", from = "src" },
 ]
+exclude = ["examples"]
 
 [tool.poetry.dependencies]
 python = "^3.10"

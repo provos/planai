@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "textbook"
+version = "0.1.0"
+description = "An example to use PlanAI to generate textbook Q&A questions."
+authors = ["Your Name <you@example.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+planai = {path = "../../", develop = true}
+pymupdf = "^1.24.10"
+pillow = "^10.4.0"
+pytesseract = "^0.3.13"
+langchain-community = "^0.2.16"
+numpy = ">=1,<2"
+scikit-learn = "^1.5.1"
+sentence-transformers = "^3.0.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
