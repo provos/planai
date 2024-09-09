@@ -122,8 +122,9 @@ dmypy.json
 
 
 # project specific
-data_breaches.db
 .env.local
 logs/
 outputs/
 planai.code-workspace
+cache/
+.response_cache/
