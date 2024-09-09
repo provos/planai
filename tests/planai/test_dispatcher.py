@@ -179,7 +179,8 @@ class TestDispatcher(unittest.TestCase):
         task = DummyTask(data="test")
         self.dispatcher._execute_task(worker, task)
         self.dispatcher._task_completed(worker, task, future)
-        worker._pre_consume_work.assert_called_once_with(task)
+        worker._pre_consume_work.assert_called_once()
+        self.assertEqual(task.name, worker._pre_consume_work.call_args[0][0].name)
         self.assertIn(task, [t[1] for t in self.dispatcher.completed_tasks])
 
     def test_task_to_dict(self):
