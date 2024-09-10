@@ -581,9 +581,7 @@ def main():
     )
 
     # Create initial tasks for processing
-    input_work = [
-        (clean_text_worker, InputChunk(text=chunk)) for chunk in chunks[40:58]
-    ]
+    input_work = [(clean_text_worker, InputChunk(text=chunk)) for chunk in chunks]
 
     # Run the graph with the initial tasks
     print(f"Processing {len(input_work)} chunks...")
