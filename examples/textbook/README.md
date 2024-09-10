@@ -46,5 +46,8 @@ python textbook_app.py --file path/to/your/textbook.pdf
 
 Output from the monitoring dashboard when running the textbook_app.
 
-![Dashboard](../images/PlanAI-DarkMode.png#gh-dark-mode-only)
-![Dashboard](../images/PlanAI-LightMode.png#gh-ligh-mode-only)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="../images/PlanAI-DarkMode.png">
+  <source media="(prefers-color-scheme: light)" srcset="../images/PlanAI-LightMode.png">
+  <img alt="Dashboard" src="../images/PlanAI-LightMode.png">
+</picture>
