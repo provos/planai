@@ -12,6 +12,7 @@
 - [Requirements](#requirements)
 - [Installation](#installation)
 - [Usage](#usage)
+- [Example: Textbook Q&A Generation](#example-textbook-qa-generation)
 - [Monitoring Dashboard](#monitoring-dashboard)
 - [Advanced Features](#advanced-features)
 - [Documentation](#documentation)
@@ -82,6 +83,10 @@ graph.set_dependency(data_processor, ai_analyzer)
 initial_data = RawData(data="Some raw data")
 graph.run(initial_tasks=[(data_processor, initial_data)])
 ```
+
+## Example: Textbook Q&A Generation
+
+PlanAI has been used to create a system for generating high-quality question and answer pairs from textbook content. This example demonstrates PlanAI's capability to manage complex, multi-step workflows involving AI-powered text processing and content generation. The application processes textbook content through a series of steps including text cleaning, relevance filtering, question generation and evaluation, and answer generation and selection. For a detailed walkthrough of this example, including code and explanation, please see the [examples/textbook](examples/textbook) directory. The resulting dataset, generated from "World History Since 1500: An Open and Free Textbook," is available in our [World History 1500 Q&A repository](https://github.com/provos/world-history-1500-qa), showcasing the practical application of PlanAI in educational content processing and dataset creation.
 
 ## Monitoring Dashboard
 
