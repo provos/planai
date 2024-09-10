@@ -128,3 +128,4 @@ outputs/
 planai.code-workspace
 cache/
 .response_cache/
+output/
