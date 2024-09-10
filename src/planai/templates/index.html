@@ -72,6 +72,8 @@
             return `${hours}h ${minutes}m ${remainingSeconds}s`;
         }
 
+        let provenanceVisibility = {};
+
         function updateTaskList(elementId, tasks) {
             const element = document.getElementById(elementId);
             const now = Date.now() / 1000; // Current time in seconds
@@ -98,6 +100,8 @@
                     timeInfo = `<br><strong>Total Time:</strong> ${formatTime(totalTime)}`;
                 }
 
+                const provenanceDisplay = provenanceVisibility[task.id] ? 'block' : 'none';
+
                 taskElement.innerHTML = `
             <div class="task-item" onclick="toggleProvenance('${task.id}')" style="${borderStyle}">
                 <strong>ID:</strong> ${task.id}<br>
@@ -105,7 +109,7 @@
                 <strong>Worker:</strong> ${task.worker}
                 ${timeInfo}
                 ${isFailed ? `<br><strong>Error:</strong> ${task.error || 'Unknown error'}` : ''}
-                <div id="provenance-${task.id}" class="provenance-info">
+                <div id="provenance-${task.id}" class="provenance-info" style="display: ${provenanceDisplay};">
                     <h4>Provenance:</h4>
                     <ul>
                         ${task.provenance.map(p => `<li>${p}</li>`).join('')}
@@ -163,11 +167,15 @@
         }
 
         function toggleProvenance(taskId) {
+            console.log('Toggling provenance for task', taskId);
             const provenanceElement = document.getElementById(`provenance-${taskId}`);
             if (provenanceElement) {
-                provenanceElement.style.display = provenanceElement.style.display === 'none' ? 'block' : 'none';
+                const newDisplay = provenanceElement.style.display === 'block' ? 'none' : 'block';
+                provenanceElement.style.display = newDisplay;
+                provenanceVisibility[taskId] = newDisplay === 'block';
             }
         }
+
 
         function updateTraceVisualization(traceData) {
             const traceElement = document.getElementById('trace-visualization');
