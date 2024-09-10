@@ -141,7 +141,7 @@ class LLMInterface:
             )
 
         if debug_saver is not None:
-            debug_saver(prompt=formatted_prompt, response=raw_response)
+            debug_saver(prompt=formatted_prompt, response=response)
 
         return response
 
