@@ -40,3 +40,11 @@ The application can be run from the command line, specifying the input file:
 
 ```bash
 python textbook_app.py --file path/to/your/textbook.pdf
+```
+
+### Dashboard
+
+Output from the monitoring dashboard when running the textbook_app.
+
+![Dashboard](../images/PlanAI-DarkMode.png#gh-dark-mode-only)
+![Dashboard](../images/PlanAI-LightMode.png#gh-ligh-mode-only)
