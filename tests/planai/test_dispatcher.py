@@ -57,6 +57,11 @@ class DummyTaskWorker(TaskWorker):
             self.publish_work(output_task, input_task=task)
 
 
+class LimitedParallelTaskWorker(TaskWorker):
+    def consume_work(self, task: DummyTask):
+        time.sleep(0.1)  # Simulate some work
+
+
 class ExceptionRaisingTaskWorker(TaskWorker):
     def consume_work(self, task: DummyTask):
         raise ValueError("Test exception")
@@ -225,7 +230,7 @@ class TestDispatcher(unittest.TestCase):
         future = Mock()
         worker = DummyTaskWorkerSimple()
         task = DummyTask(data="test")
-        self.dispatcher.active_tasks = 1
+        self.dispatcher.increment_active_tasks(worker)
         self.dispatcher._task_completed(worker, task, future)
         self.assertEqual(self.dispatcher.active_tasks, 0)
         self.assertTrue(self.dispatcher.task_completion_event.is_set())
@@ -237,7 +242,7 @@ class TestDispatcher(unittest.TestCase):
         future.result.return_value = None
 
         # Set initial conditions
-        self.dispatcher.active_tasks = 1
+        self.dispatcher.increment_active_tasks(worker)
         self.dispatcher.work_queue = Queue()  # Ensure the queue is empty
 
         with patch.object(self.dispatcher, "_remove_provenance") as mock_remove:
@@ -254,7 +259,8 @@ class TestDispatcher(unittest.TestCase):
         future.result.return_value = None
 
         # Set initial conditions
-        self.dispatcher.active_tasks = 2
+        self.dispatcher.increment_active_tasks(worker)
+        self.dispatcher.increment_active_tasks(worker)
         self.dispatcher.work_queue = Queue()  # Ensure the queue is empty
 
         with patch.object(self.dispatcher, "_remove_provenance") as mock_remove:
@@ -446,7 +452,7 @@ class TestDispatcherThreading(unittest.TestCase):
         worker = RetryTaskWorker(num_retries=2, fail_attempts=2)
         task = DummyTask(data="test-retry")
 
-        self.dispatcher.active_tasks = 1
+        self.dispatcher.increment_active_tasks(worker)
         self.dispatcher.work_queue = Queue()
 
         # Simulate task execution and failure
@@ -463,7 +469,7 @@ class TestDispatcherThreading(unittest.TestCase):
 
         # Second attempt (should succeed)
         self.dispatcher.work_queue.get()  # Remove the task from the queue
-        self.dispatcher.active_tasks += 1
+        self.dispatcher.increment_active_tasks(worker)
         worker._attempt_count = 2  # Simulate successful attempt
         future.result.side_effect = None  # Remove the exception
         self.dispatcher._task_completed(worker, task, future)
@@ -487,7 +493,7 @@ class TestDispatcherThreading(unittest.TestCase):
         worker = RetryTaskWorker(num_retries=2, fail_attempts=3)
         task = DummyTask(data="test-retry-exhausted")
 
-        self.dispatcher.active_tasks = 1
+        self.dispatcher.increment_active_tasks(worker)
         self.dispatcher.work_queue = Queue()
 
         # Simulate task execution and failure
@@ -500,13 +506,13 @@ class TestDispatcherThreading(unittest.TestCase):
 
         # Second attempt
         self.dispatcher.work_queue.get()  # Remove the task from the queue
-        self.dispatcher.active_tasks += 1
+        self.dispatcher.increment_active_tasks(worker)
         self.dispatcher._task_completed(worker, task, future)
         self.assertEqual(task.retry_count, 2)
 
         # Third attempt (should not retry anymore)
         self.dispatcher.work_queue.get()  # Remove the task from the queue
-        self.dispatcher.active_tasks += 1
+        self.dispatcher.increment_active_tasks(worker)
         self.dispatcher._task_completed(worker, task, future)
 
         # Check final state
@@ -586,6 +592,48 @@ class TestDispatcherThreading(unittest.TestCase):
         )
 
         self.graph._thread_pool.shutdown(wait=True)
+
+    def test_max_parallel_tasks(self):
+        num_tasks = 10
+        max_parallel = 2
+
+        # Create a custom worker
+        worker = LimitedParallelTaskWorker()
+
+        # Set up the dispatcher
+        self.dispatcher.set_max_parallel_tasks(LimitedParallelTaskWorker, max_parallel)
+
+        # Add tasks to the dispatcher
+        for i in range(num_tasks):
+            task = DummyTask(data=f"test-{i}")
+            self.dispatcher.add_work(worker, task)
+
+        # Start time
+        start_time = time.time()
+
+        # Run the dispatcher in a separate thread
+        dispatch_thread = threading.Thread(target=self.dispatcher.dispatch)
+        dispatch_thread.start()
+
+        # Wait for all tasks to complete
+        self.dispatcher.wait_for_completion()
+
+        # Stop the dispatcher
+        self.dispatcher.stop()
+        dispatch_thread.join()
+
+        # End time
+        end_time = time.time()
+
+        # Calculate the minimum expected time
+        min_expected_time = (num_tasks / max_parallel) * 0.1
+
+        # Assertions
+        self.assertEqual(self.dispatcher.total_completed_tasks, num_tasks)
+        self.assertGreaterEqual(end_time - start_time, min_expected_time)
+        self.assertLess(
+            end_time - start_time, min_expected_time * 1.5
+        )  # Allow some overhead
 
 
 class TestDispatcherConcurrent(unittest.TestCase):

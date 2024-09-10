@@ -229,7 +229,7 @@ class TestJoinedTaskWorkerStress(unittest.TestCase):
 
         # Verify that the work queue is empty and there are no active tasks
         self.assertEqual(self.dispatcher.work_queue.qsize(), 0)
-        self.assertEqual(self.dispatcher.active_tasks, 0)
+        self.assertEqual(self.dispatcher._active_tasks, 0)
 
         self.graph._thread_pool.shutdown(wait=True)
 

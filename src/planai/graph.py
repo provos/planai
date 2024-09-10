@@ -30,6 +30,7 @@ class Graph(BaseModel):
 
     _dispatcher: Optional[Dispatcher] = PrivateAttr(default=None)
     _thread_pool: Optional[ThreadPoolExecutor] = PrivateAttr(default=None)
+    _max_parallel_tasks: Dict[Type[TaskWorker], int] = PrivateAttr(default_factory=dict)
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -68,6 +69,33 @@ class Graph(BaseModel):
             )
 
         return downstream
+
+    def set_max_parallel_tasks(
+        self, worker_class: Type[TaskWorker], max_parallel_tasks: int
+    ) -> None:
+        """
+        Set the maximum number of parallel tasks for a specific worker class.
+
+        Args:
+            worker_class (Type[TaskWorker]): The class of the worker to limit.
+            max_parallel_tasks (int): The maximum number of parallel tasks allowed.
+
+        Note:
+            This setting will be applied to the dispatcher when the graph is run.
+            If the dispatcher is already running, it will update the limit dynamically.
+        """
+        if not issubclass(worker_class, TaskWorker):
+            raise ValueError(f"{worker_class.__name__} is not a subclass of TaskWorker")
+
+        if max_parallel_tasks <= 0:
+            raise ValueError("max_parallel_tasks must be greater than 0")
+
+        # Store the setting
+        self._max_parallel_tasks[worker_class] = max_parallel_tasks
+
+        # If dispatcher is already running, update it
+        if self._dispatcher:
+            self._dispatcher.set_max_parallel_tasks(worker_class, max_parallel_tasks)
 
     def validate_graph(self) -> None:
         """Return the execution order of tasks based on dependencies."""
@@ -110,6 +138,10 @@ class Graph(BaseModel):
         if run_dashboard:
             dispatcher.start_web_interface()
         self._dispatcher = dispatcher
+
+        # Apply the max parallel tasks settings
+        for worker_class, max_parallel_tasks in self._max_parallel_tasks.items():
+            dispatcher.set_max_parallel_tasks(worker_class, max_parallel_tasks)
 
         # let the workers now that we are about to start
         for worker in self.workers:

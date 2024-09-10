@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import logging
+import random
 import statistics
 import sys
 import threading
@@ -28,6 +29,7 @@ from typing import (
     List,
     Optional,
     Tuple,
+    Type,
 )
 
 from .task import Task, TaskWorker
@@ -47,10 +49,32 @@ class NotificationTask(Task):
     pass
 
 
+def get_inheritance_chain(cls: Type[TaskWorker]) -> List[str]:
+    """
+    Returns the inheritance chain of a class as a list of strings.
+    """
+    if len(cls.__mro__) < 3:
+        raise ValueError(
+            "Class must be derived from TaskWorker and have at least 3 classes in its inheritance chain"
+        )
+    return [c.__name__ for c in cls.__mro__[:-2]]
+
+
 class Dispatcher:
     def __init__(self, graph: "Graph", web_port=5000):
         self.graph = graph
+        # We have a default Queue for all tasks
         self.work_queue = Queue()
+
+        # And configurable queues for different worker classes
+        # This allows us to reduce the maximum number of parallel tasks for specific worker classes, e.g. LLMs.
+        self._per_worker_queue: Dict[str, Queue] = {}
+        self._per_worker_task_count: Dict[str, int] = {}
+        self._per_worker_max_parallel_tasks: Dict[str, int] = {}
+
+        # we are using the work_available Event to signal the dispatcher that there might be work
+        self.work_available = threading.Event()
+
         self.provenance: DefaultDict[ProvenanceChain, int] = defaultdict(int)
         self.provenance_trace: Dict[ProvenanceChain, dict] = {}
         self.notifiers: DefaultDict[ProvenanceChain, List[TaskWorker]] = defaultdict(
@@ -59,7 +83,7 @@ class Dispatcher:
         self.provenance_lock = Lock()
         self.notifiers_lock = Lock()
         self.stop_event = Event()
-        self.active_tasks = 0
+        self._active_tasks = 0
         self.task_completion_event = threading.Event()
         self.web_port = web_port
         self.debug_active_tasks: Dict[int, Tuple[TaskWorker, Task]] = {}
@@ -76,6 +100,11 @@ class Dispatcher:
         self.total_failed_tasks = 0
         self.task_id_counter = 0
         self.task_lock = threading.Lock()
+
+    @property
+    def active_tasks(self):
+        with self.task_lock:
+            return self._active_tasks
 
     def _generate_prefixes(self, task: Task) -> Generator[Tuple, None, None]:
         provenance = task._provenance
@@ -222,6 +251,50 @@ class Dispatcher:
                 return True
         return False
 
+    def decrement_active_tasks(self, worker: TaskWorker) -> bool:
+        """
+        Decrements the count of active tasks by 1.
+
+        Returns:
+            bool: True if there are no more active tasks and the work queue is empty, False otherwise.
+        """
+        inherited_chain = get_inheritance_chain(worker.__class__)
+        with self.task_lock:
+            for cls_name in inherited_chain:
+                if cls_name in self._per_worker_task_count:
+                    self._per_worker_task_count[cls_name] -= 1
+                    if (
+                        self._per_worker_task_count[cls_name]
+                        < self._per_worker_max_parallel_tasks[cls_name]
+                    ):
+                        self.work_available.set()
+            self._active_tasks -= 1
+            if (
+                self._active_tasks == 0
+                and self.work_queue.empty()
+                and all(q.empty() for q in self._per_worker_queue.values())
+            ):
+                return True
+            return False
+
+    def increment_active_tasks(self, worker: TaskWorker):
+        inherited_chain = get_inheritance_chain(worker.__class__)
+        with self.task_lock:
+            for cls_name in inherited_chain:
+                if cls_name in self._per_worker_task_count:
+                    self._per_worker_task_count[cls_name] += 1
+            self._active_tasks += 1
+
+    def set_max_parallel_tasks(
+        self, worker_class: Type[TaskWorker], max_parallel_tasks: int
+    ):
+        worker_class_name = worker_class.__name__
+        with self.task_lock:
+            if worker_class_name not in self._per_worker_queue:
+                self._per_worker_queue[worker_class_name] = Queue()
+                self._per_worker_task_count[worker_class_name] = 0
+            self._per_worker_max_parallel_tasks[worker_class_name] = max_parallel_tasks
+
     def _notify_task_completion(self, prefix: tuple):
         to_notify = []
         with self.notifiers_lock:
@@ -230,8 +303,7 @@ class Dispatcher:
 
         for notifier, prefix in to_notify:
             logging.info(f"Notifying {notifier.name} that prefix {prefix} is complete")
-            with self.task_lock:
-                self.active_tasks += 1
+            self.increment_active_tasks(notifier)
 
             # Use a named function instead of a lambda to avoid closure issues
             def task_completed_callback(future, worker=notifier):
@@ -241,21 +313,38 @@ class Dispatcher:
             future.add_done_callback(task_completed_callback)
 
     def _dispatch_once(self) -> bool:
-        try:
-            worker, task = self.work_queue.get(timeout=1)
-            with self.task_lock:
-                self.active_tasks += 1
-            future = self.graph._thread_pool.submit(self._execute_task, worker, task)
+        queues = [(None, self.work_queue)] + list(self._per_worker_queue.items())
+        random.shuffle(queues)
+        for name, queue in queues:
+            try:
+                worker, task = queue.get_nowait()
+                if name is not None:
+                    # Check if the worker has reached its maximum parallel tasks
+                    inheritance_chain = get_inheritance_chain(worker.__class__)
+                    if name in inheritance_chain:
+                        with self.task_lock:
+                            if (
+                                self._per_worker_task_count[name]
+                                >= self._per_worker_max_parallel_tasks[name]
+                            ):
+                                queue.put((worker, task))
+                                continue
+                self.increment_active_tasks(worker)
+                future = self.graph._thread_pool.submit(
+                    self._execute_task, worker, task
+                )
 
-            # Use a named function instead of a lambda to avoid closure issues
-            def task_completed_callback(future, worker=worker, task=task):
-                self._task_completed(worker, task, future)
+                # Use a named function instead of a lambda to avoid closure issues
+                def task_completed_callback(future, worker=worker, task=task):
+                    self._task_completed(worker, task, future)
 
-            future.add_done_callback(task_completed_callback)
-            return True
+                future.add_done_callback(task_completed_callback)
+                return True
 
-        except Empty:
-            return False
+            except Empty:
+                pass  # this queue is empty, try the next one
+
+        return False
 
     def dispatch(self):
         while True:
@@ -264,10 +353,15 @@ class Dispatcher:
                 if (
                     self.stop_event.is_set()
                     and self.work_queue.empty()
-                    and self.active_tasks == 0
+                    and all(q.empty() for q in self._per_worker_queue.values())
+                    and self._active_tasks == 0
                 ):
                     break
-            self._dispatch_once()
+            if self._dispatch_once():
+                continue
+
+            self.work_available.wait(timeout=0.1)
+            self.work_available.clear()
 
     def _execute_task(self, worker: TaskWorker, task: Task):
         task_id = self._get_next_task_id()
@@ -318,9 +412,12 @@ class Dispatcher:
             return self.provenance_trace
 
     def get_queued_tasks(self) -> List[Dict]:
-        return [
-            self._task_to_dict(worker, task) for worker, task in self.work_queue.queue
-        ]
+        work_items = []
+        with self.task_lock:
+            work_items.extend(self.work_queue.queue)
+            for queue in self._per_worker_queue.values():
+                work_items.extend(queue.queue)
+            return [self._task_to_dict(worker, task) for worker, task in work_items]
 
     def get_active_tasks(self) -> List[Dict]:
         with self.task_lock:
@@ -415,9 +512,8 @@ class Dispatcher:
                     if worker.num_retries > 0:
                         if task.retry_count < worker.num_retries:
                             task.increment_retry_count()
-                            with self.task_lock:
-                                self.active_tasks -= 1
-                                self.work_queue.put((worker, task))
+                            self.decrement_active_tasks(worker)
+                            self._add_to_queue(worker, task)
                             logging.info(
                                 f"Retrying task {task.name} for the {task.retry_count} time"
                             )
@@ -443,24 +539,34 @@ class Dispatcher:
             if task:
                 self._remove_provenance(task)
 
-            with self.task_lock:
-                self.active_tasks -= 1
-                if self.active_tasks == 0 and self.work_queue.empty():
-                    self.task_completion_event.set()
+            if self.decrement_active_tasks(worker):
+                self.task_completion_event.set()
 
     def add_work(self, worker: TaskWorker, task: Task):
         task_copy = task.model_copy()
         self._add_provenance(task_copy)
-        self.work_queue.put((worker, task_copy))
+        self._add_to_queue(worker, task_copy)
 
     def add_multiple_work(self, work_items: List[Tuple[TaskWorker, Task]]):
         # the ordering of adding provenance first is important for join tasks to
         # work correctly. Otherwise, caching may lead to fast execution of tasks
         # before all the provenance is added.
+        work_items = [(worker, task.model_copy()) for worker, task in work_items]
         for worker, task in work_items:
             self._add_provenance(task)
-        for item in work_items:
-            self.work_queue.put(item)
+        for worker, task in work_items:
+            self._add_to_queue(worker, task)
+
+    def _add_to_queue(self, worker: TaskWorker, task: Task):
+        inheritance_chain = get_inheritance_chain(worker.__class__)
+        per_task_queue = self.work_queue
+        with self.task_lock:
+            for cls_name in inheritance_chain:
+                if cls_name in self._per_worker_queue:
+                    per_task_queue = self._per_worker_queue[cls_name]
+                    break
+        per_task_queue.put((worker, task))
+        self.work_available.set()
 
     def stop(self):
         self.stop_event.set()
