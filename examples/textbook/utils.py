@@ -1,5 +1,6 @@
 import io
 import re
+from typing import List
 
 import fitz
 import numpy as np
@@ -9,12 +10,12 @@ from PIL import Image
 from sklearn.metrics.pairwise import cosine_similarity
 
 
-def split_into_sentences(text):
+def split_into_sentences(text: str) -> List[str]:
     # Simple regex-based sentence splitter
     return re.split(r"(?<=[.!?])\s+", text)
 
 
-def pdf_to_text(pdf_path, use_ocr=False, ocr_language="eng"):
+def pdf_to_text(pdf_path: str, use_ocr: bool = False, ocr_language: str = "eng") -> str:
     """
     Extract text from a PDF file.
 
@@ -57,7 +58,7 @@ def pdf_to_text(pdf_path, use_ocr=False, ocr_language="eng"):
 
 def create_semantic_chunks(
     text, min_sentences=4, max_sentences=20, buffer_size=1, threshold_percentile=65
-):
+) -> List[str]:
     # Split into sentences
     sentences = split_into_sentences(text)
 
