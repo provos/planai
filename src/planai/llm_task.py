@@ -86,6 +86,9 @@ class LLMTaskWorker(TaskWorker):
         # allow subclasses to pre-process the task and present it more clearly to the LLM
         processed_task = self.pre_process(task)
 
+        def save_debug_with_task(prompt: str, response: Optional[Task]):
+            self._save_debug_output(task=task, prompt=prompt, response=response)
+
         response = self.llm.generate_pydantic(
             prompt_template=prompt,
             output_schema=self._output_type(),
@@ -93,7 +96,7 @@ class LLMTaskWorker(TaskWorker):
             task=processed_task.model_dump_json(indent=2),
             instructions=task_prompt,
             format_instructions=parser.get_format_instructions(),
-            debug_saver=self._save_debug_output if self.debug_mode else None,
+            debug_saver=save_debug_with_task if self.debug_mode else None,
         )
 
         self.post_process(response=response, input_task=task)
@@ -142,7 +145,7 @@ class LLMTaskWorker(TaskWorker):
                 input_task._provenance,
             )
 
-    def _save_debug_output(self, prompt: str, response: Optional[Task]):
+    def _save_debug_output(self, task: Task, prompt: str, response: Optional[Task]):
         """
         Save the prompt and response in JSON format for debugging purposes.
 
@@ -158,9 +161,16 @@ class LLMTaskWorker(TaskWorker):
         if not output.parent.exists():
             output.parent.mkdir(parents=True, exist_ok=True)
 
+        # for debugging, we want to save the input task completely including the input provenance
+        task_dict = task.model_dump()
+        task_dict["_input_provenance"] = [
+            t.model_dump() for t in task._input_provenance
+        ]
+
         output_dict = {
             "prompt_template": prompt,
-            "response": response.model_dump() if response is not None else None,
+            "input_task": task_dict,
+            "response": response.model_dump(),
         }
 
         with open(output, "a", encoding="utf-8") as f:
