@@ -25,6 +25,7 @@ from typing import (
     Set,
     Tuple,
     Type,
+    TypeVar,
     get_type_hints,
 )
 
@@ -33,6 +34,9 @@ from pydantic import BaseModel, Field, PrivateAttr
 if TYPE_CHECKING:
     from .dispatcher import ProvenanceChain
     from .graph import Graph
+
+
+TaskType = TypeVar("TaskType", bound="Task")
 
 
 class Task(BaseModel):
@@ -66,7 +70,7 @@ class Task(BaseModel):
     def copy_input_provenance(self) -> List["Task"]:
         return [input.model_copy() for input in self._input_provenance]
 
-    def find_input_task(self, task_class: Type["Task"]) -> Optional["Task"]:
+    def find_input_task(self, task_class: Type["Task"]) -> Optional[TaskType]:
         """
         Find the most recent input task of the specified class in the input provenance.
 
@@ -208,7 +212,7 @@ class TaskWorker(BaseModel, ABC):
         return self._state_lock
 
     @property
-    def last_input_task(self) -> Optional[Task]:
+    def last_input_task(self) -> Optional[TaskType]:
         """
         Returns the last input task consumed by this worker.
 
