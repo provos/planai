@@ -166,10 +166,13 @@ class LLMTaskWorker(TaskWorker):
         task_dict["_input_provenance"] = [
             t.model_dump() for t in task._input_provenance
         ]
+        task_dict["_input_provenance_classes"] = [
+            t.__class__.__name__ for t in task._input_provenance
+        ]
 
         output_dict = {
-            "prompt_template": prompt,
             "input_task": task_dict,
+            "prompt_template": prompt,
             "response": response.model_dump(),
         }
 

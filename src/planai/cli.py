@@ -16,22 +16,21 @@ import importlib.util
 import json
 import os
 import sys
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
-from planai import llm_from_config
+from planai import Task, llm_from_config, LLMTaskWorker
 from planai.llm_interface import LLMInterface
 
 
-def load_class_from_file(
-    python_file: str, class_name: str, search_path: Optional[str] = None
-):
+def load_module_from_file(
+    python_file: str, search_path: Optional[str] = None
+) -> Optional[Any]:
     """
-    Dynamically load a class from a given Python file with an optional search path.
+    Dynamically load a module from a given Python file with an optional search path.
 
     :param python_file: The path to the Python file.
-    :param class_name: The name of the class to be loaded.
     :param search_path: An optional path to include in the module search path.
-    :return: The class object if found, else None.
+    :return: The loaded module if successful, else None.
     """
     python_file = os.path.abspath(python_file)
     if search_path:
@@ -60,14 +59,10 @@ def load_class_from_file(
         sys.modules[f"{package}.{module_name}"] = module
         spec.loader.exec_module(module)
 
-        # Retrieve the class from the module
-        cls = getattr(module, class_name, None)
-        if cls is None:
-            print(f"Class '{class_name}' not found in module '{module_name}'")
-        return cls
+        return module
 
     except Exception as e:
-        print(f"Error loading class '{class_name}' from '{python_file}': {e}")
+        print(f"Error loading module from '{python_file}': {e}")
         return None
 
     finally:
@@ -75,35 +70,56 @@ def load_class_from_file(
         if search_path and search_path in sys.path:
             sys.path.remove(search_path)
 
-    return None
 
-
-def get_class(
-    python_file: str, class_name: str, search_path: Optional[str] = None
-) -> Optional[object]:
+def get_class_from_module(module: Any, class_name: str) -> Optional[type]:
     """
-    Dynamically load a class from a Python file and retrieve the 'prompt' attribute
-    from an instance of the specified class, with optional module search path.
+    Load a class from a given module.
 
-    :param python_file: Path to the Python file.
-    :param class_name: The name of the class to instantiate.
-    :param search_path: An optional path to include in the module search path.
-    :return: The prompt attribute value or None if retrieval fails.
+    :param module: The module object containing the class.
+    :param class_name: The name of the class to be loaded.
+    :return: The class object if found, else None.
     """
     try:
-        # Load the class from the file
-        cls = load_class_from_file(python_file, class_name, search_path)
-
+        cls = getattr(module, class_name, None)
         if cls is None:
-            print(f"Class '{class_name}' not found in Python file {python_file}.")
+            print(f"Class '{class_name}' not found in module '{module.__name__}'")
+        return cls
+    except Exception as e:
+        print(
+            f"Error loading class '{class_name}' from module '{module.__name__}': {e}"
+        )
+        return None
+
+
+def instantiate_class_from_module(
+    module: Any, class_name: str
+) -> Optional[LLMTaskWorker]:
+    """
+    Load a class from a given module and instantiate it.
+
+    :param module: The module object containing the class.
+    :param class_name: The name of the class to instantiate.
+    :return: An instance of the specified class or None if instantiation fails.
+    """
+    try:
+        cls = getattr(module, class_name, None)
+        if cls is None:
+            print(f"Class '{class_name}' not found in module '{module.__name__}'.")
             return None
 
         # Create an instance of the class, passing the required 'llm' parameter
         instance = cls(llm=LLMInterface())
+        if not isinstance(instance, LLMTaskWorker):
+            print(
+                f"Class '{class_name}' in module '{module.__name__}' does not inherit from 'LLMTaskWorker'."
+            )
+            return None
         return instance
 
     except Exception as e:
-        print(f"Error instantiating class '{class_name}' from '{python_file}': {e}")
+        print(
+            f"Error instantiating class '{class_name}' from module '{module.__name__}': {e}"
+        )
         return None
 
 
@@ -162,13 +178,21 @@ def optimize_prompt(llm: LLMInterface, args: argparse.Namespace):
         with open(args.output_config, "w") as config_file:
             json.dump(config_data, config_file, indent=4)
         print(f"Configuration written to {args.output_config}")
-        exit(0)
+        sys.exit(0)
 
     print(
         f"Optimizing prompt for class '{class_name}' in {python_file} using debug log from {debug_log}. Goal: {goal_prompt}"
     )
 
-    llm_class = get_class(python_file, class_name, search_path)
+    # First, load the module
+    module = load_module_from_file(python_file, search_path)
+    if module is not None:
+        # Then, load and instantiate the class
+        llm_class: LLMTaskWorker = instantiate_class_from_module(module, class_name)
+    else:
+        print(f"Failed to load module from {python_file}")
+        sys.exit(1)
+
     # Attempt to retrieve the 'prompt' attribute
     if hasattr(llm_class, "prompt"):
         prompt = getattr(llm_class, "prompt")
@@ -177,6 +201,58 @@ def optimize_prompt(llm: LLMInterface, args: argparse.Namespace):
         sys.exit(1)
 
     print(f"Current prompt: {prompt}")
+
+    # Load the debug log
+    data = load_debug_log(debug_log)
+    print(f"Loaded {len(data)} prompts and responses from {debug_log}")
+
+    task_name = llm_class.get_task_class().__name__
+
+    task = create_input_task(module, task_name, data[0])
+    print(task)
+
+
+def create_input_task(module: Any, class_name: str, data: Dict[str, Any]) -> Any:
+    cls: Optional[Task] = get_class_from_module(module, class_name)
+    if cls is None:
+        raise ValueError(
+            f"Class '{class_name}' not found in module '{module.__name__}'"
+        )
+
+    data = data["input_task"]
+    task = cls.model_validate(data)
+
+    input_provenance = []
+    for data, cls_name in zip(
+        data["_input_provenance"], data["_input_provenance_classes"]
+    ):
+        cls = get_class_from_module(module, cls_name)
+        tmp_obj = cls.model_validate(data)
+        input_provenance.append(tmp_obj)
+
+    task._input_provenance = input_provenance
+    return task
+
+
+def load_debug_log(debug_log: str) -> List[Dict[str, Any]]:
+    """
+    Load a debug log file containing prompts and responses.
+
+    :param debug_log: The path to the debug log file.
+    :return: A list of dictionaries containing prompts and responses.
+    """
+
+    # read the debug log line by line
+    with open(debug_log, "r") as file:
+        lines = file.readlines()
+
+    for i in range(len(lines)):
+        lines[i] = lines[i].strip()
+        if "}{" in lines[i]:
+            lines[i] = lines[i].replace("}{", "},\n{")
+
+    fixed_json = "[\n" + "".join(lines) + "\n]"
+    return json.loads(fixed_json)
 
 
 def main(args=None):
