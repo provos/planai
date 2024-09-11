@@ -76,8 +76,8 @@ def get_class_from_module(module: Any, class_name: str) -> Optional[type]:
         return None
 
 
-def instantiate_class_from_module(
-    module: Any, class_name: str
+def instantiate_llm_class_from_module(
+    module: Any, class_name: str, llm: LLMInterface
 ) -> Optional[LLMTaskWorker]:
     """
     Load a class from a given module and instantiate it.
@@ -93,7 +93,7 @@ def instantiate_class_from_module(
             return None
 
         # Create an instance of the class, passing the required 'llm' parameter
-        instance = cls(llm=LLMInterface())
+        instance = cls(llm=llm)
         if not isinstance(instance, LLMTaskWorker):
             print(
                 f"Class '{class_name}' in module '{module.__name__}' does not inherit from 'LLMTaskWorker'."
