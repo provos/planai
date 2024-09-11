@@ -164,7 +164,7 @@ class TaskWorker(BaseModel, ABC):
         0, description="The number of retries allowed for this task"
     )
 
-    _state_lock: threading.Lock = PrivateAttr(default_factory=threading.Lock)
+    _state_lock: threading.RLock = PrivateAttr(default_factory=threading.RLock)
     _id: int = PrivateAttr(default=0)
     _consumers: Dict[Type["TaskWorker"], "TaskWorker"] = PrivateAttr(
         default_factory=dict
