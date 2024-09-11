@@ -19,7 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from .dispatcher import Dispatcher
 from .joined_task import InitialTaskWorker
-from .task import Task, TaskWorker
+from .task import Task, TaskType, TaskWorker
 
 
 class Graph(BaseModel):
@@ -32,6 +32,7 @@ class Graph(BaseModel):
     _dispatcher: Optional[Dispatcher] = PrivateAttr(default=None)
     _thread_pool: Optional[ThreadPoolExecutor] = PrivateAttr(default=None)
     _max_parallel_tasks: Dict[Type[TaskWorker], int] = PrivateAttr(default_factory=dict)
+    _sink_tasks: List[TaskType] = PrivateAttr(default_factory=list)
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -70,6 +71,83 @@ class Graph(BaseModel):
             )
 
         return downstream
+
+    def set_sink(self, worker: TaskWorker) -> None:
+        """
+        Sets a worker as a data sink in the task graph.
+
+        This method creates a special SinkWorker that consumes the output of the specified worker.
+        The output from this sink can be retrieved after the graph is run using the `get_tasks()` method.
+
+        Args:
+            worker (TaskWorker): The worker whose output should be collected in the sink.
+
+        Raises:
+            ValueError: If the specified worker doesn't have exactly one output type.
+
+        Note:
+            - The sink worker is automatically added to the graph and set as a dependency of the specified worker.
+            - The output type of the specified worker is used to type the tasks consumed by the sink.
+            - Only workers with a single output type can be set as sinks.
+
+        Example:
+            >>> graph = Graph(name="Example Graph")
+            >>> worker = SomeTaskWorker()
+            >>> graph.add_worker(worker)
+            >>> graph.set_sink(worker)
+            >>> graph.run(initial_tasks=[(worker, SomeTask())])
+            >>> results = graph.get_tasks()
+        """
+        if len(worker.output_types) != 1:
+            raise ValueError(
+                f"Worker {worker.name} must have exactly one output type to use for a sink"
+            )
+
+        output_type = worker.output_types[0]
+
+        class SinkWorker(TaskWorker):
+            def __init__(self, graph: "Graph", **data):
+                super().__init__(**data)
+                self._graph = graph
+
+            def consume_work(self, task: output_type):
+                with self.lock:
+                    self._graph._sink_tasks.append(task)
+
+        # Create a new class with the specific output type
+        instance = SinkWorker(self)
+        self.add_worker(instance)
+        self.set_dependency(worker, instance)
+
+    def get_tasks(self) -> List[TaskType]:
+        """
+        Retrieves all tasks that were consumed by the sink workers in the graph.
+
+        This method returns a list of tasks that were collected by all sink workers
+        after the graph has been run. Each task in the list is an instance of the
+        output type specified when the corresponding sink was set.
+
+        Returns:
+            List[TaskType]: A list of tasks collected by all sink workers. The actual
+            type of each task depends on the output types of the workers set as sinks.
+
+        Note:
+            - This method should be called after the graph has been run using the `run()` method.
+            - If no sinks were set or if the graph hasn't been run, this method will return an empty list.
+            - The order of tasks in the list corresponds to the order they were consumed by the sink workers.
+
+        Example:
+            >>> graph = Graph(name="Example Graph")
+            >>> worker = SomeTaskWorker()
+            >>> graph.add_worker(worker)
+            >>> graph.set_sink(worker)
+            >>> graph.run(initial_tasks=[(worker, SomeTask())])
+            >>> results = graph.get_tasks()
+
+        See Also:
+            set_sink(): Method for setting a worker as a sink in the graph.
+        """
+        return self._sink_tasks
 
     def set_max_parallel_tasks(
         self, worker_class: Type[TaskWorker], max_parallel_tasks: int
@@ -133,6 +211,11 @@ class Graph(BaseModel):
             initial_work = [(task1, Task1WorkItem(data="Start"))]
             graph.run(initial_work, run_dashboard=True)
         """
+
+        # Empty the sink tasks
+        self._sink_tasks = []
+
+        # Start the dispatcher
         dispatcher = Dispatcher(self)
         dispatch_thread = Thread(target=dispatcher.dispatch)
         dispatch_thread.start()
