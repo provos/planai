@@ -29,7 +29,15 @@ def main(args=None):
     parser.add_argument(
         "--llm-provider", type=str, required=True, help="LLM provider name"
     )
-    parser.add_argument("--llm-model", type=str, required=True, help="LLM model name")
+    parser.add_argument(
+        "--llm-model", type=str, required=True, help="LLM model name for generation"
+    )
+    parser.add_argument(
+        "--llm-reason-model",
+        type=str,
+        required=True,
+        help="LLM model name for reasoning",
+    )
 
     subparsers = parser.add_subparsers(dest="command", help="Subcommands")
 
@@ -61,12 +69,15 @@ def main(args=None):
 
     parsed_args = parser.parse_args(args)
 
-    llm = llm_from_config(
+    llm_fast = llm_from_config(
         provider=parsed_args.llm_provider, model_name=parsed_args.llm_model
+    )
+    llm_reason = llm_from_config(
+        provider=parsed_args.llm_provider, model_name=parsed_args.llm_reason_model
     )
 
     if parsed_args.command == "optimize-prompt":
-        optimize_prompt(llm, parsed_args)
+        optimize_prompt(llm_fast, llm_reason, parsed_args)
     else:
         parser.print_help()
 
