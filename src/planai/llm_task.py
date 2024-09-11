@@ -25,6 +25,18 @@ from .cached_task import CachedTaskWorker
 from .llm_interface import LLMInterface
 from .task import Task, TaskWorker
 
+PROMPT = dedent(
+    """
+    Here is your input data:
+    {task}
+
+    Here are your instructions:
+    {instructions}
+
+    {format_instructions}
+    """
+).strip()
+
 
 class LLMTaskWorker(TaskWorker):
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -66,18 +78,6 @@ class LLMTaskWorker(TaskWorker):
         return list(self.output_types)[0]
 
     def _invoke_llm(self, task: Task) -> Task:
-        prompt = dedent(
-            """
-        Here is your input data:
-        {task}
-
-        Here are your instructions:
-        {instructions}
-
-        {format_instructions}
-        """
-        ).strip()
-
         parser = PydanticOutputParser(pydantic_object=self._output_type())
 
         # allow subclasses to customize the prompt based on the input task
@@ -90,7 +90,7 @@ class LLMTaskWorker(TaskWorker):
             self._save_debug_output(task=task, prompt=prompt, response=response)
 
         response = self.llm.generate_pydantic(
-            prompt_template=prompt,
+            prompt_template=PROMPT,
             output_schema=self._output_type(),
             system=self.system_prompt,
             task=processed_task.model_dump_json(indent=2),
@@ -100,6 +100,21 @@ class LLMTaskWorker(TaskWorker):
         )
 
         self.post_process(response=response, input_task=task)
+
+    def get_full_prompt(self, task: Task) -> str:
+        parser = PydanticOutputParser(pydantic_object=self._output_type())
+
+        task_prompt = self.format_prompt(task)
+
+        processed_task = self.pre_process(task)
+
+        return self.llm.generate_full_prompt(
+            prompt_template=PROMPT,
+            system=self.system_prompt,
+            task=processed_task.model_dump_json(indent=2),
+            instructions=task_prompt,
+            format_instructions=parser.get_format_instructions(),
+        )
 
     def format_prompt(self, task: Task) -> str:
         """

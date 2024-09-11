@@ -14,7 +14,7 @@
 import hashlib
 import logging
 import re
-from typing import Any, Dict, Optional, Tuple, Callable
+from typing import Any, Callable, Dict, Optional, Tuple
 
 import diskcache
 from dotenv import load_dotenv
@@ -86,6 +86,28 @@ class LLMInterface:
         else:
             return response  # Return original response if no JSON block is found
 
+    def generate_full_prompt(
+        self, prompt_template: str, system: str = "", **kwargs
+    ) -> str:
+        """
+        Generate a full prompt with input variables filled in.
+
+        Args:
+            prompt_template (str): The prompt template with placeholders for variables.
+            system (str): The system prompt to use for generation.
+            **kwargs: Keyword arguments to fill in the prompt template.
+
+        Returns:
+            str: The formatted prompt
+        """
+        prompt = PromptTemplate(
+            template=prompt_template,
+            input_variables=list(kwargs.keys()),
+        )
+
+        formatted_prompt = prompt.format(**kwargs)
+        return formatted_prompt
+
     def generate_pydantic(
         self,
         prompt_template: str,
@@ -109,12 +131,9 @@ class LLMInterface:
         """
         parser = PydanticOutputParser(pydantic_object=output_schema)
 
-        prompt = PromptTemplate(
-            template=prompt_template,
-            input_variables=list(kwargs.keys()),
+        formatted_prompt = self.generate_full_prompt(
+            prompt_template=prompt_template, system=system, **kwargs
         )
-
-        formatted_prompt = prompt.format(**kwargs)
 
         self.logger.info("Generated prompt: %s", formatted_prompt)
         if logger:
