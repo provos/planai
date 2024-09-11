@@ -22,6 +22,15 @@ from pydantic import Field, PrivateAttr
 from .task import Task, TaskWorker
 
 
+class InitialTaskWorker(TaskWorker):
+    """
+    All tasks that are directly submitted to the graph will have this worker as their input provenance.
+    """
+
+    def consume_work(self, task: Task):
+        pass
+
+
 class JoinedTaskWorker(TaskWorker):
     """
     A JoinedTaskWorker waits for the completion of a specific set of upstream tasks
@@ -103,6 +112,10 @@ class JoinedTaskWorker(TaskWorker):
             raise ValueError(
                 f"join_type must be a subclass of TaskWorker, got {self.join_type}"
             )
+
+        # all tasks will have InitialTaskWorker as their very first input provenance
+        if self.join_type == InitialTaskWorker:
+            return True
 
         if self._graph is None:
             raise ValueError(

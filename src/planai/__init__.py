@@ -15,7 +15,7 @@
 
 from .cached_task import CachedTaskWorker
 from .graph import Graph
-from .joined_task import JoinedTaskWorker
+from .joined_task import InitialTaskWorker, JoinedTaskWorker
 from .llm_config import llm_from_config
 from .llm_task import CachedLLMTaskWorker, LLMTaskWorker
 from .task import Task, TaskWorker
@@ -24,6 +24,7 @@ from .utils import PydanticDictWrapper
 # If you want to control what gets imported with "from planai import *"
 __all__ = [
     "Graph",
+    "InitialTaskWorker",
     "llm_from_config",
     "LLMTaskWorker",
     "TaskWorker",

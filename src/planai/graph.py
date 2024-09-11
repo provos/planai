@@ -18,6 +18,7 @@ from typing import Dict, List, Optional, Set, Tuple, Type
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from .dispatcher import Dispatcher
+from .joined_task import InitialTaskWorker
 from .task import Task, TaskWorker
 
 
@@ -147,10 +148,15 @@ class Graph(BaseModel):
         for worker in self.workers:
             worker.init()
 
+        # initial mock worker
+        origin_worker = InitialTaskWorker()
+
         for worker, task in initial_tasks:
             success, error = worker.validate_task(type(task), worker)
             if not success:
                 raise error
+
+            task._provenance = [(origin_worker.name, 1)]
 
             dispatcher.add_work(worker, task)
 
