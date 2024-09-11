@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
 from concurrent.futures import ThreadPoolExecutor
 from threading import Thread
 from typing import Dict, List, Optional, Set, Tuple, Type
@@ -33,6 +34,7 @@ class Graph(BaseModel):
     _thread_pool: Optional[ThreadPoolExecutor] = PrivateAttr(default=None)
     _max_parallel_tasks: Dict[Type[TaskWorker], int] = PrivateAttr(default_factory=dict)
     _sink_tasks: List[TaskType] = PrivateAttr(default_factory=list)
+    _sink_worker: Optional[TaskWorker] = PrivateAttr(default=None)
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -84,6 +86,7 @@ class Graph(BaseModel):
 
         Raises:
             ValueError: If the specified worker doesn't have exactly one output type.
+            RuntimeError: If a sink worker has already been set for this graph.
 
         Note:
             - The sink worker is automatically added to the graph and set as a dependency of the specified worker.
@@ -98,6 +101,9 @@ class Graph(BaseModel):
             >>> graph.run(initial_tasks=[(worker, SomeTask())])
             >>> results = graph.get_tasks()
         """
+        if self._sink_worker is not None:
+            raise RuntimeError("A sink worker has already been set for this graph.")
+
         if len(worker.output_types) != 1:
             raise ValueError(
                 f"Worker {worker.name} must have exactly one output type to use for a sink"
@@ -118,6 +124,9 @@ class Graph(BaseModel):
         instance = SinkWorker(self)
         self.add_worker(instance)
         self.set_dependency(worker, instance)
+
+        # Set this as the sink worker for the graph
+        self._sink_worker = instance
 
     def get_tasks(self) -> List[TaskType]:
         """
@@ -213,7 +222,12 @@ class Graph(BaseModel):
         """
 
         # Empty the sink tasks
-        self._sink_tasks = []
+        if self._sink_worker:
+            self._sink_tasks = []
+            if run_dashboard:
+                logging.warning(
+                    "The dashboard will make the graph wait for manual termination. This is usually not desired when using a sink worker."
+                )
 
         # Start the dispatcher
         dispatcher = Dispatcher(self)

@@ -245,6 +245,36 @@ class TaskWorker(BaseModel, ABC):
         self._graph.set_dependency(self, downstream)
         return downstream
 
+    def sink(self):
+        """
+        Designates the current task worker as a sink in the associated graph.
+
+        This method marks the current task worker as a sink, which means its output
+        will be collected and can be retrieved after the graph execution.
+
+        Returns:
+            self: Returns the task worker instance for method chaining.
+
+        Raises:
+            ValueError: If the task worker is not associated with a graph.
+
+        Note:
+            - Only one sink can be set per graph. Attempting to set multiple sinks
+              will raise a RuntimeError from the graph's set_sink method.
+            - The task worker must have exactly one output type to be eligible as a sink.
+            - Results from the sink can be retrieved using the graph's get_tasks() method
+              after the graph has been executed.
+
+        See Also:
+            Graph.set_sink(): The underlying method called to set the sink.
+            Graph.get_tasks(): Method to retrieve results from the sink after graph execution.
+        """
+        if self._graph is None:
+            raise ValueError(
+                "Task must be added to a Graph before setting a sink dependency"
+            )
+        self._graph.set_sink(self)
+
     def trace(self, prefix: "ProvenanceChain"):
         """
         Traces the provenance chain for a given prefix in the graph.
