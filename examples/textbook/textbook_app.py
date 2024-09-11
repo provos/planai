@@ -529,21 +529,14 @@ def main():
     # Initialize the PlanAI graph for task management
     graph = Graph(name="Textbook Analysis")
 
-    main_model = "llama3.1:70b"
-    # main_model = "phi3:14b"
-
     # we use a small and fast llm to determine whether a text chunk is interesting
-    local_llm = llm_from_config(
-        provider="ollama", model_name=main_model, host="http://localhost:11435/"
-    )
-    clean_text_worker = CleanText(llm=local_llm)
-    interesting_worker = InterestingText(llm=local_llm)
+    fast_llm = llm_from_config(provider="openai", model_name="gpt-4o-mini")
+    clean_text_worker = CleanText(llm=fast_llm)
+    interesting_worker = InterestingText(llm=fast_llm)
 
     # we use a more powerful llm to generate questions from interesting text chunks
     # while developing we use a smaller model to speed up the process but in production we can use a larger model
-    reasoning_llm = llm_from_config(
-        provider="ollama", model_name=main_model, host="http://localhost:11435/"
-    )
+    reasoning_llm = llm_from_config(provider="openai", model_name="gpt-4o-mini")
     create_questions_worker = CreateQuestions(llm=reasoning_llm)
 
     question_evaluation_worker = QuestionEvaluationWorker(llm=reasoning_llm)
