@@ -20,6 +20,7 @@ for other input formats.
 """
 
 import argparse
+import json
 from datetime import datetime
 from pathlib import Path
 from textwrap import dedent
@@ -342,6 +343,7 @@ class QuestionAnswer(CachedLLMTaskWorker):
     provided text, allowing for selection of the best response.
     """
 
+    debug_mode: bool = True
     output_types: List[Type[Task]] = [Answers]
     prompt: str = dedent(
         """
@@ -520,29 +522,46 @@ def main():
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="Textbook app")
     parser.add_argument(
-        "--file", type=str, help="Path to the file to process", required=True
+        "--file", type=str, help="Path to the file to process", required=False
+    )
+    parser.add_argument(
+        "--chunk-output",
+        type=str,
+        help="Path to save chunks as JSON and exit without running the pipeline",
+        required=False,
+    )
+    parser.add_argument(
+        "--chunk-input",
+        type=str,
+        help="Path to read chunks from JSON instead of processing the file",
+        required=False,
+    )
+    parser.add_argument(
+        "--test-run",
+        action="store_true",
+        help="Run the pipeline in test mode with a small subset of data",
     )
     args = parser.parse_args()
+
+    if not args.file and not args.chunk_input:
+        print("Please provide either a file to process or a JSON file with chunks.")
+        exit(1)
 
     setup_logging()
 
     # Initialize the PlanAI graph for task management
     graph = Graph(name="Textbook Analysis")
 
-    # we use a small and fast llm to determine whether a text chunk is interesting
+    # Initialize workers
     fast_llm = llm_from_config(provider="openai", model_name="gpt-4o-mini")
+    reasoning_llm = llm_from_config(provider="openai", model_name="gpt-4o-mini")
+
     clean_text_worker = CleanText(llm=fast_llm)
     interesting_worker = InterestingText(llm=fast_llm)
-
-    # we use a more powerful llm to generate questions from interesting text chunks
-    # while developing we use a smaller model to speed up the process but in production we can use a larger model
-    reasoning_llm = llm_from_config(provider="openai", model_name="gpt-4o-mini")
     create_questions_worker = CreateQuestions(llm=reasoning_llm)
-
     question_evaluation_worker = QuestionEvaluationWorker(llm=reasoning_llm)
     question_answer_worker = QuestionAnswer(llm=reasoning_llm)
     answer_evaluation_worker = AnswerEvaluator(llm=reasoning_llm)
-
     print_worker = PrintOutput()
 
     # Add workers to the graph and set up the processing pipeline
@@ -566,19 +585,51 @@ def main():
     # Limit the number of parallel LLM tasks for performance management
     graph.set_max_parallel_tasks(CachedLLMTaskWorker, 4)
 
-    # Process the input file
-    print(f"Processing file: {args.file}")
-    text = pdf_to_text(args.file)
-    chunks = create_semantic_chunks(
-        text, max_sentences=80, buffer_size=1, threshold_percentile=55
-    )
+    # Process chunks based on input arguments
+    if args.chunk_output:
+        chunks = save_chunks(args.file, args.chunk_output)
+        print(f"Chunks saved to {args.chunk_output}")
+        return
+    elif args.chunk_input:
+        chunks = load_chunks_from_file(args.chunk_input)
+        print(f"Chunks loaded from {args.chunk_input}")
+    else:
+        chunks = process_file(args.file)
+
+    if args.test_run:
+        start_index = max(0, len(chunks) // 2 - 5)
+        end_index = min(len(chunks), len(chunks) // 2 + 5)
+        chunks = chunks[start_index:end_index]
+        print(f"Running test pipeline with {len(chunks)} chunks...")
 
     # Create initial tasks for processing
     input_work = [(clean_text_worker, InputChunk(text=chunk)) for chunk in chunks]
 
     # Run the graph with the initial tasks
     print(f"Processing {len(input_work)} chunks...")
+
     graph.run(initial_tasks=input_work, run_dashboard=True)
+
+
+def save_chunks(file_path: str, output_path: str):
+    text = pdf_to_text(file_path)
+    chunks = create_semantic_chunks(
+        text, max_sentences=80, buffer_size=1, threshold_percentile=55
+    )
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(chunks, f, indent=2)
+
+
+def load_chunks_from_file(input_path: str) -> List[InputChunk]:
+    with open(input_path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def process_file(file_path: str) -> List[str]:
+    text = pdf_to_text(file_path)
+    return create_semantic_chunks(
+        text, max_sentences=80, buffer_size=1, threshold_percentile=55
+    )
 
 
 if __name__ == "__main__":
