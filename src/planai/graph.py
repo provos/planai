@@ -286,7 +286,7 @@ def main():
 
     # Define custom TaskWorker classes
     class Task1Worker(TaskWorker):
-        output_types: Set[Type[Task]] = {Task2WorkItem}
+        output_types: List[Type[Task]] = [Task2WorkItem]
 
         def consume_work(self, task: Task1WorkItem):
             print(f"Task1 consuming: {task.data}")
@@ -294,7 +294,7 @@ def main():
             self.publish_work(Task2WorkItem(processed_data=processed), input_task=task)
 
     class Task2Worker(TaskWorker):
-        output_types: Set[Type[Task]] = {Task3WorkItem}
+        output_types: List[Type[Task]] = [Task3WorkItem]
 
         def consume_work(self, task: Task2WorkItem):
             print(f"Task2 consuming: {task.processed_data}")

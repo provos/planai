@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import unittest
-from typing import Set, Type
+from typing import List, Type
 from unittest.mock import Mock, patch
 
 from planai.task import Task, TaskWorker
@@ -75,7 +75,7 @@ class DummyTask(Task):
 
 
 class DummyWorker(TaskWorker):
-    output_types: Set[Type[Task]] = {DummyTask}
+    output_types: List[Type[Task]] = [DummyTask]
 
     def consume_work(self, task: DummyTask):
         pass

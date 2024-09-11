@@ -15,7 +15,7 @@ import random
 import threading
 import time
 import unittest
-from typing import List, Set, Type
+from typing import List, Type
 
 from pydantic import PrivateAttr
 
@@ -39,7 +39,8 @@ class Task3(Task):
 
 
 class TaskWorker1(TaskWorker):
-    output_types: Set[Type[Task]] = {Task1}
+    output_types: List[Type[Task]] = [Task1]
+
     _processed_count: int = PrivateAttr(0)
 
     def consume_work(self, task: Task1):
@@ -49,7 +50,8 @@ class TaskWorker1(TaskWorker):
 
 
 class TaskWorker2(TaskWorker):
-    output_types: Set[Type[Task]] = {Task2}
+    output_types: List[Type[Task]] = [Task2]
+
     _processed_count: int = PrivateAttr(0)
 
     def consume_work(self, task: Task1):
@@ -136,7 +138,7 @@ class FinalTask(Task):
 
 
 class InitialTaskWorker(TaskWorker):
-    output_types: Set[Type[Task]] = {InitialTask}
+    output_types: List[Type[Task]] = [InitialTask]
 
     def consume_work(self, task: InitialTask):
         # Generate multiple tasks
@@ -147,7 +149,7 @@ class InitialTaskWorker(TaskWorker):
 
 
 class IntermediateTaskWorker(TaskWorker):
-    output_types: Set[Type[Task]] = {IntermediateTask}
+    output_types: List[Type[Task]] = [IntermediateTask]
 
     def consume_work(self, task: InitialTask):
         output = IntermediateTask(data=f"Processed-{task.data}", source=self.name)

@@ -59,6 +59,7 @@ from planai import Graph, TaskWorker, Task, LLMTaskWorker, llm_from_config
 class CustomDataProcessor(TaskWorker):
     output_types: List[Type[Task]] = [ProcessedData]
 
+
     def consume_work(self, task: RawData):
         processed_data = self.process(task.data)
         self.publish_work(ProcessedData(data=processed_data))
@@ -67,6 +68,7 @@ class CustomDataProcessor(TaskWorker):
 class AIAnalyzer(LLMTaskWorker):
     prompt: str ="Analyze the provided data and derive insights"
     output_types: List[Type[Task]] = [AnalysisResult]
+
 
     def consume_work(self, task: ProcessedData):
         super().consume_work(task)

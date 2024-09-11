@@ -22,7 +22,6 @@ from typing import (
     Dict,
     List,
     Optional,
-    Set,
     Tuple,
     Type,
     TypeVar,
@@ -148,7 +147,7 @@ class TaskWorker(BaseModel, ABC):
     is performed during the registration of consumers.
 
     Attributes:
-        output_types (Set[Type[Task]]): The types of work this task can output.
+        output_types (List[Type[Task]]): The types of work this task can output.
         num_retries (int): The number of retries allowed for this task. Defaults to 0.
         _id (int): A private attribute to track the task's ID.
         _consumers (Dict[Type["TaskWorker"], "TaskWorker"]): A private attribute to store registered consumers.
@@ -157,8 +156,8 @@ class TaskWorker(BaseModel, ABC):
         Any subclass of TaskWorker must implement consume_work.
     """
 
-    output_types: Set[Type[Task]] = Field(
-        default_factory=set,
+    output_types: List[Type[Task]] = Field(
+        default_factory=list,
         description="The types of work this task can output",
     )
     num_retries: int = Field(
@@ -541,7 +540,7 @@ def main():
         magic: Any = Field(..., title="Magic", description="Magic value")
 
     class SpecificTask(TaskWorker):
-        output_types: Set[Type[Task]] = {MagicTaskWork}
+        output_types: List[Type[Task]] = [MagicTaskWork]
 
         def consume_work(self, task: MagicTaskWork):
             print(
