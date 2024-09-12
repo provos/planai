@@ -218,7 +218,7 @@ class JoinPromptPerformanceOutput(JoinedTaskWorker):
         return super().consume_work(task)
 
     def consume_work_joined(self, tasks: List[PromptPerformanceOutput]):
-        print(f"Received {len(tasks)} prompt performance outputs")
+        self.print(f"Received {len(tasks)} prompt performance outputs")
         self.publish_work(
             CombinedPromptCritique(
                 critique=[task.critique for task in tasks],
@@ -249,7 +249,9 @@ class AccumulateCritiqueOutput(TaskWorker):
             self._state[input_task.prompt_template] = critique
 
             if len(self._state) < 2:
-                print(f"Only {len(self._state)} critiques so far - waiting for more")
+                self.print(
+                    f"Only {len(self._state)} critiques so far - waiting for more"
+                )
                 # we need at least two critiques to compare
                 return
 
@@ -259,7 +261,9 @@ class AccumulateCritiqueOutput(TaskWorker):
             )[:3]
 
             self._state = {critique.prompt_template: critique for critique in top_three}
-            print(f"Top three scores: {[critique.score for critique in top_three]}")
+            self.print(
+                f"Top three scores: {[critique.score for critique in top_three]}"
+            )
 
             final_output = MultipleCombinedPromptCritique(
                 critiques=list(self._state.values())
@@ -572,7 +576,7 @@ def write_results(class_name: str, output: List[PromptCritique]):
         base_filename = f"{class_name}_prompt_{index}"
 
         # Create the text file containing the prompt and score.
-        text_filename = get_available_filename(base_filename, "text")
+        text_filename = get_available_filename(base_filename, "txt")
         text_filename.write_text(f"Score: {task.score}\n{task.prompt_template}")
 
         # Create the JSON file dumping the whole content.
