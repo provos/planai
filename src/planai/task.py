@@ -336,6 +336,15 @@ class TaskWorker(BaseModel, ABC):
             raise ValueError("Prefix must be a tuple")
         return self._graph._dispatcher.unwatch(prefix, self)
 
+    def print(self, *args):
+        """
+        Prints a message to the console.
+
+        Parameters:
+            *args: The message to print.
+        """
+        self._graph.print(*args)
+
     def _pre_consume_work(self, task: Task):
         with self._state_lock:
             self._last_input_task = task
