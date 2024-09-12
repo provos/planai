@@ -63,7 +63,8 @@ class JoinedTaskWorker(TaskWorker):
         prefix = task.prefix_for_input_task(self.join_type)
         if prefix is None:
             raise ValueError(
-                f"Task {task} does not have a prefix for {self.join_type.__name__} in provenance."
+                f"Task {task} does not have a prefix for {self.join_type.__name__} in provenance. "
+                f"Existing provenance: {task._provenance}"
             )
         need_watch = False
         with self._lock:
