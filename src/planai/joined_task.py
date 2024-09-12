@@ -94,6 +94,12 @@ class JoinedTaskWorker(TaskWorker):
         sorted_tasks = sorted(
             self._joined_results[prefix], key=attrgetter("_provenance")
         )
+        logging.info(
+            "Received all (%d) results for %s in %s",
+            len(sorted_tasks),
+            prefix,
+            self.name,
+        )
         with self.work_buffer_context(sorted_tasks[0]):
             self.consume_work_joined(sorted_tasks)
             del self._joined_results[prefix]

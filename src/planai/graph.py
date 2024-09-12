@@ -269,13 +269,17 @@ class Graph(BaseModel):
             dispatcher.add_work(worker, task)
 
         # Wait for all tasks to complete
+        logging.info(f"Graph {self.name} started - waiting for completion")
         dispatcher.wait_for_completion(wait_for_quit=run_dashboard)
+        logging.info(f"Graph {self.name} completed")
         dispatcher.stop()
         dispatch_thread.join()
+        logging.info("Dispatcher stopped")
 
         if display_terminal:
             self._stop_terminal_display_event.set()
             terminal_thread.join()
+            logging.info("Terminal display stopped")
 
         self._thread_pool.shutdown(wait=True)
 
@@ -327,7 +331,7 @@ class Graph(BaseModel):
 
             total_tasks = completed + active + queued + failed
             available_width = (
-                terminal_width - 24
+                terminal_width - 29
             ) // 2  # Adjust for worker name and separator
 
             if total_tasks > available_width:
@@ -353,7 +357,7 @@ class Graph(BaseModel):
             failed_bar = Fore.RED + "❌" * failed_scaled
 
             # First print: worker name and bars
-            status_line = f"{worker:20} | {completed_bar}{active_bar}{queued_bar}{failed_bar}{Style.RESET_ALL}"
+            status_line = f"{worker[:25]:25} | {completed_bar}{active_bar}{queued_bar}{failed_bar}{Style.RESET_ALL}"
             print(status_line, end="")
 
             # Calculate and print counts at the right edge
