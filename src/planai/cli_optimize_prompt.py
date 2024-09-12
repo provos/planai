@@ -314,7 +314,7 @@ Provide the improved prompt_template and a comment on the improvement.
     def format_prompt(self, task: CombinedPromptCritique) -> str:
         goal_input: Optional[PromptInput] = task.find_input_task(PromptInput)
         if goal_input is None:
-            raise ValueError(f"No input task found for {PromptInput.__name__}")
+            raise ValueError("No input task found for PromptInput")
 
         return self.prompt.format(
             optimization_goal=goal_input.optimization_goal,
@@ -541,6 +541,21 @@ def optimize_prompt(
             )
         )
 
+    # we are creating one special task for the original prompt
+    # this requires that we fake the provenance so that JoinPromptPerformanceOutput can find it
+    special_task = ImprovedPrompt(
+        prompt_template=llm_class.prompt, comment="Original prompt"
+    )
+    # the order here matters
+    special_task._add_input_provenance(
+        PromptInput(
+            optimization_goal=goal_prompt, prompt_template=llm_class.prompt, id=0
+        )
+    )
+    special_task._add_worker_provenance(generation)
+
+    input_tasks.append((prepare_input, special_task))
+
     # Make sure to pick the prompt from the upstream workers and reflect it in the cache key
     inject_prompt_awareness(llm_class)
 
@@ -578,6 +593,8 @@ def write_results(class_name: str, output: List[PromptCritique]):
         # Create the text file containing the prompt and score.
         text_filename = get_available_filename(base_filename, "txt")
         text_filename.write_text(f"Score: {task.score}\n{task.prompt_template}")
+
+        print(f"Prompt {index} and score written to {text_filename}")
 
         # Create the JSON file dumping the whole content.
         json_filename = get_available_filename(base_filename, "json")
