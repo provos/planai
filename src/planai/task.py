@@ -104,6 +104,24 @@ class Task(BaseModel):
                 return tuple(self._provenance[: i + 1])
         return None
 
+    def _add_worker_provenance(self, worker: "TaskWorker") -> "Task":
+        with worker._state_lock:
+            worker._id += 1
+            self._provenance.append((worker.name, worker._id))
+        return self
+
+    def _add_input_provenance(self, input_task: Optional["Task"]) -> "Task":
+        # Copy provenance from input task if provided
+        if input_task is not None:
+            self._provenance = input_task.copy_provenance()
+            self._input_provenance = input_task.copy_input_provenance() + [
+                input_task.model_copy()
+            ]
+        else:
+            self._provenance = []
+            self._input_provenance = []
+        return self
+
 
 class WorkBufferContext:
     def __init__(self, worker, input_task=None):
@@ -150,7 +168,7 @@ class TaskWorker(BaseModel, ABC):
         output_types (List[Type[Task]]): The types of work this task can output.
         num_retries (int): The number of retries allowed for this task. Defaults to 0.
         _id (int): A private attribute to track the task's ID.
-        _consumers (Dict[Type["TaskWorker"], "TaskWorker"]): A private attribute to store registered consumers.
+        _consumers (Dict[Type["Task"], "TaskWorker"]): A private attribute to store registered consumers.
 
     Note:
         Any subclass of TaskWorker must implement consume_work.
@@ -166,9 +184,7 @@ class TaskWorker(BaseModel, ABC):
 
     _state_lock: threading.RLock = PrivateAttr(default_factory=threading.RLock)
     _id: int = PrivateAttr(default=0)
-    _consumers: Dict[Type["TaskWorker"], "TaskWorker"] = PrivateAttr(
-        default_factory=dict
-    )
+    _consumers: Dict[Type["Task"], "TaskWorker"] = PrivateAttr(default_factory=dict)
     _graph: Optional["Graph"] = PrivateAttr(default=None)
     _last_input_task: Optional[Task] = PrivateAttr(default=None)
     _instance_id: uuid.UUID = PrivateAttr(default_factory=uuid.uuid4)
@@ -370,12 +386,6 @@ class TaskWorker(BaseModel, ABC):
         """
         pass
 
-    def _add_provenance(self, task: Task) -> Task:
-        with self._state_lock:
-            self._id += 1
-            task._provenance.append((self.name, self._id))
-        return task
-
     def publish_work(self, task: Task, input_task: Optional[Task]):
         """
         Publish a work item.
@@ -394,17 +404,9 @@ class TaskWorker(BaseModel, ABC):
                 f"Task {self.name} cannot publish work of type {type(task).__name__}"
             )
 
-        # Copy provenance from input task if provided
-        if input_task is not None:
-            task._provenance = input_task.copy_provenance()
-            task._input_provenance = input_task.copy_input_provenance() + [
-                input_task.model_copy()
-            ]
-        else:
-            task._provenance = []
-            task._input_provenance = []
-
-        self._add_provenance(task)
+        # the order of these operations is important as the first call erases the provenance
+        task._add_input_provenance(input_task)
+        task._add_worker_provenance(self)
 
         logging.info(
             "Task %s published work with provenance %s", self.name, task._provenance
@@ -434,7 +436,7 @@ class TaskWorker(BaseModel, ABC):
         pass
 
     def _dispatch_work(self, task: Task):
-        consumer = self._consumers.get(task.__class__)
+        consumer: "TaskWorker" = self._consumers.get(task.__class__)
         consumer.consume_work(task)
 
     def validate_task(
