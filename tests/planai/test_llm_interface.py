@@ -116,6 +116,46 @@ class TestLLMInterface(unittest.TestCase):
         self.mock_client.generate.assert_called_once()  # Still called only once
         self.assertEqual(response, self.response_data)
 
+    def test_generate_pydantic_with_retry_logic_and_prompt_check(self):
+        # Simulate an invalid JSON response that fails to parse initially
+        invalid_json_response = '{"field1": "test"}'
+        valid_json_response = '{"field1": "valid", "field2": 42}'
+
+        # Mock the generate method to return invalid then valid response
+        self.mock_client.generate.side_effect = [
+            {"response": invalid_json_response},
+            {"response": valid_json_response},
+        ]
+
+        output_model = DummyPydanticModel(field1="valid", field2=42)
+
+        with patch("planai.llm_interface.logging.Logger") as mock_logger:
+            self.llm_interface.logger = mock_logger
+
+            response = self.llm_interface.generate_pydantic(
+                prompt_template=self.prompt,
+                output_schema=DummyPydanticModel,
+                system=self.system,
+            )
+
+            # Assert the method eventually returns the correct output after retry
+            self.assertEqual(response, output_model)
+            self.assertEqual(
+                self.mock_client.generate.call_count, 2
+            )  # Should be called twice due to retry
+
+            # Check the prompts passed to the generate function of the client
+            first_call_prompt = self.mock_client.generate.call_args_list[0][1]["prompt"]
+            second_call_prompt = self.mock_client.generate.call_args_list[1][1][
+                "prompt"
+            ]
+
+            # Assert the second prompt includes instruction for correcting the format
+            self.assertIn("field2", second_call_prompt)
+            self.assertNotIn(
+                "field2", first_call_prompt
+            )  # Ensure initial prompt was clean
+
 
 if __name__ == "__main__":
     unittest.main()
