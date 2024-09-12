@@ -4,6 +4,7 @@ import json
 import random
 import re
 import sys
+from operator import attrgetter
 from textwrap import dedent
 from typing import Any, Dict, List, Optional, Type
 
@@ -32,6 +33,7 @@ from .cli_utils import (
 class PromptInput(Task):
     optimization_goal: str = Field(description="The goal of the optimization")
     prompt_template: str = Field(description="The prompt template to optimize")
+    id: Optional[int] = Field(0, description="The id of the input task")
 
 
 class PromptPerformanceInput(Task):
@@ -58,6 +60,22 @@ class CombinedPromptCritique(Task):
     )
     score: float = Field(
         description="A score from 0 to 1 indicating the quality of the prompt in terms of the response meeting the goal"
+    )
+
+
+class PromptCritique(Task):
+    prompt_template: str = Field(description="The prompt template")
+    critique: List[str] = Field(
+        description="The critiques of the prompt in terms of the optimization goal"
+    )
+    score: float = Field(
+        description="A score from 0 to 1 indicating the quality of the prompt in terms of the response meeting the goal"
+    )
+
+
+class MultipleCombinedPromptCritique(Task):
+    critiques: List[PromptCritique] = Field(
+        description="The critiques of the prompt in terms of the optimization goal"
     )
 
 
@@ -193,7 +211,7 @@ Note: prompt_full is the prompt_template with all data filled in.
 
 class JoinPromptPerformanceOutput(JoinedTaskWorker):
     output_types: List[Type[Task]] = [CombinedPromptCritique]
-    join_type: Type[CachedLLMTaskWorker] = PromptGenerationWorker
+    join_type: Type[TaskWorker] = PromptGenerationWorker
 
     def consume_work(self, task: PromptPerformanceOutput):
         return super().consume_work(task)
@@ -209,17 +227,62 @@ class JoinPromptPerformanceOutput(JoinedTaskWorker):
         )
 
 
+class AccumulateCritiqueOutput(TaskWorker):
+    iterations: int = Field(3, description="The number of iterations to run")
+    output_types: List[Type[Task]] = [MultipleCombinedPromptCritique, PromptCritique]
+    _state: Dict[str, PromptCritique] = PrivateAttr(default_factory=dict)
+    _count: int = PrivateAttr(default=0)
+
+    def consume_work(self, task: CombinedPromptCritique):
+        input_task = task.find_input_task(ImprovedPrompt)
+        if input_task is None:
+            raise ValueError("No input task found")
+
+        critique = PromptCritique(
+            prompt_template=input_task.prompt_template,
+            critique=task.critique,
+            score=task.score,
+        )
+
+        with self.lock:
+            self._state[input_task.prompt_template] = critique
+
+            if len(self._state) < 2:
+                print(f"Only {len(self._state)} critiques so far - waiting for more")
+                # we need at least two critiques to compare
+                return
+
+            # keep the top three scores
+            top_three = sorted(
+                self._state.values(), key=attrgetter("score"), reverse=True
+            )[:3]
+
+            self._state = {critique.prompt_template: critique for critique in top_three}
+            print(f"Top three scores: {[critique.score for critique in top_three]}")
+
+            final_output = MultipleCombinedPromptCritique(
+                critiques=list(self._state.values())
+            )
+
+            self._count += 1
+            if self._count >= self.iterations:
+                # send the top three critiques to the final sink
+                for critique in self._state.values():
+                    self.publish_work(critique, input_task=task)
+                return
+
+            self.publish_work(final_output, input_task=task)
+
+
 class PromptImprovementWorker(CachedLLMTaskWorker):
     output_types: List[Type[Task]] = [ImprovedPrompt]
     prompt: str = dedent(
         """
-Improve the provided prompt_template based on the attached critique to better meet the optimization_goal.
+You are being provided with multiple prompt_templates, their respective critique and how they scored
+in terms of meeting the stated optimization_goal. Your task is to create an improved prompt_template
+based on the attached prompts and critiques. The improved prompt_template should be better at meeting the optimization_goal.
 
 Optmization Goal: {optimization_goal}
-
-[prompt_template]
-{prompt_template}
-[/prompt_template]
 
 When crafting your improvement:
 - Focus on the structure and approach of the prompt rather than any specific subject matter.
@@ -240,22 +303,15 @@ Provide the improved prompt_template and a comment on the improvement.
         super().__init__(**data)
         self._llm_class = llm_class
 
-    def consume_work(self, task: CombinedPromptCritique):
+    def consume_work(self, task: MultipleCombinedPromptCritique):
         return super().consume_work(task)
 
     def format_prompt(self, task: CombinedPromptCritique) -> str:
-        prompt_input: Optional[PromptPerformanceInput] = task.find_input_task(
-            PromptPerformanceInput
-        )
-        if prompt_input is None:
-            raise ValueError("No input task found")
-
-        goal_input: Optional[PromptInput] = prompt_input.find_input_task(PromptInput)
+        goal_input: Optional[PromptInput] = task.find_input_task(PromptInput)
         if goal_input is None:
-            raise ValueError("No input task found")
+            raise ValueError(f"No input task found for {PromptInput.__name__}")
 
         return self.prompt.format(
-            prompt_template=prompt_input.prompt_template,
             optimization_goal=goal_input.optimization_goal,
         )
 
@@ -428,10 +484,14 @@ def optimize_prompt(
 
     prompt_analysis = PromptPerformanceWorker(llm=llm_fast)
     joined_worker = JoinPromptPerformanceOutput()
+
+    accumulate_critique = AccumulateCritiqueOutput()
+
     improvement_worker = PromptImprovementWorker(
         llm=llm_reason,
         llm_class=llm_class,
     )  # need a more powerful LLM here
+
     graph.add_workers(
         generation,
         prepare_input,
@@ -439,24 +499,32 @@ def optimize_prompt(
         adapt_output,
         prompt_analysis,
         joined_worker,
+        accumulate_critique,
         improvement_worker,
     )
 
     # we will inject the llm_class into the graph
     graph.set_dependency(generation, prepare_input).next(llm_class).next(
         adapt_output
-    ).next(prompt_analysis).next(joined_worker).next(improvement_worker).sink()
+    ).next(prompt_analysis).next(joined_worker).next(accumulate_critique).next(
+        improvement_worker
+    ).next(
+        prepare_input
+    )
+    graph.set_sink(accumulate_critique, PromptCritique)
 
     # create two new prompts
     input_tasks = []
-    for example in data[:2]:
+    for i, example in enumerate(data[:2]):
         task = create_input_task(module, task_name, example)
         prompt_template = llm_class.prompt
         input_tasks.append(
             (
                 generation,
                 PromptInput(
-                    optimization_goal=goal_prompt, prompt_template=prompt_template
+                    optimization_goal=goal_prompt,
+                    prompt_template=prompt_template,
+                    id=i,
                 ),
             )
         )
@@ -464,11 +532,16 @@ def optimize_prompt(
     graph.run(initial_tasks=input_tasks, run_dashboard=False)
 
     output = graph.get_tasks()
+
+    # Create a list to hold all the task data.
+    all_tasks_data = []
     for task in output:
         data = task.model_dump()
-        for key, value in data.items():
-            print(f"{key}: {value}")
-        print()
+        all_tasks_data.append(data)
+
+    # Write the list of task data to a JSON file.
+    with open("optimized_prompts.json", "w") as json_file:
+        json.dump(all_tasks_data, json_file, indent=2)
 
 
 def sanitize_prompt(original_template: str, prompt_template: str) -> str:
