@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Literal, Mapping
+from typing import Any, Dict, List, Literal, Mapping
 
 from anthropic import Anthropic, APIError
 
@@ -65,7 +65,7 @@ class AnthropicWrapper:
         except APIError as e:
             raise e
 
-    def chat(self, messages: list[Mapping[str, str]], **kwargs):
+    def chat(self, messages: List[Dict[str, str]], **kwargs) -> Dict[str, Any]:
         """
         Conduct a chat conversation using the Anthropic API.
 
@@ -74,13 +74,21 @@ class AnthropicWrapper:
             **kwargs: Additional arguments to pass to the generate function.
 
         Returns:
-            The response from the generate function.
+            A dictionary containing the Anthropic response formatted to match Ollama's expected output.
         """
-        system_message = next(
-            (m["content"] for m in messages if m["role"] == "system"), ""
-        )
-        user_messages = [m["content"] for m in messages if m["role"] == "user"]
+        try:
+            response = self.client.messages.create(
+                max_tokens=kwargs.get("max_tokens", self.max_tokens),
+                messages=messages,
+                model=kwargs.get("model", "claude-3-5-sonnet-20240620"),
+            )
 
-        prompt = "\n".join(user_messages)
+            # Extract content blocks as text and simulate Ollama-like response
+            content = "".join(
+                block.text for block in response.content if block.type == "text"
+            )
 
-        return self.generate(prompt=prompt, system=system_message, **kwargs)
+            return {"message": {"content": content}}
+
+        except APIError as e:
+            raise e

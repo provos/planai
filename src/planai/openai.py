@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Literal, Mapping
+from typing import Any, Dict, List, Literal, Mapping
 
 from openai import OpenAI
 
@@ -75,22 +75,29 @@ class OpenAIWrapper:
         except Exception as e:
             raise e
 
-    def chat(self, messages: list[Mapping[str, str]], **kwargs):
+    def chat(self, messages: List[Dict[str, str]], **kwargs) -> Dict[str, Any]:
         """
         Conduct a chat conversation using the OpenAI API.
 
         Args:
             messages (list[Mapping[str, str]]): A list of message dictionaries, each containing 'role' and 'content'.
-            **kwargs: Additional arguments to pass to the generate function.
+            **kwargs: Additional arguments to pass to the API.
 
         Returns:
-            The response from the generate function.
+            A dictionary containing the OpenAI response formatted to match Ollama's expected output.
         """
-        system_message = next(
-            (m["content"] for m in messages if m["role"] == "system"), ""
-        )
-        user_messages = [m["content"] for m in messages if m["role"] == "user"]
+        api_params = {
+            "model": kwargs.get("model", "gpt-3.5-turbo"),
+            "messages": messages,
+            "max_tokens": kwargs.get("max_tokens", self.max_tokens),
+        }
 
-        prompt = "\n".join(user_messages)
+        try:
+            response = self.client.chat.completions.create(**api_params)
+            # Format output to simulate Ollama's response structure
+            content = response.choices[0].message.content
 
-        return self.generate(prompt=prompt, system=system_message, **kwargs)
+            return {"message": {"content": content}}
+
+        except Exception as e:
+            raise e

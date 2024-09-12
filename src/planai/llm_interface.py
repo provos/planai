@@ -14,7 +14,7 @@
 import hashlib
 import logging
 import re
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import diskcache
 from dotenv import load_dotenv
@@ -50,6 +50,29 @@ class LLMInterface:
         self.disk_cache = diskcache.Cache(
             directory=".response_cache", eviction_policy="least-recently-used"
         )
+
+    def _cached_chat(self, messages: List[Dict[str, str]]) -> str:
+        # Concatenate all messages to use as the cache key
+        message_content = "".join([msg["role"] + msg["content"] for msg in messages])
+        prompt_hash = self._generate_hash(self.model_name + message_content)
+
+        # Check if prompt response is in cache
+        response = self.disk_cache.get(prompt_hash)
+
+        if response is None:
+            # If not in cache, make request to client using chat interface
+            response = self.client.chat(model=self.model_name, messages=messages)
+
+            # Cache the response with hashed prompt as key
+            self.disk_cache.set(prompt_hash, response)
+
+        return response["message"]["content"]
+
+    def chat(self, messages: List[Dict[str, str]]) -> str:
+        self.logger.info("Chatting with messages: %s...", messages)
+        response = self._cached_chat(messages=messages)
+        self.logger.info("Received chat response: %s...", response[:850])
+        return response.strip()
 
     def _cached_generate(self, prompt: str, system: str = "", format: str = "") -> str:
         # Hash the prompt to use as the cache key
@@ -127,7 +150,7 @@ class LLMInterface:
             **kwargs: Keyword arguments to fill in the prompt template.
 
         Returns:
-            Dict[str, Any]: The formatted prompt and generated output in JSON format.
+            Dict[str, Any]: The formatted prompt and generated output.
         """
         parser = PydanticOutputParser(pydantic_object=output_schema)
 
@@ -143,9 +166,12 @@ class LLMInterface:
         while iteration < 3:
             iteration += 1
 
-            raw_response = self._cached_generate(
-                prompt=formatted_prompt, system=system, format="json"
-            )["response"].strip()
+            messages = [
+                {"role": "system", "content": system},
+                {"role": "user", "content": formatted_prompt},
+            ]
+
+            raw_response = self.chat(messages=messages)
             if not self.support_json_mode:
                 raw_response = self._strip_text_from_json_response(raw_response)
 
@@ -154,9 +180,10 @@ class LLMInterface:
             if response is not None:
                 break
 
+            # Include the error message in the prompt for retrial
             formatted_prompt = (
                 f"Your previous response did not follow the JSON format instructions. Here is the error message {error_message}\n\n"
-                f"Try again and closly follow these instructions:\n{formatted_prompt}"
+                f"Try again and closely follow these instructions:\n{formatted_prompt}"
             )
 
         if debug_saver is not None:
