@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import logging
+import math
 import shutil
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -264,7 +265,7 @@ class Graph(BaseModel):
             if not success:
                 raise error
 
-            task._provenance = [(origin_worker.name, 1)]
+            task._provenance = [(origin_worker.name, 1)] + task._provenance
 
             dispatcher.add_work(worker, task)
 
@@ -326,27 +327,70 @@ class Graph(BaseModel):
             failed = sum(1 for t in data["failed"] if t["worker"] == worker)
 
             total_tasks = completed + active + queued + failed
-            # Including space for worker name and separators
-            bar_length = (terminal_width - 48) // 2
+            # Including space for worker name and separators, and accounting for emoji width
+            available_width = (terminal_width - 48) // 2
 
-            if total_tasks > 0:
-                completed_ratio = completed / total_tasks
-                active_ratio = active / total_tasks
-                queued_ratio = queued / total_tasks
+            if total_tasks > available_width:
+                # Scale down if total tasks exceed available width
+                scale_factor = available_width / total_tasks
+                completed_scaled = math.floor(completed * scale_factor)
+                active_scaled = math.floor(active * scale_factor)
+                queued_scaled = math.floor(queued * scale_factor)
+                failed_scaled = math.floor(failed * scale_factor)
+
+                # Ensure at least one emoji for non-zero values
+                completed_scaled = max(1, completed_scaled) if completed > 0 else 0
+                active_scaled = max(1, active_scaled) if active > 0 else 0
+                queued_scaled = max(1, queued_scaled) if queued > 0 else 0
+                failed_scaled = max(1, failed_scaled) if failed > 0 else 0
+
+                # Adjust to fit exactly within available width
+                total_scaled = (
+                    completed_scaled + active_scaled + queued_scaled + failed_scaled
+                )
+                while total_scaled > available_width:
+                    if completed_scaled > 1 and completed_scaled == max(
+                        completed_scaled, active_scaled, queued_scaled, failed_scaled
+                    ):
+                        completed_scaled -= 1
+                    elif active_scaled > 1 and active_scaled == max(
+                        active_scaled, queued_scaled, failed_scaled
+                    ):
+                        active_scaled -= 1
+                    elif queued_scaled > 1 and queued_scaled == max(
+                        queued_scaled, failed_scaled
+                    ):
+                        queued_scaled -= 1
+                    elif failed_scaled > 1:
+                        failed_scaled -= 1
+                    total_scaled = (
+                        completed_scaled + active_scaled + queued_scaled + failed_scaled
+                    )
             else:
-                completed_ratio = active_ratio = queued_ratio = 0
+                # No scaling needed
+                completed_scaled = completed
+                active_scaled = active
+                queued_scaled = queued
+                failed_scaled = failed
 
-            # Create bars based on ratios
-            completed_bar = Fore.GREEN + "🟩" * int(bar_length * completed_ratio)
-            active_bar = Fore.BLUE + "🔵" * int(bar_length * active_ratio)
-            queued_bar = Fore.LIGHTYELLOW_EX + "🟠" * int(bar_length * queued_ratio)
-            failed_bar = (
-                Fore.RED + "❌" * failed
-            )  # Using a cross mark emoji for failed tasks
+            # Create bars based on scaled values
+            completed_bar = Fore.GREEN + "🟩" * completed_scaled
+            active_bar = Fore.BLUE + "🔵" * active_scaled
+            queued_bar = Fore.LIGHTYELLOW_EX + "🟠" * queued_scaled
+            failed_bar = Fore.RED + "❌" * failed_scaled
 
-            print(
-                f"{worker:20} | {completed_bar}{active_bar}{queued_bar}{Style.RESET_ALL} {failed_bar}"
-            )
+            # Construct the status line
+            status_line = f"{worker:20} | {completed_bar}{active_bar}{queued_bar}{failed_bar}{Style.RESET_ALL}"
+
+            # Add task counts
+            counts = f" C:{completed} A:{active} Q:{queued} F:{failed}"
+            status_line += counts
+
+            # Truncate if still too long
+            if len(status_line) > terminal_width:
+                status_line = status_line[: terminal_width - 3] + "..."
+
+            print(status_line)
 
         self._print_log()
 
