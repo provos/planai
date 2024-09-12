@@ -74,7 +74,7 @@ class Graph(BaseModel):
 
         return downstream
 
-    def set_sink(self, worker: TaskWorker) -> None:
+    def set_sink(self, worker: TaskWorker, output_type: Type[Task]) -> None:
         """
         Sets a worker as a data sink in the task graph.
 
@@ -83,6 +83,7 @@ class Graph(BaseModel):
 
         Args:
             worker (TaskWorker): The worker whose output should be collected in the sink.
+            output_type (Task): The type of task that the sink worker should consume.
 
         Raises:
             ValueError: If the specified worker doesn't have exactly one output type.
@@ -97,19 +98,17 @@ class Graph(BaseModel):
             >>> graph = Graph(name="Example Graph")
             >>> worker = SomeTaskWorker()
             >>> graph.add_worker(worker)
-            >>> graph.set_sink(worker)
+            >>> graph.set_sink(worker, OutputTask)
             >>> graph.run(initial_tasks=[(worker, SomeTask())])
             >>> results = graph.get_tasks()
         """
         if self._sink_worker is not None:
             raise RuntimeError("A sink worker has already been set for this graph.")
 
-        if len(worker.output_types) != 1:
+        if output_type not in worker.output_types:
             raise ValueError(
-                f"Worker {worker.name} must have exactly one output type to use for a sink"
+                f"Worker {worker.name} does not have output type {output_type.__name__} to use for a sink"
             )
-
-        output_type = worker.output_types[0]
 
         class SinkWorker(TaskWorker):
             def __init__(self, graph: "Graph", **data):
