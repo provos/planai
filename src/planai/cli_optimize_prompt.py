@@ -208,6 +208,8 @@ class PromptImprovementWorker(CachedLLMTaskWorker):
         """
 Improve the provided prompt_template based on the attached critique to better meet the optimization_goal.
 
+Optmization Goal: {optimization_goal}
+
 [prompt_template]
 {prompt_template}
 [/prompt_template]
@@ -236,7 +238,14 @@ Provide the improved prompt_template and a comment on the improvement.
         if prompt_input is None:
             raise ValueError("No input task found")
 
-        return self.prompt.format(prompt_template=prompt_input.prompt_template)
+        goal_input: Optional[PromptInput] = prompt_input.find_input_task(PromptInput)
+        if goal_input is None:
+            raise ValueError("No input task found")
+
+        return self.prompt.format(
+            prompt_template=prompt_input.prompt_template,
+            optimization_goal=goal_input.optimization_goal,
+        )
 
     def post_process(
         self,
@@ -247,24 +256,10 @@ Provide the improved prompt_template and a comment on the improvement.
         if prompt_input is None:
             raise ValueError("No input task found")
 
-        original_template = prompt_input.prompt_template
-
-        # Extract all {keywords} from the original template to preserve them
-        keywords_pattern = r"{(\S+?)}"
-        keywords = set(re.findall(keywords_pattern, original_template))
-
-        # Function to replace single braces with double braces if they are not keywords
-        def brace_replacer(match):
-            interior = match.group(1)
-            if interior in keywords:
-                return f"{{{interior}}}"  # Keep single braces for keywords
-            return f"{{{{{interior}}}}}"  # Use double braces for literals
-
-        # Replace any standalone {} with double braces except for keywords
-        improved_template = re.sub(r"{(.*?)}", brace_replacer, response.prompt_template)
-
-        # Update the response object with the improved template
-        response.prompt_template = improved_template
+        # sanitize curly braces
+        response.prompt_template = sanitize_prompt(
+            prompt_input.prompt_template, response.prompt_template
+        )
 
         return super().post_process(response, input_task)
 
@@ -406,6 +401,7 @@ def optimize_prompt(
     prepare_input = PrepareInputWorker(
         module=module, task_name=task_name, reference_data=data
     )
+    # we are injecting llm_class between these two workers
     adapt_output = OutputAdapter()
 
     prompt_analysis = PromptPerformanceWorker(llm=llm_fast)
@@ -450,6 +446,22 @@ def optimize_prompt(
         for key, value in data.items():
             print(f"{key}: {value}")
         print()
+
+
+def sanitize_prompt(original_template: str, prompt_template: str) -> str:
+    # Extract all {keywords} from the original template to preserve them
+    keywords_pattern = r"{(\S+?)}"
+    keywords = set(re.findall(keywords_pattern, original_template))
+
+    # Function to replace single braces with double braces if they are not keywords
+    def brace_replacer(match):
+        interior = match.group(1)
+        if interior in keywords:
+            return f"{{{interior}}}"  # Keep single braces for keywords
+        return f"{{{{{interior}}}}}"  # Use double braces for literals
+
+    # Replace any standalone {} with double braces except for keywords
+    return re.sub(r"{(.*?)}", brace_replacer, prompt_template)
 
 
 def inject_prompt_awareness(llm_class: LLMTaskWorker):
