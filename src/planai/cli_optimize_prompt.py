@@ -95,6 +95,13 @@ Your output should be formatted as a valid JSON object with two fields: "prompt_
     def consume_work(self, task: PromptInput):
         return super().consume_work(task)
 
+    def post_process(self, response: ImprovedPrompt, input_task: PromptInput):
+        # sanitize the prompt to keep the keywords
+        response.prompt_template = sanitize_prompt(
+            input_task.prompt_template, response.prompt_template
+        )
+        return super().post_process(response, input_task)
+
 
 class PrepareInputWorker(TaskWorker):
     random_seed: int = Field(
@@ -227,6 +234,11 @@ For the improved prompt you are generating, it is extremley important:
 Provide the improved prompt_template and a comment on the improvement.
         """
     ).strip()
+    _llm_class: LLMTaskWorker = PrivateAttr()
+
+    def __init__(self, llm_class: LLMTaskWorker, **data):
+        super().__init__(**data)
+        self._llm_class = llm_class
 
     def consume_work(self, task: CombinedPromptCritique):
         return super().consume_work(task)
@@ -247,21 +259,31 @@ Provide the improved prompt_template and a comment on the improvement.
             optimization_goal=goal_input.optimization_goal,
         )
 
-    def post_process(
-        self,
-        response: Optional[CombinedPromptCritique],
-        input_task: PromptPerformanceInput,
-    ):
-        prompt_input: Optional[PromptInput] = input_task.find_input_task(PromptInput)
-        if prompt_input is None:
-            raise ValueError("No input task found")
+    def extra_validation(
+        self, response: ImprovedPrompt, input_task: Task
+    ) -> Optional[str]:
+        input_class = self._llm_class.get_task_class()
+        llm_input = input_task.find_input_task(input_class)
+        if llm_input is None:
+            raise ValueError(f"No input task found for {input_class.__name__}")
 
-        # sanitize curly braces
-        response.prompt_template = sanitize_prompt(
-            prompt_input.prompt_template, response.prompt_template
-        )
+        # we will try whether the new prompt actually works for the llm class
+        # any erros will be fed back to the LLM to try again
 
-        return super().post_process(response, input_task)
+        # let's inject the prompt brute-force
+        with self._llm_class.lock:
+            old_prompt = self._llm_class.prompt
+            self._llm_class.prompt = response.prompt_template
+
+            error = None
+            try:
+                self._llm_class.get_full_prompt(llm_input)
+            except Exception as e:
+                error = str(e)
+            finally:
+                self._llm_class.prompt = old_prompt
+
+        return error
 
 
 # optimization driver code
@@ -407,7 +429,8 @@ def optimize_prompt(
     prompt_analysis = PromptPerformanceWorker(llm=llm_fast)
     joined_worker = JoinPromptPerformanceOutput()
     improvement_worker = PromptImprovementWorker(
-        llm=llm_reason
+        llm=llm_reason,
+        llm_class=llm_class,
     )  # need a more powerful LLM here
     graph.add_workers(
         generation,
