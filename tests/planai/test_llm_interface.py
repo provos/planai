@@ -158,7 +158,7 @@ class TestLLMInterface(unittest.TestCase):
             ]
 
             # Assert the second message includes instruction for correcting the format
-            self.assertIn("field2", second_call_messages[1]["content"])
+            self.assertIn("field2", second_call_messages[3]["content"])
             self.assertNotIn(
                 "field2", first_call_messages[1]["content"]
             )  # Ensure initial message was clean

@@ -69,7 +69,7 @@ class LLMInterface:
         return response["message"]["content"]
 
     def chat(self, messages: List[Dict[str, str]]) -> str:
-        self.logger.info("Chatting with messages: %s...", messages)
+        self.logger.info("Chatting with messages: %s", messages)
         response = self._cached_chat(messages=messages)
         self.logger.info("Received chat response: %s...", response[:850])
         return response.strip()
@@ -162,14 +162,14 @@ class LLMInterface:
         if logger:
             logger.info("Generated prompt: %s", formatted_prompt)
 
+        messages = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": formatted_prompt},
+        ]
+
         iteration = 0
         while iteration < 3:
             iteration += 1
-
-            messages = [
-                {"role": "system", "content": system},
-                {"role": "user", "content": formatted_prompt},
-            ]
 
             raw_response = self.chat(messages=messages)
             if not self.support_json_mode:
@@ -180,10 +180,14 @@ class LLMInterface:
             if response is not None:
                 break
 
-            # Include the error message in the prompt for retrial
-            formatted_prompt = (
-                f"Your previous response did not follow the JSON format instructions. Here is the error message {error_message}\n\n"
-                f"Try again and closely follow these instructions:\n{formatted_prompt}"
+            messages.extend(
+                [
+                    {"role": "assistant", "content": raw_response},
+                    {
+                        "role": "user",
+                        "content": f"Try again. Your previous response was invalid and led to this error message: {error_message}",
+                    },
+                ]
             )
 
         if debug_saver is not None:
