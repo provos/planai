@@ -76,11 +76,20 @@ class AnthropicWrapper:
         Returns:
             A dictionary containing the Anthropic response formatted to match Ollama's expected output.
         """
+        # Extract the system message from the messages and prepare it as a separate argument
+        system_message = next(
+            (msg["content"] for msg in messages if msg["role"] == "system"), None
+        )
+
+        # Filter out the system message to prevent duplication if it's not needed in the messages parameter
+        filtered_messages = [msg for msg in messages if msg["role"] != "system"]
+
         try:
             response = self.client.messages.create(
                 max_tokens=kwargs.get("max_tokens", self.max_tokens),
-                messages=messages,
+                messages=filtered_messages,
                 model=kwargs.get("model", "claude-3-5-sonnet-20240620"),
+                system=system_message,  # Pass the system message here
             )
 
             # Extract content blocks as text and simulate Ollama-like response
