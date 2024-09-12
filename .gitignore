@@ -130,3 +130,5 @@ cache/
 .response_cache/
 output/
 debug/
+examples/**/*.json
+examples/**/*.txt
