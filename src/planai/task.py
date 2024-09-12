@@ -370,6 +370,12 @@ class TaskWorker(BaseModel, ABC):
         """
         pass
 
+    def _add_provenance(self, task: Task) -> Task:
+        with self._state_lock:
+            self._id += 1
+            task._provenance.append((self.name, self._id))
+        return task
+
     def publish_work(self, task: Task, input_task: Optional[Task]):
         """
         Publish a work item.
@@ -398,10 +404,8 @@ class TaskWorker(BaseModel, ABC):
             task._provenance = []
             task._input_provenance = []
 
-        with self._state_lock:
-            self._id += 1
+        self._add_provenance(task)
 
-        task._provenance.append((self.name, self._id))
         logging.info(
             "Task %s published work with provenance %s", self.name, task._provenance
         )
