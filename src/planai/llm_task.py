@@ -89,6 +89,10 @@ class LLMTaskWorker(TaskWorker):
         def save_debug_with_task(prompt: str, response: Optional[Task]):
             self._save_debug_output(task=task, prompt=prompt, response=response)
 
+        # allow subclasses to do extra validation on the response
+        def extra_validation_with_task(response: Task):
+            return self.extra_validation(response, task)
+
         response = self.llm.generate_pydantic(
             prompt_template=PROMPT,
             output_schema=self._output_type(),
@@ -97,6 +101,7 @@ class LLMTaskWorker(TaskWorker):
             instructions=task_prompt,
             format_instructions=parser.get_format_instructions(),
             debug_saver=save_debug_with_task if self.debug_mode else None,
+            extra_validation=extra_validation_with_task,
         )
 
         self.post_process(response=response, input_task=task)
@@ -115,6 +120,19 @@ class LLMTaskWorker(TaskWorker):
             instructions=task_prompt,
             format_instructions=parser.get_format_instructions(),
         )
+
+    def extra_validation(self, response: Task, input_task: Task) -> Optional[str]:
+        """
+        Validates the response from the LLM. Subclasses can override this method to do additional validation.
+
+        Args:
+            response (Task): The response from the LLM.
+            input_task (Task): The input task.
+
+        Returns:
+            Optional[str]: An error message if the response is invalid, None otherwise.
+        """
+        return None
 
     def format_prompt(self, task: Task) -> str:
         """

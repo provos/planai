@@ -138,19 +138,32 @@ class LLMInterface:
         system: str = "",
         logger: Optional[logging.Logger] = None,
         debug_saver: Optional[Callable[[str, str], None]] = None,
+        extra_validation: Optional[Callable[[BaseModel], Optional[str]]] = None,
         **kwargs,
     ) -> Optional[BaseModel]:
         """
-        Generate a python object based on the given prompt template and output schema.
+        Generates a Pydantic model instance based on a specified prompt template and output schema.
+
+        This function uses a prompt template with variable placeholders to generate a full prompt. It utilizes
+        this prompt in combination with a specified system prompt to interact with a chat-based interface,
+        aiming to produce a structured output conforming to a given Pydantic schema. The function attempts up to
+        three iterations to obtain a valid response, applying parsing, validation, and optional extra validation
+        functions. If all iterations fail, None is returned.
 
         Args:
-            prompt_template (str): The prompt template with placeholders for variables.
-            output_schema (BaseModel): A Pydantic model defining the expected output structure.
-            system (str): The system prompt to use for generation.
-            **kwargs: Keyword arguments to fill in the prompt template.
+            prompt_template (str): The template containing placeholders for formatting the prompt.
+            output_schema (BaseModel): A Pydantic model that defines the expected schema of the output data.
+            system (str): An optional system prompt used during the generation process.
+            logger (Optional[logging.Logger]): An optional logger for recording the generated prompt and events.
+            debug_saver (Optional[Callable[[str, str], None]]): An optional callback for saving debugging information,
+                which receives the prompt and the response.
+            extra_validation (Optional[Callable[[BaseModel], str]]): An optional function for additional validation of
+                the generated output. It should return an error message if validation fails, otherwise None.
+            **kwargs: Additional keyword arguments for populating the prompt template.
 
         Returns:
-            Dict[str, Any]: The formatted prompt and generated output.
+            Optional[BaseModel]: An instance of the specified Pydantic model with generated data if successful,
+            or None if all attempts at generation fail or the response is invalid.
         """
         parser = PydanticOutputParser(pydantic_object=output_schema)
 
@@ -177,18 +190,32 @@ class LLMInterface:
 
             error_message, response = self._parse_response(raw_response, parser)
 
-            if response is not None:
-                break
+            if response is None:
+                messages.extend(
+                    [
+                        {"role": "assistant", "content": raw_response},
+                        {
+                            "role": "user",
+                            "content": f"Try again. Your previous response was invalid and led to this error message: {error_message}",
+                        },
+                    ]
+                )
+                continue
 
-            messages.extend(
-                [
-                    {"role": "assistant", "content": raw_response},
-                    {
-                        "role": "user",
-                        "content": f"Try again. Your previous response was invalid and led to this error message: {error_message}",
-                    },
-                ]
-            )
+            if extra_validation:
+                extra_error_message = extra_validation(response)
+                if extra_error_message:
+                    messages.extend(
+                        [
+                            {"role": "assistant", "content": raw_response},
+                            {
+                                "role": "user",
+                                "content": f"Try again. Your previous response was invalid and led to this error message: {extra_error_message}",
+                            },
+                        ]
+                    )
+                    continue
+            break
 
         if debug_saver is not None:
             debug_saver(prompt=formatted_prompt, response=response)
