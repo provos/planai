@@ -447,11 +447,9 @@ def optimize_prompt(
     # Infer the input class name from the loaded class
     task_name = llm_class.get_task_class().__name__
 
-    llm_output_type: Type[Task] = (
-        llm_class.llm_output_type
-        if llm_class.llm_output_type
-        else llm_class.output_types[0]
-    )
+    # The output type of the LLM class is the input type for the PromptPerformanceWorker
+    # We may need to change this if the LLM class has multiple output types
+    llm_output_type: Type[Task] = llm_class.output_types[0]
 
     # We need to create this class dynamically because it depends on the output type of the LLM class
     class OutputAdapter(TaskWorker):
