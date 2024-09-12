@@ -79,7 +79,7 @@ class Graph(BaseModel):
         Sets a worker as a data sink in the task graph.
 
         This method creates a special SinkWorker that consumes the output of the specified worker.
-        The output from this sink can be retrieved after the graph is run using the `get_tasks()` method.
+        The output from this sink can be retrieved after the graph is run using the `get_output_tasks()` method.
 
         Args:
             worker (TaskWorker): The worker whose output should be collected in the sink.
@@ -100,7 +100,7 @@ class Graph(BaseModel):
             >>> graph.add_worker(worker)
             >>> graph.set_sink(worker, OutputTask)
             >>> graph.run(initial_tasks=[(worker, SomeTask())])
-            >>> results = graph.get_tasks()
+            >>> results = graph.get_output_tasks()
         """
         if self._sink_worker is not None:
             raise RuntimeError("A sink worker has already been set for this graph.")
@@ -127,7 +127,7 @@ class Graph(BaseModel):
         # Set this as the sink worker for the graph
         self._sink_worker = instance
 
-    def get_tasks(self) -> List[TaskType]:
+    def get_output_tasks(self) -> List[TaskType]:
         """
         Retrieves all tasks that were consumed by the sink workers in the graph.
 
@@ -150,7 +150,7 @@ class Graph(BaseModel):
             >>> graph.add_worker(worker)
             >>> graph.set_sink(worker)
             >>> graph.run(initial_tasks=[(worker, SomeTask())])
-            >>> results = graph.get_tasks()
+            >>> results = graph.get_output_tasks()
 
         See Also:
             set_sink(): Method for setting a worker as a sink in the graph.

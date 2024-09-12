@@ -261,12 +261,12 @@ class TaskWorker(BaseModel, ABC):
             - Only one sink can be set per graph. Attempting to set multiple sinks
               will raise a RuntimeError from the graph's set_sink method.
             - The task worker must have exactly one output type to be eligible as a sink.
-            - Results from the sink can be retrieved using the graph's get_tasks() method
+            - Results from the sink can be retrieved using the graph's get_output_tasks() method
               after the graph has been executed.
 
         See Also:
             Graph.set_sink(): The underlying method called to set the sink.
-            Graph.get_tasks(): Method to retrieve results from the sink after graph execution.
+            Graph.get_output_tasks(): Method to retrieve results from the sink after graph execution.
         """
         if self._graph is None:
             raise ValueError(
