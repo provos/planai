@@ -181,7 +181,7 @@ class InterestingText(CachedLLMTaskWorker):
 
     def post_process(self, response: IsInteresting, input_task: InputChunk):
         if response is not None and not response.is_interesting:
-            print(f"Skipping uninteresting text: {input_task.text[:100]}...")
+            self.print(f"Skipping uninteresting text: {input_task.text[:100]}...")
             return
 
         # we just republish the input task to the next LLM in the graph
@@ -194,45 +194,39 @@ class CreateQuestions(CachedLLMTaskWorker):
     balances between generating sufficient questions without overwhelming the system.
     """
 
+    debug_mode: bool = True
     output_types: List[Type[Task]] = [Question]
     llm_output_type: Type[Task] = Questions
     prompt: str = dedent(
         """
-    You are an expert educator tasked with creating high-quality closed textbook questions based on the given text. Your goal is to generate questions that:
+You are an expert educator tasked with crafting high-quality closed textbook questions based on the given text. Your goal is to develop questions that:
 
-    1. Can be answered directly and unambiguously from the information provided in the text
-    2. Test specific knowledge rather than general understanding
-    3. Are clear, concise, and require minimal interpretation
-    4. Vary in both focus and complexity
-    5. Cover different aspects of the information presented in the text
+1. Can be answered directly and unambiguously from the information provided in the text.
+2. Test specific knowledge rather than general understanding, while also encouraging deeper analysis.
+3. Are clear, concise, and require minimal interpretation.
+4. Vary in focus, complexity, and approach, incorporating diverse question types and cognitive skills.
+5. Cover different aspects of the information presented in the text, ensuring all major themes and concepts are addressed.
 
-    Guidelines for question creation:
-    - Focus on key facts, dates, names, events, concepts, or relationships from the text
-    - Ensure each question targets a different piece of information or aspect
-    - Frame questions as if they are testing general knowledge, not specific to any text
-    - Ensure that the correct answer is found in or directly inferable from the given text
-    - Use a variety of question types, such as "who", "what", "when", "where", "which", or "how" questions
-    - Do not include the answer in the question itself
-    - Avoid overly broad or general questions
-    - Do not use phrases like "according to the text" or "in the passage"
+Guidelines for question creation:
+- Focus on key facts, dates, names, events, concepts, or relationships from the text.
+- Ensure each question targets a different piece of information or aspect.
+- Frame questions to test general knowledge applicable beyond the specific text.
+- Ensure that the correct answer is found in or directly inferable from the given text without external context.
+- Use a range of question types such as "who", "what", "when", "where", "which", "how", and "why" questions to cover logical reasoning and diverse cognitive levels.
+- Include at least one question that requires synthesis of information across multiple text segments.
+- Encourage critical thinking by connecting themes or exploring implications.
+- Frame questions so they can stand alone as general knowledge questions without needing supplementary context.
+- Avoid overly broad or general questions and refrain from using phrases like "according to the text".
 
-    Based on the given text, generate exactly three high-quality closed textbook questions. Provide your response in the following JSON format:
+Based on the given text, generate exactly three high-quality closed textbook questions, ordered from least to most complex. Utilize a variety of question approaches while ensuring clarity and factual accuracy. Provide your response in the following JSON format:
 
-    {
-        "questions": [
-            "Question 1",
-            "Question 2",
-            "Question 3"
-        ]
-    }
-
-    Ensure that:
-    - Each question is a complete, properly formatted sentence ending with a question mark
-    - The questions vary in their focus and target different information from the text
-    - At least one question requires synthesizing information from different parts of the text
-    - The questions are ordered from least to most complex
-    - No question directly references the source text or any specific passage
-    - Each question can stand alone as a general knowledge question about the subject matter
+{
+    "questions": [
+        "Question 1",
+        "Question 2",
+        "Question 3"
+    ]
+}
     """
     ).strip()
 
@@ -241,7 +235,7 @@ class CreateQuestions(CachedLLMTaskWorker):
 
     def post_process(self, response: Optional[Questions], input_task: InputChunk):
         if response is None:
-            print(f"No questions generated for text: {input_task.text[:100]}...")
+            self.print(f"No questions generated for text: {input_task.text[:100]}...")
             return
         for question in response.questions:
             self.publish_work(Question(question=question), input_task=input_task)
@@ -253,45 +247,46 @@ class QuestionEvaluationWorker(CachedLLMTaskWorker):
     improvements to ensure high-quality output.
     """
 
+    debug_mode: bool = True
     output_types: List[Type[Task]] = [Question]
     llm_output_type: Type[Task] = QuestionEvaluation
     prompt: str = dedent(
         """
-    You are an expert educator tasked with evaluating the quality of a closed textbook question. Analyze the following question in the context of the given text chunk to determine if it meets the criteria for a good closed textbook question.
+You are an expert educator tasked with evaluating whether a question is a good closed-textbook question that stands alone. Your role is to ensure the question can be answered using only the provided information in the text chunk.
 
-    Text chunk:
-    {input_text}
+Text chunk:
+{input_text}
 
-    Question to evaluate:
-    {question}
+Question to evaluate:
+{question}
 
-    Criteria for a good closed textbook question:
-    1. Specificity: The question targets specific, factual information.
-    2. Clarity: The question is clear, concise, and unambiguous.
-    3. Answerability: The answer can be found in or directly inferred from the given text.
-    4. Relevance: The question relates to important or central information in the text.
-    5. Closed-ended nature: The question has a definite, fact-based answer that doesn't invite opinion.
-    6. Independence: The question stands alone without referencing any specific text or requiring additional context.
+A good closed-textbook question should meet the following criteria:
+1. Specificity: It targets specific, factual information.
+2. Clarity: It is clear, concise, and unambiguous.
+3. Answerability: The answer can be found in or directly inferred from the text.
+4. Relevance: It relates to central or significant information in the text.
+5. Closed-ended nature: It has a definite, fact-based answer that doesn't invite opinion.
+6. Independence: It stands alone without referencing any specific text, passage, or requiring additional context.
 
-    Provide your evaluation in the following JSON format:
+Your evaluation should be provided in the following JSON format:
+{{
+    "analysis": "Provide a concise evaluation of the question's strengths and weaknesses, mentioning each criterion. Explicitly note if the answer isn't found in the text.",
+    "rating": "excellent/good/fair/poor",
+    "improved_question": "Suggest an improved version of the question, or use null if the question is excellent.",
+    "is_satisfactory": true or false
+}}
 
-    {{
-        "analysis": "A concise analysis of the question's strengths and weaknesses, referencing the above criteria. Explicitly state if the answer is not found in the text. 2-3 sentences.",
-        "rating": "excellent/good/fair/poor",
-        "improved_question": "An improved version of the question, or null if the question is excellent.",
-        "is_satisfactory": true or false
-    }}
+The 'is_satisfactory' field should be true ONLY if all these conditions are met:
+1. The question is rated excellent or good.
+2. The answer to the question can be found in or directly inferred from the text.
+3. The question does not reference the text or any specific source.
+4. The question is self-contained, needing no additional context for understanding.
 
-    The 'is_satisfactory' field should be true ONLY if ALL of the following conditions are met:
-    1. The question is rated excellent or good.
-    2. The answer to the question can be found in or directly inferred from the given text.
-    3. The question itself does not reference any specific text, passage, or source.
-    4. The question is self-contained and doesn't require additional context to understand.
+Important: Consider the broader themes or implications that the question might touch on, and encourage diverse interpretations to enrich the analysis.
 
-    Important:
-    - The question must not contain any reference to "the text," "the passage," or any other specific source.
-    - Evaluate the question's quality both as a standalone question and in terms of its answerability from the given text.
-    - If the question is well-formed but not answerable from the given text, it should be rated as unsatisfactory.
+Examples for guidance:
+- Good question: "What is a core function of mitochondria as discussed in the text?"
+- Poor question: "Discuss various theories on mitochondria based on external sources."
     """
     ).strip()
 
@@ -308,33 +303,33 @@ class QuestionEvaluationWorker(CachedLLMTaskWorker):
         self, response: Optional[QuestionEvaluation], input_task: Question
     ):
         if response is None:
-            print(
+            self.print(
                 f"No evaluation generated for question: {input_task.question[:100]}..."
             )
             return
         if response.is_satisfactory:
-            print(f"Question is satisfactory: {input_task.question}")
-            print(f"Analysis: {response.analysis}")
-            print(f"Rating: {response.rating}")
-            print("---------")
+            self.print(f"Question is satisfactory: {input_task.question}")
+            self.print(f"Analysis: {response.analysis}")
+            self.print(f"Rating: {response.rating}")
+            self.print("---------")
             self.publish_work(
                 Question(question=input_task.question), input_task=input_task
             )
         elif response.improved_question:
-            print(f"Question needs improvement: {input_task.question}")
-            print(f"Improvement suggestion: {response.improved_question}")
-            print(f"Analysis: {response.analysis}")
-            print(f"Rating: {response.rating}")
-            print("---------")
+            self.print(f"Question needs improvement: {input_task.question}")
+            self.print(f"Improvement suggestion: {response.improved_question}")
+            self.print(f"Analysis: {response.analysis}")
+            self.print(f"Rating: {response.rating}")
+            self.print("---------")
             self.publish_work(
                 Question(question=response.improved_question), input_task=input_task
             )
         else:
-            print(f"Question is unsatisfactory: {input_task.question}")
-            print(f"Analysis: {response.analysis}")
-            print(f"Rating: {response.rating}")
-            print("However, no improvement suggestion was provided.")
-            print("---------")
+            self.print(f"Question is unsatisfactory: {input_task.question}")
+            self.print(f"Analysis: {response.analysis}")
+            self.print(f"Rating: {response.rating}")
+            self.print("However, no improvement suggestion was provided.")
+            self.print("---------")
 
 
 class QuestionAnswer(CachedLLMTaskWorker):
@@ -347,45 +342,41 @@ class QuestionAnswer(CachedLLMTaskWorker):
     output_types: List[Type[Task]] = [Answers]
     prompt: str = dedent(
         """
-    You are an expert educator tasked with generating two comprehensive and distinct answers for a given question based on the provided text. Your goal is to create answers that:
+You are an expert educator tasked with generating two comprehensive and distinct answers for a given question based on the provided text. Your goal is to create answers that:
 
-    1. Are directly derived from the information in the given text
-    2. Are accurate, factual, and comprehensive
-    3. Are clear, well-structured, and easy to understand
-    4. Vary significantly in their approach, detail, or perspective
-    5. Do not include any information not present in the text
-    6. Demonstrate depth of understanding and analysis
+1. Are derived solely from the information in the provided text, ensuring completeness and accuracy.
+2. Are clear, well-structured, and easy to understand with the use of markdown formatting for readability.
+3. Demonstrate a depth of understanding by exploring different aspects and implications of the text.
+4. Significantly vary in their approach, detail, or perspective to ensure distinct answers.
 
-    Text:
-    {input_text}
+**Text:**
+{input_text}
 
-    Question:
-    {question}
+**Question:**
+{question}
 
-    Guidelines for answer generation:
-    - Ensure both answers are correct and based solely on the information in the text
-    - Make the answers distinct from each other in terms of detail, focus, or structure
-    - Aim for completeness while maintaining clarity and relevance
-    - Include specific details, examples, or context from the text to support your answers
-    - Use markdown formatting to enhance readability (e.g., for lists, emphasis, or headings)
-    - Organize information logically, using paragraphs or bullet points as appropriate
-    - Consider including relevant dates, names, or events mentioned in the text
-    - Explain any cause-and-effect relationships or historical context if applicable
-    - Do not include any external knowledge or information not present in the text
+**Guidelines for Answer Generation:**
+- Both answers must be correct and contain only information from the text.
+- Use detailed examples, context, and specific information to support your answers.
+- Ensure that each answer covers a different aspect or theme of the question by varying in structure, such as using bullets or paragraphs, or focusing on different implications.
+- Include pertinent details such as dates, names, or events explicitly mentioned in the text.
+- Organize your answers logically, explaining cause-and-effect relationships or historical context if present.
+- Avoid any external knowledge or interpretations beyond the text.
 
-    Generate two possible answers for the given question. Each answer should be at least 3-4 sentences long and cover multiple aspects of the question. Provide your response in the following JSON format:
+**Output Format:**
+Generate two possible answers for the question. Each should be at least 3-4 sentences long, addressing multiple aspects of the question. Format your response as follows:
 
-    {{
-        "answer1": "First comprehensive answer, formatted in markdown for clarity and structure",
-        "answer2": "Second comprehensive answer, taking a different approach or focus, also formatted in markdown"
-    }}
+{{
+    "answer1": "First comprehensive answer, using markdown for clarity and structured differently",
+    "answer2": "Second comprehensive and distinct answer, with another structure or focus using markdown"
+}}
 
-    Ensure that:
-    - Both answers are factually correct and comprehensive based on the text
-    - The answers are significantly distinct from each other in approach or focus
-    - No answer contains information not present in the given text
-    - Markdown formatting is used to enhance readability and structure
-    - Each answer provides a complete and satisfying response to the question
+Ensure:
+- Both answers are factually correct and comprehensive.
+- The answers differ significantly in approach or focus.
+- No external information is included.
+- Markdown enhances readability and structure.
+- Each answer provides a thorough and satisfying response to the question.
     """
     ).strip()
 
@@ -400,7 +391,9 @@ class QuestionAnswer(CachedLLMTaskWorker):
 
     def post_process(self, response: Optional[Answers], input_task: Question):
         if response is None:
-            print(f"No answers generated for question: {input_task.question[:100]}...")
+            self.print(
+                f"No answers generated for question: {input_task.question[:100]}..."
+            )
             return
 
         super().post_process(response, input_task)
@@ -412,46 +405,44 @@ class AnswerEvaluator(CachedLLMTaskWorker):
     accuracy, completeness, and clarity.
     """
 
+    debug_mode: bool = True
     output_types: List[Type[Task]] = [QuestionAndAnswer]
     llm_output_type: Type[Task] = EvaluatedAnswer
     prompt: str = dedent(
         """
-    You are an expert educator tasked with evaluating two possible answers to a given question and selecting the best one. Your goal is to choose the answer that:
+You are an expert educator tasked with evaluating two potential answers to a given question. Your objective is to select the answer that:
 
-    1. Most accurately and completely addresses the question
-    2. Is clearly written and easy to understand
-    3. Provides the most relevant information from the original text
-    4. Is concise while still being comprehensive
+1. Most accurately and comprehensively addresses the question
+2. Is written with clarity and easy to comprehend
+3. Extracts the most pertinent information from the original text
+4. Balances conciseness with comprehensiveness
 
-    Question:
-    {question}
+Question:
+{question}
 
-    Answer 1:
-    {answer1}
+Answer 1:
+{answer1}
 
-    Answer 2:
-    {answer2}
+Answer 2:
+{answer2}
 
-    Original Text:
-    {input_text}
+Original Text:
+{input_text}
 
-    Guidelines for evaluation:
-    - Compare both answers against the original text for accuracy
-    - Consider the clarity and conciseness of each answer
-    - Evaluate how well each answer directly addresses the question
-    - Assess the relevance and completeness of the information provided
+Evaluation Guidelines:
+- Verify each answer's accuracy using the original text
+- Consider clarity and accessibility of each answer
+- Determine the degree to which each answer directly tackles the question
+- Evaluate the completeness and relevance of the information presented
 
-    Select the best answer and provide your evaluation. Your response should be in the following JSON format:
+Select the best answer in JSON format with the following structure:
 
-    {{
-        "best_answer": "The full text of the selected best answer",
-        "explanation": "A brief explanation (2-3 sentences) of why this answer was chosen over the other, referencing the evaluation criteria"
-    }}
+{{
+    "best_answer": "<The full text of the selected best answer>",
+    "explanation": "<Brief explanation (2-3 sentences) supporting your choice, based on the evaluation criteria>"
+}}
 
-    Ensure that:
-    - You choose only one answer as the best
-    - Your explanation clearly justifies why the chosen answer is superior
-    - You consider both the content and the presentation of the answers
+Ensure your explanation distinctly justifies the superiority of the chosen answer, considering content quality and presentation. Select only one answer as the best.
     """
     ).strip()
 
@@ -472,17 +463,17 @@ class AnswerEvaluator(CachedLLMTaskWorker):
 
     def post_process(self, response: Optional[EvaluatedAnswer], input_task: Answers):
         if response is None:
-            print("No evaluation generated for answers.")
+            self.print("No evaluation generated for answers.")
             return
 
         question_task: Optional[Question] = input_task.find_input_task(Question)
         if question_task is None:
             raise ValueError("Question task not found in input_task dependencies")
 
-        print(f"Question: {question_task.question}")
-        print(f"Best Answer: {response.best_answer}")
-        print(f"Explanation: {response.explanation}")
-        print("---------")
+        self.print(f"Question: {question_task.question}")
+        self.print(f"Best Answer: {response.best_answer}")
+        self.print(f"Explanation: {response.explanation}")
+        self.print("---------")
 
         question_and_answer = QuestionAndAnswer(
             question=question_task.question, answer=response.best_answer
@@ -510,10 +501,10 @@ class PrintOutput(TaskWorker):
 
     def consume_work(self, task: QuestionAndAnswer):
         input_chunk = task.find_input_task(InputChunk)
-        print(f"Text chunk: {input_chunk.text}")
-        print(f"Question: {task.question}")
-        print(f"Answer: {task.answer}")
-        print("---------")
+        self.print(f"Text chunk: {input_chunk.text}")
+        self.print(f"Question: {task.question}")
+        self.print(f"Answer: {task.answer}")
+        self.print("---------")
 
         self._output_file.write(task.model_dump_json(indent=2) + ",\n")
 
