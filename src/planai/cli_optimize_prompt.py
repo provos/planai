@@ -363,6 +363,7 @@ def optimize_prompt(
                 debug_log = config.get("debug_log")
                 goal_prompt = config.get("goal_prompt")
                 search_path = config.get("search_path")
+                num_iterations = config.get("num_iterations", 3)
 
                 missing_fields = []
                 if not python_file:
@@ -394,6 +395,7 @@ def optimize_prompt(
         debug_log = args.debug_log
         goal_prompt = args.goal_prompt
         search_path = args.search_path
+        num_iterations = args.num_iterations
 
     # Write out configuration if requested
     if args.output_config:
@@ -403,6 +405,7 @@ def optimize_prompt(
             "debug_log": debug_log,
             "goal_prompt": goal_prompt,
             "search_path": search_path,
+            "num_iterations": num_iterations,
         }
         with open(args.output_config, "w") as config_file:
             json.dump(config_data, config_file, indent=4)
@@ -485,7 +488,7 @@ def optimize_prompt(
     prompt_analysis = PromptPerformanceWorker(llm=llm_fast)
     joined_worker = JoinPromptPerformanceOutput()
 
-    accumulate_critique = AccumulateCritiqueOutput()
+    accumulate_critique = AccumulateCritiqueOutput(iterations=num_iterations)
 
     improvement_worker = PromptImprovementWorker(
         llm=llm_reason,

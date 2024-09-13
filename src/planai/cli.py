@@ -66,6 +66,12 @@ def main(args=None):
     optimize_parser.add_argument(
         "--config", type=str, help="Path to a configuration file"
     )
+    optimize_parser.add_argument(
+        "--num-iterations",
+        type=int,
+        default=3,
+        help="Number of optimization iterations",
+    )
 
     parsed_args = parser.parse_args(args)
 
