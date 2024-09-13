@@ -20,6 +20,22 @@ PlanAI's `optimize-prompt` tool automates the process of refining prompts for LL
 
 5. **Adaptability**: Designed to be agnostic to specific use cases, making it applicable to various LLM tasks.
 
+## Preparation
+
+Before using the optimize-prompt tool, you need to generate debug logs with real production data:
+
+1. In your application, set `debug_mode=True` for all LLMTaskWorker classes that may need prompt optimization.
+2. Run your application with a representative subset of real production data.
+3. This will generate debug logs containing the input-output pairs needed for optimization.
+
+Example of enabling debug mode:
+
+```python
+class YourLLMTaskWorker(LLMTaskWorker):
+    debug_mode: bool = True
+    # ... rest of your class definition
+```
+
 ## Usage
 
 To use the optimize-prompt tool, you can run a command like this:
@@ -86,7 +102,21 @@ When this `TextSummarizer` class is used in your application with `debug_mode=Tr
    - Results are scored for accuracy and effectiveness.
    - This process repeats for the specified number of iterations.
 
-5. **Output**: The tool provides the optimized prompt along with performance metrics.
+5. **Output**: The tool provides the optimized prompts along with performance metrics.
+
+## Output
+
+After running the optimization process, the tool will generate output files:
+
+1. **Text Files**: The top three best-performing prompts are saved as separate .txt files. Each file includes the prompt text and its score.
+
+   Example filename: `YourLLMTaskWorker_prompt_1.v2.txt`
+
+2. **JSON Files**: Corresponding to each text file, a JSON file is created containing detailed metadata about the prompt, including critiques and the overall score.
+
+   Example filename: `YourLLMTaskWorker_prompt_1.v2.json`
+
+These files allow you to review the optimized prompts, their scores, and the reasoning behind the improvements.
 
 ## Benefits
 
