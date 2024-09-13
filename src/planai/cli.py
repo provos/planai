@@ -85,6 +85,18 @@ def create_parser():
         default=3,
         help="Number of optimization iterations",
     )
+    optimize_parser.add_argument(
+        "--llm-opt-provider",
+        type=str,
+        required=False,
+        help="LLM provider name to be used for the prompt that is being optimized. This should be the same LLM as being used in production.",
+    )
+    optimize_parser.add_argument(
+        "--llm-opt-model",
+        type=str,
+        required=False,
+        help="LLM model name for generation to be used for the prompt that is being optimized. This should be the same LLM as being used in production.",
+    )
     return parser
 
 

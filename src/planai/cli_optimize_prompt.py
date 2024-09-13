@@ -67,6 +67,7 @@ from planai import (
     LLMTaskWorker,
     Task,
     TaskWorker,
+    llm_from_config,
 )
 from planai.llm_interface import LLMInterface
 from planai.utils import setup_logging
@@ -537,6 +538,8 @@ def optimize_prompt(
                 goal_prompt = config.get("goal_prompt")
                 search_path = config.get("search_path")
                 num_iterations = config.get("num_iterations", 3)
+                llm_opt_provider = config.get("llm_opt_provider")
+                llm_opt_model = config.get("llm_opt_model")
 
                 missing_fields = []
                 if not python_file:
@@ -569,6 +572,8 @@ def optimize_prompt(
         goal_prompt = args.goal_prompt
         search_path = args.search_path
         num_iterations = args.num_iterations
+        llm_opt_model = args.llm_opt_model
+        llm_opt_provider = args.llm_opt_provider
 
     # Write out configuration if requested
     if args.output_config:
@@ -579,6 +584,8 @@ def optimize_prompt(
             "goal_prompt": goal_prompt,
             "search_path": search_path,
             "num_iterations": num_iterations,
+            "llm_opt_provider": llm_opt_provider,
+            "llm_opt_model": llm_opt_model,
         }
         with open(args.output_config, "w") as config_file:
             json.dump(config_data, config_file, indent=4)
@@ -597,9 +604,16 @@ def optimize_prompt(
         print(f"Failed to load module from {python_file}")
         sys.exit(1)
 
+    # Create the LLM interface to be used to generation in the class that we are optimizing
+    llm_for_optimization = llm_fast
+    if llm_opt_provider and llm_opt_model:
+        llm_for_optimization = llm_from_config(
+            provider=llm_opt_provider, model_name=llm_opt_model
+        )
+
     # Then, load and instantiate the class
     llm_class: Optional[LLMTaskWorker] = instantiate_llm_class_from_module(
-        module=module, class_name=class_name, llm=llm_fast
+        module=module, class_name=class_name, llm=llm_for_optimization
     )
     if llm_class is None:
         print(f"Failed to load class '{class_name}' from {python_file}")
@@ -696,10 +710,16 @@ def optimize_prompt(
         if i == 0:
             try:
                 task = create_input_task(module, task_name, example)
+            except Exception as e:
+                print(
+                    f"Error creating input task from {str(example)[:100]}... - did you provide the right debug log: {e}"
+                )
+                exit(1)
+            try:
                 _ = llm_class.get_full_prompt(task)
             except Exception as e:
                 print(
-                    f"Error creating input task from {example} - did you provide the right debug log: {e}"
+                    f"Error creating full prompt from {task.name} - did you provide the right debug log: {e}"
                 )
                 exit(1)
 
