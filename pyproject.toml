@@ -42,6 +42,8 @@ sphinx-rtd-theme = "^1.3.0"
 flake8 = "^7.1.1"
 black = "^24.8.0"
 pre-commit = "^3.8.0"
+docutils = ">=0.17,<0.19"
+sphinx-argparse = "^0.4.0"
 
 [build-system]
 requires = ["poetry-core"]
