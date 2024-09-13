@@ -11,6 +11,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+"""
+PlanAI Command Line Interface
+
+This module provides a command-line interface for PlanAI, focusing on automated prompt optimization.
+
+The main functionality includes:
+1. Optimizing prompts based on debug logs
+2. Configuring LLM providers and models
+3. Processing input from Python files, debug logs, and goal prompts
+4. Outputting optimized configurations
+
+Usage:
+    python -m planai.cli --llm-provider <provider> --llm-model <model> --llm-reason-model <reason_model> optimize-prompt [options]
+"""
+
 import argparse
 import sys
 
@@ -19,10 +35,7 @@ from planai import llm_from_config
 from .cli_optimize_prompt import optimize_prompt
 
 
-def main(args=None):
-    if args is None:
-        args = sys.argv[1:]
-
+def create_parser():
     parser = argparse.ArgumentParser(description="planai command line interface")
 
     # Global arguments
@@ -72,7 +85,14 @@ def main(args=None):
         default=3,
         help="Number of optimization iterations",
     )
+    return parser
 
+
+def main(args=None):
+    if args is None:
+        args = sys.argv[1:]
+
+    parser = create_parser()
     parsed_args = parser.parse_args(args)
 
     llm_fast = llm_from_config(

@@ -4,6 +4,9 @@ import sphinx_rtd_theme
 
 sys.path.insert(0, os.path.abspath("../../src"))
 
+# Import the problematic module
+import planai.cli_optimize_prompt
+
 # Configuration file for the Sphinx documentation builder.
 #
 # For the full list of built-in configuration values, see the documentation:
@@ -23,6 +26,7 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
+    "sphinxarg.ext",
 ]
 
 templates_path = ["_templates"]
