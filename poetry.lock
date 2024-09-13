@@ -996,13 +996,13 @@ zstd = ["zstandard (>=0.18.0)"]
 
 [[package]]
 name = "huggingface-hub"
-version = "0.24.6"
+version = "0.24.7"
 description = "Client library to download and publish models, datasets and other repos on the huggingface.co hub"
 optional = false
 python-versions = ">=3.8.0"
 files = [
-    {file = "huggingface_hub-0.24.6-py3-none-any.whl", hash = "sha256:a990f3232aa985fe749bc9474060cbad75e8b2f115f6665a9fda5b9c97818970"},
-    {file = "huggingface_hub-0.24.6.tar.gz", hash = "sha256:cc2579e761d070713eaa9c323e3debe39d5b464ae3a7261c39a9195b27bb8000"},
+    {file = "huggingface_hub-0.24.7-py3-none-any.whl", hash = "sha256:a212c555324c8a7b1ffdd07266bb7e7d69ca71aa238d27b7842d65e9a26ac3e5"},
+    {file = "huggingface_hub-0.24.7.tar.gz", hash = "sha256:0ad8fb756e2831da0ac0491175b960f341fe06ebcf80ed6f8728313f95fc0207"},
 ]
 
 [package.dependencies]
@@ -1264,13 +1264,13 @@ langchain-core = ">=0.2.38,<0.3.0"
 
 [[package]]
 name = "langsmith"
-version = "0.1.117"
+version = "0.1.120"
 description = "Client library to connect to the LangSmith LLM Tracing and Evaluation Platform."
 optional = false
 python-versions = "<4.0,>=3.8.1"
 files = [
-    {file = "langsmith-0.1.117-py3-none-any.whl", hash = "sha256:e936ee9bcf8293b0496df7ba462a3702179fbe51f9dc28744b0fbec0dbf206ae"},
-    {file = "langsmith-0.1.117.tar.gz", hash = "sha256:a1b532f49968b9339bcaff9118d141846d52ed3d803f342902e7448edf1d662b"},
+    {file = "langsmith-0.1.120-py3-none-any.whl", hash = "sha256:54d2785e301646c0988e0a69ebe4d976488c87b41928b358cb153b6ddd8db62b"},
+    {file = "langsmith-0.1.120.tar.gz", hash = "sha256:25499ca187b41bd89d784b272b97a8d76f60e0e21bdf20336e8a2aa6a9b23ac9"},
 ]
 
 [package.dependencies]
@@ -1549,13 +1549,13 @@ httpx = ">=0.27.0,<0.28.0"
 
 [[package]]
 name = "openai"
-version = "1.44.1"
+version = "1.45.0"
 description = "The official Python library for the openai API"
 optional = false
 python-versions = ">=3.7.1"
 files = [
-    {file = "openai-1.44.1-py3-none-any.whl", hash = "sha256:07e2c2758d1c94151c740b14dab638ba0d04bcb41a2e397045c90e7661cdf741"},
-    {file = "openai-1.44.1.tar.gz", hash = "sha256:e0ffdab601118329ea7529e684b606a72c6c9d4f05be9ee1116255fcf5593874"},
+    {file = "openai-1.45.0-py3-none-any.whl", hash = "sha256:2f1f7b7cf90f038a9f1c24f0d26c0f1790c102ec5acd07ffd70a9b7feac1ff4e"},
+    {file = "openai-1.45.0.tar.gz", hash = "sha256:731207d10637335413aa3c0955f8f8df30d7636a4a0f9c381f2209d32cf8de97"},
 ]
 
 [package.dependencies]
@@ -2509,13 +2509,13 @@ files = [
 
 [[package]]
 name = "urllib3"
-version = "2.2.2"
+version = "2.2.3"
 description = "HTTP library with thread-safe connection pooling, file post, and more."
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "urllib3-2.2.2-py3-none-any.whl", hash = "sha256:a448b2f64d686155468037e1ace9f2d2199776e17f0a46610480d311f73e3472"},
-    {file = "urllib3-2.2.2.tar.gz", hash = "sha256:dd505485549a7a552833da5e6063639d0d177c04f23bc3864e41e5dc5f612168"},
+    {file = "urllib3-2.2.3-py3-none-any.whl", hash = "sha256:ca899ca043dcb1bafa3e262d73aa25c465bfb49e0bd9dd5d59f1d0acba2f8fac"},
+    {file = "urllib3-2.2.3.tar.gz", hash = "sha256:e7d814a81dad81e6caf2ec9fdedb284ecc9c73076b62654547cc64ccdcae26e9"},
 ]
 
 [package.extras]
@@ -2672,4 +2672,4 @@ docs = []
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "2b5e5ee096f85b30cb0ae724645d6ddf83addf34fb89697f648b3cd1b219905a"
+content-hash = "f692e669b19a220ddf1534e9513a562c19820eea6239a1b8616aad6df0469ec8"
