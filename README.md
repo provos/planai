@@ -26,6 +26,7 @@
 - **Type Safety with Pydantic**: Ensure data integrity and type consistency across workflows with Pydantic-validated input and output.
 - **Intelligent Data Routing**: Utilize type-aware routing to efficiently manage data flow between nodes, adapting to multiple downstream consumers.
 - **Input Provenance Tracking**: Trace the lineage and origin of each Task as it flows through the workflow, enabling detailed analysis and debugging of complex processes.
+- **Automatic Prompt Optimization**: Improve your LLM prompts using data and AI-driven optimization
 
 ## Requirements
 
@@ -117,6 +118,8 @@ PlanAI supports advanced features like:
 - Caching results with `CachedTaskWorker`
 - Joining multiple task results with `JoinedTaskWorker`
 - Integrating with various LLM providers (OpenAI, Ollama, etc.)
+- **Automatic Prompt Optimization**: Improve your LLMTaskWorker prompts using AI-driven optimization. [Learn more](PROMPT_OPTIMIZATION.md)
+
 
 For more detailed examples and advanced usage, please refer to the `examples/` directory in the repository.
 
