@@ -304,9 +304,23 @@ class Graph(BaseModel):
         # Clear the terminal when the thread is terminating
         print("\033[H\033[J")
 
-    def _print_log(self):
+    def _print_log(self, max_lines=15):
         print("\nLog:")
-        for line in self._log_lines[-15:]:
+
+        # Get terminal width and leave a margin of 10 characters
+        terminal_width = max(shutil.get_terminal_size().columns - 10, 20)
+
+        # Flatten and wrap the log lines
+        flattened_lines = []
+        for line in self._log_lines:
+            for subline in line.splitlines():
+                while len(subline) > terminal_width:
+                    flattened_lines.append(subline[:terminal_width])
+                    subline = subline[terminal_width:]
+                flattened_lines.append(subline)
+
+        # Print the last 'max_lines' number of lines
+        for line in flattened_lines[-max_lines:]:
             print(line)
 
     def display_terminal_status(self):
