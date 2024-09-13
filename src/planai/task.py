@@ -72,6 +72,8 @@ class Task(BaseModel):
     def find_input_task(self, task_class: Type["Task"]) -> Optional[TaskType]:
         """
         Find the most recent input task of the specified class in the input provenance.
+        This is guaranteed to work only on the immediate input task and not on any tasks
+        further upstream returned by this function.
 
         Args:
             task_class (Type[Task]): The class of the task to find.
