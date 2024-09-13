@@ -194,7 +194,7 @@ class CreateQuestions(CachedLLMTaskWorker):
     balances between generating sufficient questions without overwhelming the system.
     """
 
-    debug_mode: bool = True
+    debug_mode: bool = False
     output_types: List[Type[Task]] = [Question]
     llm_output_type: Type[Task] = Questions
     prompt: str = dedent(
@@ -247,12 +247,12 @@ class QuestionEvaluationWorker(CachedLLMTaskWorker):
     improvements to ensure high-quality output.
     """
 
-    debug_mode: bool = True
+    debug_mode: bool = False
     output_types: List[Type[Task]] = [Question]
     llm_output_type: Type[Task] = QuestionEvaluation
     prompt: str = dedent(
         """
-You are an expert educator tasked with evaluating whether a question is a good closed-textbook question that stands alone. Your role is to ensure the question can be answered using only the provided information in the text chunk.
+You are an expert educator and your task is to evaluate a question to determine if it is a good closed-textbook question. A good question should independently stand on its own, allowing it to be answered using only the provided information in the text chunk.
 
 Text chunk:
 {input_text}
@@ -260,33 +260,33 @@ Text chunk:
 Question to evaluate:
 {question}
 
-A good closed-textbook question should meet the following criteria:
-1. Specificity: It targets specific, factual information.
-2. Clarity: It is clear, concise, and unambiguous.
-3. Answerability: The answer can be found in or directly inferred from the text.
-4. Relevance: It relates to central or significant information in the text.
-5. Closed-ended nature: It has a definite, fact-based answer that doesn't invite opinion.
-6. Independence: It stands alone without referencing any specific text, passage, or requiring additional context.
+A good closed-textbook question must satisfy the following criteria:
+1. Specificity: It targets precise, factual information found in the text.
+2. Clarity: It is clear and unambiguous, ensuring the reader knows exactly what is being asked.
+3. Answerability: The answer must be present in or directly inferred from the text.
+4. Relevance: It relates to the central or significant information in the text.
+5. Closed-ended nature: It should have a definite, fact-based answer without inviting subjective opinion.
+6. Independence: It should stand alone without referencing a specific text part or needing additional context.
 
-Your evaluation should be provided in the following JSON format:
+Evaluation Format:
 {{
-    "analysis": "Provide a concise evaluation of the question's strengths and weaknesses, mentioning each criterion. Explicitly note if the answer isn't found in the text.",
+    "analysis": "Evaluate the question by addressing each criterion, highlighting strengths and weaknesses. Note explicitly if the answer isn't found in the text.",
     "rating": "excellent/good/fair/poor",
-    "improved_question": "Suggest an improved version of the question, or use null if the question is excellent.",
+    "improved_question": "Suggest an improved version of the question, or use null if the question is rated excellent.",
     "is_satisfactory": true or false
 }}
 
-The 'is_satisfactory' field should be true ONLY if all these conditions are met:
-1. The question is rated excellent or good.
-2. The answer to the question can be found in or directly inferred from the text.
+Mark 'is_satisfactory' as true ONLY if all these conditions are satisfied:
+1. The question is rated as excellent or good.
+2. The response to the question is located or inferred directly from the text.
 3. The question does not reference the text or any specific source.
-4. The question is self-contained, needing no additional context for understanding.
+4. It requires no additional context for understanding.
 
-Important: Consider the broader themes or implications that the question might touch on, and encourage diverse interpretations to enrich the analysis.
+Consider broader themes or implications that may be touched by the question, encouraging diverse interpretations to enrich the analysis. Conclude whether the question invites engagement with the broader topic or remains narrowly focused.
 
-Examples for guidance:
-- Good question: "What is a core function of mitochondria as discussed in the text?"
-- Poor question: "Discuss various theories on mitochondria based on external sources."
+Examples:
+- Strong example: "What primary function do mitochondria serve according to the text?"
+- Weak example: "Discuss external theories of mitochondria not found in the text."
     """
     ).strip()
 
@@ -338,7 +338,7 @@ class QuestionAnswer(CachedLLMTaskWorker):
     provided text, allowing for selection of the best response.
     """
 
-    debug_mode: bool = True
+    debug_mode: bool = False
     output_types: List[Type[Task]] = [Answers]
     prompt: str = dedent(
         """
@@ -405,17 +405,18 @@ class AnswerEvaluator(CachedLLMTaskWorker):
     accuracy, completeness, and clarity.
     """
 
-    debug_mode: bool = True
+    debug_mode: bool = False
     output_types: List[Type[Task]] = [QuestionAndAnswer]
     llm_output_type: Type[Task] = EvaluatedAnswer
     prompt: str = dedent(
         """
-You are an expert educator tasked with evaluating two potential answers to a given question. Your objective is to select the answer that:
+You are an expert educator tasked with evaluating two potential answers to a given question. Your objective is to select the answer that fulfills the following criteria:
 
-1. Most accurately and comprehensively addresses the question
-2. Is written with clarity and easy to comprehend
-3. Extracts the most pertinent information from the original text
-4. Balances conciseness with comprehensiveness
+1. Provides a direct and comprehensive response to the question based on the input text.
+2. Is written with clarity and is easy to comprehend.
+3. Extracts and explains the most pertinent information from the original text.
+4. Balances conciseness with comprehensiveness, avoiding verbosity while covering necessary details.
+5. Offers a unique perspective or interpretation that adds depth to the analysis.
 
 Question:
 {question}
@@ -430,19 +431,19 @@ Original Text:
 {input_text}
 
 Evaluation Guidelines:
-- Verify each answer's accuracy using the original text
-- Consider clarity and accessibility of each answer
-- Determine the degree to which each answer directly tackles the question
-- Evaluate the completeness and relevance of the information presented
+- Verify the accuracy of each answer by cross-referencing the original text and highlighting any discrepancies.
+- Assess the clarity and readability of each answer, ensuring it is well-structured.
+- Determine how directly and thoroughly each answer tackles the question, focusing on both its directness and comprehensiveness.
+- Evaluate the completeness, relevance, and unique perspectives presented in each answer.
 
-Select the best answer in JSON format with the following structure:
+Please provide your decision in JSON format with the following structure:
 
 {{
     "best_answer": "<The full text of the selected best answer>",
-    "explanation": "<Brief explanation (2-3 sentences) supporting your choice, based on the evaluation criteria>"
+    "explanation": "<A concise explanation (2-3 sentences) supporting your choice, focused on the evaluation criteria>"
 }}
 
-Ensure your explanation distinctly justifies the superiority of the chosen answer, considering content quality and presentation. Select only one answer as the best.
+In your explanation, justify the superiority of the chosen answer by considering both content quality and presentation. Highlight any unique insights or perspectives in your evaluation. Select only one answer as the best.
     """
     ).strip()
 
