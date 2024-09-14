@@ -91,13 +91,13 @@ class Task(BaseModel):
         return self._input_provenance[-1] if self._input_provenance else None
 
     def prefix_for_input_task(
-        self, task_class: Type["Task"]
+        self, task_class: Type["TaskWorker"]
     ) -> Optional["ProvenanceChain"]:
         """
         Finds the provenance chain for the most recent input task of the specified class.
 
         Args:
-            task_class (Type[Task]): The class of the task to find.
+            task_class (Type[TaskWorker]): The class of the task worker to find.
         Returns:
             ProvenanceChain: The provenance chain for the most recent input task of the specified class.
         """
