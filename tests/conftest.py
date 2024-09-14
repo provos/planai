@@ -12,7 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # tests/conftest.py
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
+
+LOGGING = True
+
+if LOGGING:
+    import logging
+
+    def pytest_configure(config):
+        logging.basicConfig(
+            format="%(asctime)s - %(threadName)s - %(levelname)s - %(message)s",
+            level=logging.INFO,
+        )
