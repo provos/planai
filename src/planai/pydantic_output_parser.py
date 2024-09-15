@@ -27,6 +27,7 @@ Example:
 """
 
 import json
+import re
 from typing import Generic, Type, TypeVar
 
 from pydantic import BaseModel, ValidationError
@@ -49,6 +50,14 @@ class MinimalPydanticOutputParser(Generic[T]):
     def __init__(self, pydantic_object: Type[T]):
         self.pydantic_object = pydantic_object
 
+    def parse_json_markdown(self, text: str) -> str:
+        """Remove markdown code blocks from the text."""
+        # Remove markdown code blocks if present
+        match = re.match(r"^```json\n(.*)\n```$", text, re.DOTALL)
+        if match:
+            return match.group(1).strip()
+        return text.strip()
+
     def parse(self, text: str) -> T:
         """Parse the output of an LLM call to a pydantic object.
 
@@ -62,7 +71,9 @@ class MinimalPydanticOutputParser(Generic[T]):
             OutputParserException: If the output is not valid JSON or fails Pydantic validation.
         """
         try:
-            json_object = json.loads(text)
+            # Strip markdown formatting if present
+            cleaned_text = self.parse_json_markdown(text)
+            json_object = json.loads(cleaned_text)
             return self._model_validate(json_object)
         except json.JSONDecodeError as e:
             raise OutputParserException(f"Invalid JSON: {e}", llm_output=text)

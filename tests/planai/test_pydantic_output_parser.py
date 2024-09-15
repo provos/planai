@@ -29,6 +29,18 @@ class TestMinimalPydanticOutputParser(unittest.TestCase):
         self.assertEqual(result.name, "Alice")
         self.assertEqual(result.age, 30)
 
+    def test_parse_valid_markdown_json(self):
+        markdown_json = """```json
+{
+  "name": "Bob",
+  "age": 25
+}
+```"""
+        result = self.simple_parser.parse(markdown_json)
+        self.assertIsInstance(result, SimpleModel)
+        self.assertEqual(result.name, "Bob")
+        self.assertEqual(result.age, 25)
+
     def test_parse_valid_complex_json(self):
         valid_json = (
             '{"id": 1, "data": {"name": "Bob", "age": 25}, "tags": ["user", "admin"]}'
