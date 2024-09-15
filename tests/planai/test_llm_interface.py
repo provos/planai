@@ -1,3 +1,4 @@
+import json
 import unittest
 from unittest.mock import Mock, patch
 
@@ -162,6 +163,33 @@ class TestLLMInterface(unittest.TestCase):
             self.assertNotIn(
                 "field2", first_call_messages[1]["content"]
             )  # Ensure initial message was clean
+
+    def test_get_format_instructions(self):
+        instructions = LLMInterface.get_format_instructions(DummyPydanticModel)
+
+        # Check if the instructions contain the expected elements
+        self.assertIn("The output should be formatted as a JSON instance", instructions)
+        self.assertIn("Here is the output schema:", instructions)
+
+        # Check if the schema contains the fields from DummyPydanticModel
+        self.assertIn('"field1":', instructions)
+        self.assertIn('"type": "string"', instructions)
+        self.assertIn('"field2":', instructions)
+        self.assertIn('"type": "integer"', instructions)
+
+        # Verify that the schema is valid JSON
+        try:
+            schema_start = instructions.index("```\n") + 4
+            schema_end = instructions.rindex("\n```")
+            json_schema = instructions[schema_start:schema_end]
+            parsed_schema = json.loads(json_schema)
+
+            # Check if parsed schema has the expected structure
+            self.assertIn("properties", parsed_schema)
+            self.assertIn("field1", parsed_schema["properties"])
+            self.assertIn("field2", parsed_schema["properties"])
+        except json.JSONDecodeError:
+            self.fail("The schema in the instructions is not valid JSON")
 
 
 if __name__ == "__main__":

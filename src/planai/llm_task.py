@@ -18,7 +18,6 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Optional, Type
 
-from langchain_core.output_parsers import PydanticOutputParser
 from pydantic import ConfigDict, Field
 
 from .cached_task import CachedTaskWorker
@@ -78,8 +77,6 @@ class LLMTaskWorker(TaskWorker):
         return list(self.output_types)[0]
 
     def _invoke_llm(self, task: Task) -> Task:
-        parser = PydanticOutputParser(pydantic_object=self._output_type())
-
         # allow subclasses to customize the prompt based on the input task
         task_prompt = self.format_prompt(task)
 
@@ -99,7 +96,9 @@ class LLMTaskWorker(TaskWorker):
             system=self.system_prompt,
             task=processed_task.model_dump_json(indent=2),
             instructions=task_prompt,
-            format_instructions=parser.get_format_instructions(),
+            format_instructions=LLMInterface.get_format_instructions(
+                self._output_type()
+            ),
             debug_saver=save_debug_with_task if self.debug_mode else None,
             extra_validation=extra_validation_with_task,
         )
@@ -107,8 +106,6 @@ class LLMTaskWorker(TaskWorker):
         self.post_process(response=response, input_task=task)
 
     def get_full_prompt(self, task: Task) -> str:
-        parser = PydanticOutputParser(pydantic_object=self._output_type())
-
         task_prompt = self.format_prompt(task)
 
         processed_task = self.pre_process(task)
@@ -118,7 +115,9 @@ class LLMTaskWorker(TaskWorker):
             system=self.system_prompt,
             task=processed_task.model_dump_json(indent=2),
             instructions=task_prompt,
-            format_instructions=parser.get_format_instructions(),
+            format_instructions=LLMInterface.get_format_instructions(
+                self._output_type()
+            ),
         )
 
     def extra_validation(self, response: Task, input_task: Task) -> Optional[str]:

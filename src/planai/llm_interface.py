@@ -12,16 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import hashlib
+import json
 import logging
 import re
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type
 
 import diskcache
 from dotenv import load_dotenv
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import PromptTemplate
-from langchain_core.pydantic_v1 import BaseModel
 from ollama import Client
+from pydantic import BaseModel
 
 from .utils import setup_logging
 
@@ -238,3 +239,42 @@ class LLMInterface:
             error_message = str(e)
             response = None
         return error_message, response
+
+    @staticmethod
+    def get_format_instructions(pydantic_object: Type[BaseModel]) -> str:
+        """
+        Generate format instructions for a Pydantic model's JSON output.
+
+        This function creates a string of instructions on how to format JSON output
+        based on the schema of a given Pydantic model. It's compatible with both
+        Pydantic v1 and v2.
+
+        Args:
+            pydantic_object (Type[BaseModel]): The Pydantic model class to generate instructions for.
+
+        Returns:
+            str: A string containing the format instructions.
+
+        Note:
+            This function is adapted from the LangChain framework.
+            Original source: https://github.com/langchain-ai/langchain
+            License: MIT (https://github.com/langchain-ai/langchain/blob/master/LICENSE)
+        """
+        _PYDANTIC_FORMAT_INSTRUCTIONS = """The output should be formatted as a JSON instance that conforms to the JSON schema below.
+
+As an example, for the schema {{"properties": {{"foo": {{"title": "Foo", "description": "a list of strings", "type": "array", "items": {{"type": "string"}}}}}}, "required": ["foo"]}}
+the object {{"foo": ["bar", "baz"]}} is a well-formatted instance of the schema. The object {{"properties": {{"foo": ["bar", "baz"]}}}} is not well-formatted.
+
+Here is the output schema:
+```
+{schema}
+```
+"""
+        schema = pydantic_object.schema().copy()
+
+        schema.pop("title", None)
+        schema.pop("type", None)
+
+        schema_str = json.dumps(schema, ensure_ascii=False)
+
+        return _PYDANTIC_FORMAT_INSTRUCTIONS.format(schema=schema_str)
