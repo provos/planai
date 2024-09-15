@@ -20,7 +20,6 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Type
 import diskcache
 from dotenv import load_dotenv
 from langchain_core.output_parsers import PydanticOutputParser
-from langchain_core.prompts import PromptTemplate
 from ollama import Client
 from pydantic import BaseModel
 
@@ -124,12 +123,7 @@ class LLMInterface:
         Returns:
             str: The formatted prompt
         """
-        prompt = PromptTemplate(
-            template=prompt_template,
-            input_variables=list(kwargs.keys()),
-        )
-
-        formatted_prompt = prompt.format(**kwargs)
+        formatted_prompt = prompt_template.format(**kwargs)
         return formatted_prompt
 
     def generate_pydantic(
