@@ -2,7 +2,7 @@ import json
 import unittest
 from unittest.mock import Mock, patch
 
-from langchain_core.pydantic_v1 import BaseModel
+from pydantic import BaseModel
 
 from planai.llm_interface import LLMInterface
 

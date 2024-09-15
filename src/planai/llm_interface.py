@@ -19,10 +19,10 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Type
 
 import diskcache
 from dotenv import load_dotenv
-from langchain_core.output_parsers import PydanticOutputParser
 from ollama import Client
 from pydantic import BaseModel
 
+from .pydantic_output_parser import MinimalPydanticOutputParser
 from .utils import setup_logging
 
 # Load environment variables from .env.local file
@@ -160,7 +160,7 @@ class LLMInterface:
             Optional[BaseModel]: An instance of the specified Pydantic model with generated data if successful,
             or None if all attempts at generation fail or the response is invalid.
         """
-        parser = PydanticOutputParser(pydantic_object=output_schema)
+        parser = MinimalPydanticOutputParser(pydantic_object=output_schema)
 
         formatted_prompt = self.generate_full_prompt(
             prompt_template=prompt_template, system=system, **kwargs
@@ -222,7 +222,7 @@ class LLMInterface:
         return hash_object.hexdigest()
 
     def _parse_response(
-        self, response: str, parser: PydanticOutputParser
+        self, response: str, parser: MinimalPydanticOutputParser
     ) -> Tuple[str, Dict[str, Any]]:
         self.logger.info("Parsing JSON response: %s", response)
         error_message = None
