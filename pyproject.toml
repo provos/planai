@@ -23,7 +23,6 @@ exclude = ["examples"]
 [tool.poetry.dependencies]
 python = "^3.10"
 pydantic = "^2.8.2"
-langchain = "^0.2.14"
 python-dotenv = "^1.0.1"
 ollama = "^0.3.1"
 diskcache = "^5.6.3"
