@@ -11,6 +11,55 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+"""
+dispatcher.py - Task Dispatching and Provenance Tracking System
+
+This module implements a sophisticated task dispatching system with built-in provenance tracking.
+It manages the execution of tasks across multiple workers while maintaining a record of task
+lineage and dependencies.
+
+Key Components:
+- Dispatcher: Manages task queues, worker assignment, and provenance tracking.
+- ProvenanceChain: Represents the lineage of a task as a tuple of (worker_name, task_id) pairs.
+- TaskWorker: Base class for workers that process tasks.
+- JoinedTaskWorker: A special type of worker that waits for multiple upstream tasks to complete.
+
+Provenance Tracking:
+The system uses a provenance tracking mechanism to maintain the lineage of tasks and ensure
+proper task completion. The provenance system adheres to the following principles:
+
+1. Dynamic Counting: The number of tasks and notifications is not known in advance and is
+   tracked dynamically through provenance counting.
+
+2. Atomic Operations: Provenance counts are updated atomically to prevent race conditions
+   in multi-threaded environments.
+
+3. Delayed Provenance Removal: Task provenance is maintained until the TaskWorker that
+   consumed it has completed processing. This ensures that:
+   a) New work with new provenance can be posted if necessary.
+   b) The system maintains a consistent state throughout task processing.
+
+4. Ordered Notifications: When multiple TaskWorkers need to be notified of a completed
+   provenance chain, notifications are strictly ordered. Each subsequent notification
+   is only triggered after the previous TaskWorker has completed its work.
+
+5. JoinedTaskWorker Handling: For JoinedTaskWorkers, which wait for multiple upstream
+   tasks, the provenance of the last delivered task is not removed until the notify
+   method has completed. This prevents premature provenance removal and ensures all
+   expected tasks are processed.
+
+6. Thread-Safety: The system uses locks and atomic operations to ensure thread-safe
+   operations in multi-threaded environments, particularly for the JoinFanOutWorker.
+
+Usage:
+The Dispatcher class is the main interface for task management. It provides methods to
+add work, manage worker queues, and control the dispatching process. The provenance
+tracking is handled internally, maintaining the invariants necessary for correct
+task processing and dependency management.
+"""
+
+
 import logging
 import random
 import statistics
@@ -19,7 +68,7 @@ import threading
 import time
 from collections import defaultdict, deque
 from queue import Empty, Queue
-from threading import Event, Lock
+from threading import Event, Lock, RLock
 from typing import (
     TYPE_CHECKING,
     DefaultDict,
@@ -80,7 +129,7 @@ class Dispatcher:
         self.notifiers: DefaultDict[ProvenanceChain, List[TaskWorker]] = defaultdict(
             list
         )
-        self.provenance_lock = Lock()
+        self.provenance_lock = RLock()
         self.notifiers_lock = Lock()
         self.stop_event = Event()
         self._active_tasks = 0
@@ -131,7 +180,7 @@ class Dispatcher:
                         "Tracing: add provenance for %s: %s", prefix, trace_entry
                     )
 
-    def _remove_provenance(self, task: Task):
+    def _remove_provenance(self, task: Task, worker: TaskWorker):
         to_notify = set()
         for prefix in self._generate_prefixes(task):
             with self.provenance_lock:
@@ -176,8 +225,71 @@ class Dispatcher:
                     print(error_message, file=sys.stderr)
                     sys.exit(1)
 
-        for prefix in to_notify:
-            self._notify_task_completion(prefix)
+        if to_notify:
+            final_notify = []
+            for p in to_notify:
+                for notifier in self._get_notifiers_for_prefix(p):
+                    final_notify.append((notifier, p))
+
+            if final_notify:
+                logging.info(
+                    "Re-adding provenance for %s - as we need to wait for the notification to complete before completely removing it",
+                    task.name,
+                )
+                self._add_provenance(task)
+                self._notify_task_completion(final_notify, worker, task)
+
+    def _get_notifiers_for_prefix(self, prefix: ProvenanceChain) -> List[TaskWorker]:
+        with self.notifiers_lock:
+            return self.notifiers.get(prefix, []).copy()
+
+    def _notify_task_completion(
+        self,
+        to_notify: List[Tuple[TaskWorker, ProvenanceChain]],
+        worker: TaskWorker,
+        task: Optional[Task],
+    ):
+        if not to_notify:
+            if task is not None:
+                raise ValueError(
+                    f"Task {task.name} provided without any pending notifications"
+                )
+            return
+
+        # Sort the to_notify list based on the distance from the last worker in the provenance
+        sorted_to_notify = sorted(
+            to_notify, key=lambda x: self._get_worker_distance(x[0], worker.name)
+        )
+
+        notifier, prefix = sorted_to_notify.pop(0)
+
+        logging.info(f"Notifying {notifier.name} that prefix {prefix} is complete")
+
+        if len(sorted_to_notify):
+            logging.info(
+                f"Postpoing {len(sorted_to_notify)} remaining notifications till later: {','.join([str(x[0].name) for x in sorted_to_notify])}"
+            )
+
+        # Use a named function instead of a lambda to avoid closure issues
+        def task_completed_callback(
+            future, worker=notifier, to_notify=sorted_to_notify, task=task
+        ):
+            self._task_completed(worker, None, future)
+            # now that the notification is really complete, we can remove the provenance and notify the next one
+            self._remove_provenance(task, worker)
+
+        self.increment_active_tasks(notifier)
+        future = self.graph._thread_pool.submit(notifier.notify, prefix)
+        future.add_done_callback(task_completed_callback)
+
+    def _get_worker_distance(self, worker: TaskWorker, last_worker_name: str) -> int:
+        if worker.name == last_worker_name:
+            return 0
+        if not last_worker_name:
+            return float("inf")
+        return self.graph._worker_distances.get(last_worker_name, {}).get(
+            worker.name, float("inf")
+        )
 
     def trace(self, prefix: ProvenanceChain):
         logging.info(f"Starting trace for {prefix}")
@@ -236,7 +348,7 @@ class Dispatcher:
                     should_notify = True
 
             if should_notify:
-                self._notify_task_completion(prefix)
+                self._notify_task_completion([(notifier, prefix)], notifier, None)
 
         return added
 
@@ -294,23 +406,6 @@ class Dispatcher:
                 self._per_worker_queue[worker_class_name] = Queue()
                 self._per_worker_task_count[worker_class_name] = 0
             self._per_worker_max_parallel_tasks[worker_class_name] = max_parallel_tasks
-
-    def _notify_task_completion(self, prefix: tuple):
-        to_notify = []
-        with self.notifiers_lock:
-            for notifier in self.notifiers[prefix]:
-                to_notify.append((notifier, prefix))
-
-        for notifier, prefix in to_notify:
-            logging.info(f"Notifying {notifier.name} that prefix {prefix} is complete")
-            self.increment_active_tasks(notifier)
-
-            # Use a named function instead of a lambda to avoid closure issues
-            def task_completed_callback(future, worker=notifier):
-                self._task_completed(worker, None, future)
-
-            future = self.graph._thread_pool.submit(notifier.notify, prefix)
-            future.add_done_callback(task_completed_callback)
 
     def _dispatch_once(self) -> bool:
         queues = [(None, self.work_queue)] + list(self._per_worker_queue.items())
@@ -537,7 +632,7 @@ class Dispatcher:
                     self.total_completed_tasks += 1
 
             if task:
-                self._remove_provenance(task)
+                self._remove_provenance(task, worker)
 
             if self.decrement_active_tasks(worker):
                 self.task_completion_event.set()

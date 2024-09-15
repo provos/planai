@@ -126,21 +126,14 @@ class TestDispatcher(unittest.TestCase):
 
     def test_remove_provenance(self):
         task = DummyTask(data="test")
+        worker = DummyTaskWorkerSimple()
         task._provenance = [("Task1", 1), ("Task2", 2)]
         self.dispatcher._add_provenance(task)
 
         with patch.object(self.dispatcher, "_notify_task_completion") as mock_notify:
-            self.dispatcher._remove_provenance(task)
+            self.dispatcher._remove_provenance(task, worker)
             self.assertEqual(self.dispatcher.provenance, {})
-            mock_notify.assert_any_call((("Task1", 1),))
-            mock_notify.assert_any_call((("Task1", 1), ("Task2", 2)))
-
-    def test_notify_task_completion(self):
-        notifier = Mock(spec=TaskWorker)
-        self.dispatcher.notifiers = {(("Task1", 1),): [notifier]}
-        self.dispatcher._notify_task_completion((("Task1", 1),))
-        self.assertEqual(self.dispatcher.active_tasks, 1)
-        notifier.notify.assert_called_once_with((("Task1", 1),))
+            mock_notify.assert_not_called()
 
     def test_watch(self):
         notifier = Mock(spec=TaskWorker)
@@ -247,7 +240,7 @@ class TestDispatcher(unittest.TestCase):
 
         with patch.object(self.dispatcher, "_remove_provenance") as mock_remove:
             self.dispatcher._task_completed(worker, task, future)
-            mock_remove.assert_called_once_with(task)
+            mock_remove.assert_called_once_with(task, worker)
 
         self.assertEqual(self.dispatcher.active_tasks, 0)
         self.assertTrue(self.dispatcher.task_completion_event.is_set())
@@ -265,7 +258,7 @@ class TestDispatcher(unittest.TestCase):
 
         with patch.object(self.dispatcher, "_remove_provenance") as mock_remove:
             self.dispatcher._task_completed(worker, task, future)
-            mock_remove.assert_called_once_with(task)
+            mock_remove.assert_called_once_with(task, worker)
 
         self.assertEqual(self.dispatcher.active_tasks, 1)
         self.assertFalse(self.dispatcher.task_completion_event.is_set())
@@ -329,13 +322,14 @@ class TestDispatcherThreading(unittest.TestCase):
     def test_race_condition_provenance(self):
         num_threads = 10
         num_operations = 1000
+        worker = DummyTaskWorkerSimple()
 
         def modify_provenance():
             for _ in range(num_operations):
                 task = DummyTask(data="test")
                 task._provenance = [("Task1", 1)]
                 self.dispatcher._add_provenance(task)
-                self.dispatcher._remove_provenance(task)
+                self.dispatcher._remove_provenance(task, worker)
 
         threads = [
             threading.Thread(target=modify_provenance) for _ in range(num_threads)

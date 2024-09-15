@@ -14,6 +14,7 @@
 import logging
 import shutil
 import time
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event, Thread
 from typing import Dict, List, Optional, Set, Tuple, Type
@@ -42,6 +43,8 @@ class Graph(BaseModel):
     _sink_tasks: List[TaskType] = PrivateAttr(default_factory=list)
     _sink_worker: Optional[TaskWorker] = PrivateAttr(default=None)
 
+    _worker_distances: Dict[str, Dict[str, int]] = PrivateAttr(default_factory=dict)
+
     def __init__(self, **data):
         super().__init__(**data)
         if self._thread_pool is None:
@@ -66,6 +69,11 @@ class Graph(BaseModel):
         self, upstream: TaskWorker, downstream: TaskWorker
     ) -> TaskWorker:
         """Set a dependency between two tasks."""
+        return self._set_dependency(upstream, downstream)
+
+    def _set_dependency(
+        self, upstream: TaskWorker, downstream: TaskWorker, register: bool = True
+    ) -> TaskWorker:
         if upstream not in self.workers or downstream not in self.workers:
             raise ValueError(
                 f"Both workers (upstream: {upstream.__class__.__name__}) (downstream: {downstream.__class__.__name__}) must be added to the Graph before setting dependencies."
@@ -73,10 +81,11 @@ class Graph(BaseModel):
 
         if downstream not in self.dependencies[upstream]:
             self.dependencies[upstream].append(downstream)
-            upstream.register_consumer(
-                task_cls=downstream.get_task_class(),
-                consumer=downstream,
-            )
+            if register:
+                upstream.register_consumer(
+                    task_cls=downstream.get_task_class(),
+                    consumer=downstream,
+                )
 
         return downstream
 
@@ -194,6 +203,9 @@ class Graph(BaseModel):
         """Return the execution order of tasks based on dependencies."""
         pass
 
+    def finalize(self):
+        self.compute_worker_distances()
+
     def run(
         self,
         initial_tasks: List[Tuple[TaskWorker, Task]],
@@ -226,6 +238,10 @@ class Graph(BaseModel):
             initial_work = [(task1, Task1WorkItem(data="Start"))]
             graph.run(initial_work, run_dashboard=True)
         """
+        # Inject InitialTaskWorker into the graph
+        self.inject_initial_task_worker(initial_tasks)
+        # Finalize the graph (compute distances)
+        self.finalize()
 
         # Empty the sink tasks
         if self._sink_worker:
@@ -285,6 +301,38 @@ class Graph(BaseModel):
 
         for worker in self.workers:
             worker.completed()
+
+    def inject_initial_task_worker(self, initial_tasks: List[Tuple[TaskWorker, Task]]):
+        initial_worker = InitialTaskWorker()
+        self.add_worker(initial_worker)
+        for worker, _ in initial_tasks:
+            # we just fake the dependency and don't do any checks
+            self._set_dependency(initial_worker, worker, register=False)
+
+    def compute_worker_distances(self):
+        for worker in self.workers:
+            self._worker_distances[worker.name] = self._bfs_distances(worker)
+
+    def _bfs_distances(self, start_worker: TaskWorker) -> Dict[str, int]:
+        distances = {start_worker.name: 0}
+        queue = deque([(start_worker, 0)])
+        visited = set()
+
+        while queue:
+            current_worker, distance = queue.popleft()
+            if current_worker in visited:
+                continue
+            visited.add(current_worker)
+
+            for downstream in self.dependencies.get(current_worker, []):
+                if (
+                    downstream.name not in distances
+                    or distance + 1 < distances[downstream.name]
+                ):
+                    distances[downstream.name] = distance + 1
+                    queue.append((downstream, distance + 1))
+
+        return distances
 
     def _start_terminal_display(self):
         self._stop_terminal_display_event = Event()
