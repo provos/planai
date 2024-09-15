@@ -67,7 +67,7 @@ class JoinedTaskWorker(TaskWorker):
                 f"Existing provenance: {task._provenance}"
             )
         need_watch = False
-        with self._lock:
+        with self.lock:
             if prefix not in self._joined_results:
                 need_watch = True
 
@@ -75,25 +75,28 @@ class JoinedTaskWorker(TaskWorker):
             # we will deliver them to the sub-class when we get notified
             self._joined_results.setdefault(prefix, []).append(task)
 
-        if need_watch:
-            # we will register the watch for the prefix when we see it for the first time.
-            if self.enable_trace:
-                self.trace(prefix)
-            logging.info("Starting watch for %s in %s", prefix, self.name)
-            self.watch(prefix)
+            if need_watch:
+                # we will register the watch for the prefix when we see it for the first time.
+                if self.enable_trace:
+                    self.trace(prefix)
+                logging.info("Starting watch for %s in %s", prefix, self.name)
+                self.watch(prefix)
 
     def notify(self, prefix: str):
-        if prefix not in self._joined_results:
-            raise ValueError(f"Task {prefix} does not have any results to join.")
-        if not self.unwatch(prefix):
-            raise ValueError(
-                f"Trying to remove a Task {prefix} that is not being watched."
+        with self.lock:
+            if prefix not in self._joined_results:
+                raise ValueError(f"Task {prefix} does not have any results to join.")
+            if not self.unwatch(prefix):
+                raise ValueError(
+                    f"Trying to remove a Task {prefix} that is not being watched."
+                )
+            # Sort the tasks based on their _provenance before sending them
+            # This allows for better caching and reproducibility
+            sorted_tasks = sorted(
+                self._joined_results[prefix], key=attrgetter("_provenance")
             )
-        # Sort the tasks based on their _provenance before sending them
-        # This allows for better caching and reproducibility
-        sorted_tasks = sorted(
-            self._joined_results[prefix], key=attrgetter("_provenance")
-        )
+            del self._joined_results[prefix]
+
         logging.info(
             "Received all (%d) results for %s in %s",
             len(sorted_tasks),
@@ -102,7 +105,6 @@ class JoinedTaskWorker(TaskWorker):
         )
         with self.work_buffer_context(sorted_tasks[0]):
             self.consume_work_joined(sorted_tasks)
-            del self._joined_results[prefix]
 
     def _validate_connection(self) -> None:
         """
