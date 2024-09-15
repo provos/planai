@@ -544,6 +544,7 @@ def optimize_prompt(
                 num_iterations = config.get("num_iterations", 3)
                 llm_opt_provider = config.get("llm_opt_provider")
                 llm_opt_model = config.get("llm_opt_model")
+                llm_opt_max_tokens = config.get("llm_opt_max_tokens", 4096)
 
                 missing_fields = []
                 if not python_file:
@@ -578,6 +579,7 @@ def optimize_prompt(
         num_iterations = args.num_iterations
         llm_opt_model = args.llm_opt_model
         llm_opt_provider = args.llm_opt_provider
+        llm_opt_max_tokens = 4096
 
     # Write out configuration if requested
     if args.output_config:
@@ -590,6 +592,7 @@ def optimize_prompt(
             "num_iterations": num_iterations,
             "llm_opt_provider": llm_opt_provider,
             "llm_opt_model": llm_opt_model,
+            "llm_opt_max_tokens": llm_opt_max_tokens,
         }
         with open(args.output_config, "w") as config_file:
             json.dump(config_data, config_file, indent=4)
@@ -612,7 +615,9 @@ def optimize_prompt(
     llm_for_optimization = llm_fast
     if llm_opt_provider and llm_opt_model:
         llm_for_optimization = llm_from_config(
-            provider=llm_opt_provider, model_name=llm_opt_model
+            provider=llm_opt_provider,
+            model_name=llm_opt_model,
+            max_tokens=llm_opt_max_tokens,
         )
 
     # Then, load and instantiate the class
