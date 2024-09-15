@@ -63,6 +63,7 @@ from pydantic import Field, PrivateAttr
 from planai import (
     CachedLLMTaskWorker,
     Graph,
+    InitialTaskWorker,
     JoinedTaskWorker,
     LLMTaskWorker,
     Task,
@@ -344,33 +345,36 @@ class JoinPromptPerformanceOutput(JoinedTaskWorker):
         )
 
 
-class AccumulateCritiqueOutput(TaskWorker):
+class AccumulateCritiqueOutput(JoinedTaskWorker):
+    join_type: Type[TaskWorker] = InitialTaskWorker
     iterations: int = Field(3, description="The number of iterations to run")
     output_types: List[Type[Task]] = [MultipleCombinedPromptCritique, PromptCritique]
     _state: Dict[str, PromptCritique] = PrivateAttr(default_factory=dict)
     _count: int = PrivateAttr(default=0)
 
     def consume_work(self, task: CombinedPromptCritique):
-        input_task = task.find_input_task(ImprovedPrompt)
-        if input_task is None:
-            raise ValueError("No input task found")
+        return super().consume_work(task)
 
-        critique = PromptCritique(
-            prompt_template=input_task.prompt_template,
-            critique=task.critique,
-            score=task.score,
-        )
+    def consume_work_joined(self, tasks: List[CombinedPromptCritique]):
+        if not tasks:
+            self.print("No tasks received - this is a serious error")
+            return
+
+        for task in tasks:
+            input_task = task.find_input_task(ImprovedPrompt)
+            if input_task is None:
+                raise ValueError("No input task found")
+
+            critique = PromptCritique(
+                prompt_template=input_task.prompt_template,
+                critique=task.critique,
+                score=task.score,
+            )
+
+            with self.lock:
+                self._state[input_task.prompt_template] = critique
 
         with self.lock:
-            self._state[input_task.prompt_template] = critique
-
-            if len(self._state) < 2:
-                self.print(
-                    f"Only {len(self._state)} critiques so far - waiting for more"
-                )
-                # we need at least two critiques to compare
-                return
-
             # keep the top three scores
             top_three = sorted(
                 self._state.values(), key=attrgetter("score"), reverse=True
