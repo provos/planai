@@ -1,5 +1,6 @@
 import os
 import sys
+
 import sphinx_rtd_theme
 
 sys.path.insert(0, os.path.abspath("../../src"))
@@ -31,6 +32,29 @@ extensions = [
 
 templates_path = ["_templates"]
 exclude_patterns = []
+
+autodoc_default_options = {
+    "inherited-members": False,
+}
+
+# Define list of undesired members from BaseModel
+undesired_members = [
+    "model_fields",
+    "model_post_init",
+    "model_computed_fields",
+    "model_config",
+    # Add any other Pydantic BaseModel members you want to exclude
+]
+
+
+def should_skip(app, what, name, obj, skip, options):
+    if name in undesired_members:
+        return True
+    return skip
+
+
+def setup(app):
+    app.connect("autodoc-skip-member", should_skip)
 
 
 # -- Options for HTML output -------------------------------------------------
