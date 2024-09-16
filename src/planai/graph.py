@@ -354,6 +354,10 @@ class Graph(BaseModel):
 
     def _print_log(self, max_lines=15):
         print("\nLog:")
+        if max_lines <= 0:
+            for line in self._log_lines:
+                print(line)
+            return
 
         # Get terminal width and leave a margin of 10 characters
         terminal_width = max(shutil.get_terminal_size().columns - 10, 20)
@@ -372,28 +376,28 @@ class Graph(BaseModel):
             print(line)
 
     def display_terminal_status(self):
-        data = {
-            "queued": self._dispatcher.get_queued_tasks(),
-            "active": self._dispatcher.get_active_tasks(),
-            "completed": self._dispatcher.get_completed_tasks(),
-            "failed": self._dispatcher.get_failed_tasks(),
-        }
+        stats = self._dispatcher.get_execution_statistics()
         terminal_size = shutil.get_terminal_size((80, 20))
         terminal_width = terminal_size.columns
+        terminal_height = terminal_size.lines
 
         print("\033[H\033[J")  # Clear terminal
 
-        for worker in sorted(
-            set(t["worker"] for tasks in data.values() for t in tasks)
-        ):
-            completed = sum(1 for t in data["completed"] if t["worker"] == worker)
-            active = sum(1 for t in data["active"] if t["worker"] == worker)
-            queued = sum(1 for t in data["queued"] if t["worker"] == worker)
-            failed = sum(1 for t in data["failed"] if t["worker"] == worker)
+        # Sort the workers based on their distance from InitialTaskWorker
+        distances = self._worker_distances.get("InitialTaskWorker", {})
+        sorted_workers = sorted(
+            stats.items(), key=lambda item: distances.get(item[0], float("inf"))
+        )
+
+        for worker, data in sorted_workers:
+            completed = data["completed"]
+            active = data["active"]
+            queued = data["queued"]
+            failed = data["failed"]
 
             total_tasks = completed + active + queued + failed
             available_width = (
-                terminal_width - 29
+                terminal_width - 60
             ) // 2  # Adjust for worker name and separator
 
             if total_tasks > available_width:
@@ -430,7 +434,8 @@ class Graph(BaseModel):
 
             print(f"{cursor_move}{counts}")
 
-        self._print_log()
+        lines_to_print = terminal_height - len(sorted_workers) - 4
+        self._print_log(max_lines=lines_to_print)
 
         # Reset the cursor to the top
         print("\033[H")
@@ -465,8 +470,8 @@ def main():
 
         def consume_work(self, task: Task1WorkItem):
             self.print(f"Task1 consuming: {task.data}")
-            time.sleep(random.uniform(0.2, 0.7))
-            for i in range(5):
+            time.sleep(random.uniform(0.2, 0.9))
+            for i in range(7):
                 processed = f"Processed: {task.data.upper()} at iteration {i}"
                 self.publish_work(
                     Task2WorkItem(processed_data=processed), input_task=task
@@ -477,8 +482,8 @@ def main():
 
         def consume_work(self, task: Task2WorkItem):
             self.print(f"Task2 consuming: {task.processed_data}")
-            time.sleep(random.uniform(0.3, 1.5))
-            for i in range(7):
+            time.sleep(random.uniform(0.3, 2.5))
+            for i in range(11):
                 final = f"Final: {task.processed_data} at iteration {i}!"
                 self.publish_work(Task3WorkItem(final_result=final), input_task=task)
 

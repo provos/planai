@@ -62,7 +62,6 @@ task processing and dependency management.
 
 import logging
 import random
-import statistics
 import sys
 import threading
 import time
@@ -81,6 +80,7 @@ from typing import (
     Type,
 )
 
+from .stats import WorkerStat
 from .task import Task, TaskWorker
 from .web_interface import is_quit_requested, run_web_interface
 
@@ -142,8 +142,8 @@ class Dispatcher:
         self.failed_tasks: Deque[Tuple[TaskWorker, Task, str]] = deque(
             maxlen=100
         )  # Keep last 100 failed tasks
-        self.worker_stats: Dict[str, List[float]] = defaultdict(
-            list
+        self.worker_stats: Dict[str, WorkerStat] = defaultdict(
+            WorkerStat
         )  # keeps track of execution times for each worker
         self.total_completed_tasks = 0
         self.total_failed_tasks = 0
@@ -372,6 +372,7 @@ class Dispatcher:
         """
         inherited_chain = get_inheritance_chain(worker.__class__)
         with self.task_lock:
+            self.worker_stats[worker.name].decrement_active()
             for cls_name in inherited_chain:
                 if cls_name in self._per_worker_task_count:
                     self._per_worker_task_count[cls_name] -= 1
@@ -392,6 +393,7 @@ class Dispatcher:
     def increment_active_tasks(self, worker: TaskWorker):
         inherited_chain = get_inheritance_chain(worker.__class__)
         with self.task_lock:
+            self.worker_stats[worker.name].increment_active()
             for cls_name in inherited_chain:
                 if cls_name in self._per_worker_task_count:
                     self._per_worker_task_count[cls_name] += 1
@@ -424,6 +426,9 @@ class Dispatcher:
                             ):
                                 queue.put((worker, task))
                                 continue
+                with self.task_lock:
+                    self.worker_stats[worker.name].decrement_queued()
+
                 self.increment_active_tasks(worker)
                 future = self.graph._thread_pool.submit(
                     self._execute_task, worker, task
@@ -536,25 +541,9 @@ class Dispatcher:
             ]
 
     def get_execution_statistics(self):
-        stats = {}
-        with self.task_lock:
-            for worker, times in self.worker_stats.items():
-                if times:
-                    stats[worker] = {
-                        "min": min(times),
-                        "median": statistics.median(times),
-                        "max": max(times),
-                        "stdDev": statistics.stdev(times) if len(times) > 1 else 0,
-                        "count": len(times),
-                    }
-                else:
-                    stats[worker] = {
-                        "min": 0,
-                        "median": 0,
-                        "max": 0,
-                        "stdDev": 0,
-                        "count": 0,
-                    }
+        stats = {
+            worker: stat.get_statistics() for worker, stat in self.worker_stats.items()
+        }
         return stats
 
     def _get_task_id(self, task: Task) -> str:
@@ -585,7 +574,7 @@ class Dispatcher:
             if task and task._start_time and task._end_time:
                 execution_time = task._end_time - task._start_time
                 with self.task_lock:
-                    self.worker_stats[worker.name].append(execution_time)
+                    self.worker_stats[worker.name].add_completion_time(execution_time)
 
         except Exception as e:
             # Handle task failure
@@ -618,6 +607,7 @@ class Dispatcher:
                     self.failed_tasks.appendleft(
                         (worker, task if task else NotificationTask(), error_message)
                     )
+                    self.worker_stats[worker.name].increment_failed()
                     self.total_failed_tasks += 1
 
                 if task:
@@ -630,6 +620,7 @@ class Dispatcher:
                         (worker, task if task else NotificationTask())
                     )
                     self.total_completed_tasks += 1
+                    self.worker_stats[worker.name].increment_completed()
 
             if task:
                 self._remove_provenance(task, worker)
@@ -656,6 +647,7 @@ class Dispatcher:
         inheritance_chain = get_inheritance_chain(worker.__class__)
         per_task_queue = self.work_queue
         with self.task_lock:
+            self.worker_stats[worker.name].increment_queued()
             for cls_name in inheritance_chain:
                 if cls_name in self._per_worker_queue:
                     per_task_queue = self._per_worker_queue[cls_name]
