@@ -41,6 +41,7 @@ class InputChunk(Task):
     """Represents a chunk of text from the input textbook to be processed."""
 
     text: str = Field(description="The text chunk to process.")
+    id: int = Field(description="The unique identifier for the text chunk.")
 
 
 class IsInteresting(Task):
@@ -332,6 +333,27 @@ Examples:
             self.print("---------")
 
 
+def get_input_text(input_chunk: InputChunk, chunks: List[str]) -> str:
+    """
+    Retrieve a segment of text from a list of chunks based on the provided input chunk.
+
+    Parameters:
+        input_chunk (InputChunk): The input chunk containing the current text and its ID.
+        chunks (List[str]): A list of text chunks from which to retrieve the segment.
+
+    Returns:
+        str: A string containing the concatenated text from the specified range of chunks.
+              If the chunks list is empty, returns the text from the input_chunk.
+    """
+    if chunks:
+        min_id = max(0, input_chunk.id - 1)
+        max_id = min(len(chunks), input_chunk.id + 2)
+        input_text = "\n".join(chunks[min_id:max_id])
+    else:
+        input_text = input_chunk.text
+    return input_text
+
+
 class QuestionAnswer(CachedLLMTaskWorker):
     """
     Generates two comprehensive and distinct answers for a given question based on the
@@ -380,11 +402,17 @@ Ensure:
     """
     ).strip()
 
+    _chunks: List[str] = PrivateAttr(default=[])
+
+    def set_chunks(self, chunks: List[str]):
+        self._chunks = chunks
+
     def format_prompt(self, task: Question) -> str:
         input_chunk: Optional[InputChunk] = task.find_input_task(InputChunk)
         if input_chunk is None:
             raise ValueError("InputChunk not found in task dependencies")
-        return self.prompt.format(input_text=input_chunk.text, question=task.question)
+        input_text = get_input_text(input_chunk, self._chunks)
+        return self.prompt.format(input_text=input_text, question=task.question)
 
     def consume_work(self, task: Question):
         super().consume_work(task)
@@ -439,24 +467,30 @@ Evaluation Guidelines:
 Please provide your decision in JSON format with the following structure:
 
 {{
-    "best_answer": "<The full text of the selected best answer>",
+    "best_answer": "<The full text of the selected best answer without any additional commentary or text>",
     "explanation": "<A concise explanation (2-3 sentences) supporting your choice, focused on the evaluation criteria>"
 }}
 
-In your explanation, justify the superiority of the chosen answer by considering both content quality and presentation. Highlight any unique insights or perspectives in your evaluation. Select only one answer as the best.
+In your explanation, justify the superiority of the chosen answer by considering both content quality and presentation. Highlight any unique insights or perspectives in your evaluation. Select only one answer as the best and copy it directly from the input without including the text "Answer 1" or "Answer 2" as part of it.
     """
     ).strip()
+
+    _chunks: List[str] = PrivateAttr(default=[])
+
+    def set_chunks(self, chunks: List[str]):
+        self._chunks = chunks
 
     def format_prompt(self, task: Answers) -> str:
         question_task: Optional[Question] = task.find_input_task(Question)
         input_chunk: Optional[InputChunk] = task.find_input_task(InputChunk)
         if question_task is None or input_chunk is None:
             raise ValueError("Required input tasks not found in task dependencies")
+        input_text = get_input_text(input_chunk, self._chunks)
         return self.prompt.format(
             question=question_task.question,
             answer1=task.answer1,
             answer2=task.answer2,
-            input_text=input_chunk.text,
+            input_text=input_text,
         )
 
     def consume_work(self, task: Answers):
@@ -546,14 +580,14 @@ def main():
 
     # Initialize workers
     fast_llm = llm_from_config(provider="openai", model_name="gpt-4o-mini")
-    reasoning_llm = llm_from_config(provider="openai", model_name="gpt-4o-mini")
+    reasoning_llm = llm_from_config(provider="openai", model_name="gpt-4o-2024-08-06")
 
     clean_text_worker = CleanText(llm=fast_llm)
     interesting_worker = InterestingText(llm=fast_llm)
     create_questions_worker = CreateQuestions(llm=reasoning_llm)
-    question_evaluation_worker = QuestionEvaluationWorker(llm=reasoning_llm)
+    question_evaluation_worker = QuestionEvaluationWorker(llm=fast_llm)
     question_answer_worker = QuestionAnswer(llm=reasoning_llm)
-    answer_evaluation_worker = AnswerEvaluator(llm=reasoning_llm)
+    answer_evaluation_worker = AnswerEvaluator(llm=fast_llm)
     print_worker = PrintOutput()
 
     # Add workers to the graph and set up the processing pipeline
@@ -594,8 +628,16 @@ def main():
         chunks = chunks[start_index:end_index]
         print(f"Running test pipeline with {len(chunks)} chunks...")
 
+    # Inject chunks into the workers that require them
+    # This will give them extra context for generating answers.
+    question_answer_worker.set_chunks(chunks)
+    answer_evaluation_worker.set_chunks(chunks)
+
     # Create initial tasks for processing
-    input_work = [(clean_text_worker, InputChunk(text=chunk)) for chunk in chunks]
+    input_work = [
+        (clean_text_worker, InputChunk(text=chunk, id=id))
+        for id, chunk in enumerate(chunks)
+    ]
 
     # Run the graph with the initial tasks
     print(f"Processing {len(input_work)} chunks...")
