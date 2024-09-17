@@ -191,6 +191,42 @@ class TestLLMInterface(unittest.TestCase):
         except json.JSONDecodeError:
             self.fail("The schema in the instructions is not valid JSON")
 
+    def test_generate_pydantic_with_debug_saver(self):
+        output_model = DummyPydanticModel(field1="test", field2=42)
+        valid_json_response = '{"field1": "test", "field2": 42}'
+        self.mock_client.chat.return_value = {
+            "message": {"content": valid_json_response}
+        }
+
+        # Mock debug_saver function
+        mock_debug_saver = Mock()
+
+        # Additional kwargs for the prompt template
+        additional_kwargs = {"extra_param": "value"}
+
+        response = self.llm_interface.generate_pydantic(
+            prompt_template="Test prompt with {extra_param}",
+            output_schema=DummyPydanticModel,
+            system=self.system,
+            debug_saver=mock_debug_saver,
+            **additional_kwargs
+        )
+
+        self.assertEqual(response, output_model)
+
+        # Assert that debug_saver was called with the correct arguments
+        mock_debug_saver.assert_called_once()
+        call_args = mock_debug_saver.call_args[0]
+
+        # Check the prompt
+        self.assertEqual(call_args[0], "Test prompt with value")
+
+        # Check the kwargs
+        self.assertEqual(call_args[1], additional_kwargs)
+
+        # Check the response
+        self.assertEqual(call_args[2], output_model)
+
 
 if __name__ == "__main__":
     unittest.main()

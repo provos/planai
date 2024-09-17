@@ -132,7 +132,7 @@ class LLMInterface:
         output_schema: BaseModel,
         system: str = "",
         logger: Optional[logging.Logger] = None,
-        debug_saver: Optional[Callable[[str, str], None]] = None,
+        debug_saver: Optional[Callable[[str, Dict[str, Any], str], None]] = None,
         extra_validation: Optional[Callable[[BaseModel], Optional[str]]] = None,
         **kwargs,
     ) -> Optional[BaseModel]:
@@ -150,7 +150,7 @@ class LLMInterface:
             output_schema (BaseModel): A Pydantic model that defines the expected schema of the output data.
             system (str): An optional system prompt used during the generation process.
             logger (Optional[logging.Logger]): An optional logger for recording the generated prompt and events.
-            debug_saver (Optional[Callable[[str, str], None]]): An optional callback for saving debugging information,
+            debug_saver (Optional[Callable[[str, Dict[str, Any], str], None]]): An optional callback for saving debugging information,
                 which receives the prompt and the response.
             extra_validation (Optional[Callable[[BaseModel], str]]): An optional function for additional validation of
                 the generated output. It should return an error message if validation fails, otherwise None.
@@ -213,7 +213,7 @@ class LLMInterface:
             break
 
         if debug_saver is not None:
-            debug_saver(prompt=formatted_prompt, response=response)
+            debug_saver(formatted_prompt, kwargs, response)
 
         return response
 

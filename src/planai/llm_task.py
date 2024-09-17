@@ -16,7 +16,7 @@ import json
 import logging
 from pathlib import Path
 from textwrap import dedent
-from typing import Optional, Type
+from typing import Any, Dict, Optional, Type
 
 from pydantic import ConfigDict, Field
 
@@ -83,7 +83,9 @@ class LLMTaskWorker(TaskWorker):
         # allow subclasses to pre-process the task and present it more clearly to the LLM
         processed_task = self.pre_process(task)
 
-        def save_debug_with_task(prompt: str, response: Optional[Task]):
+        def save_debug_with_task(
+            prompt: str, kwargs: Dict[str, Any], response: Optional[Task]
+        ):
             self._save_debug_output(task=task, prompt=prompt, response=response)
 
         # allow subclasses to do extra validation on the response
