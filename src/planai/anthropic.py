@@ -89,6 +89,7 @@ class AnthropicWrapper:
                 max_tokens=kwargs.get("max_tokens", self.max_tokens),
                 messages=filtered_messages,
                 model=kwargs.get("model", "claude-3-5-sonnet-20240620"),
+                temperature=kwargs.get("temperature", None),
                 system=system_message,  # Pass the system message here
             )
 

@@ -59,6 +59,12 @@ class LLMTaskWorker(TaskWorker):
         description="Whether to run the LLM to save prompts and responses in json for debugging",
     )
     debug_dir: str = Field("debug", description="The directory to save debug output in")
+    temperature: Optional[float] = Field(
+        None,
+        description="The temperature to use for the LLM. If not set, the LLM default is used",
+        le=1.0,
+        ge=0.0,
+    )
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -97,6 +103,7 @@ class LLMTaskWorker(TaskWorker):
             output_schema=self._output_type(),
             system=self.system_prompt,
             task=processed_task.model_dump_json(indent=2),
+            temperature=self.temperature,
             instructions=task_prompt,
             format_instructions=LLMInterface.get_format_instructions(
                 self._output_type()

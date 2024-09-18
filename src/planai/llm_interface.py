@@ -51,26 +51,36 @@ class LLMInterface:
             directory=".response_cache", eviction_policy="least-recently-used"
         )
 
-    def _cached_chat(self, messages: List[Dict[str, str]]) -> str:
+    def _cached_chat(
+        self, messages: List[Dict[str, str]], temperature: Optional[float] = None
+    ) -> str:
         # Concatenate all messages to use as the cache key
         message_content = "".join([msg["role"] + msg["content"] for msg in messages])
-        prompt_hash = self._generate_hash(self.model_name + message_content)
+        prompt_hash = self._generate_hash(
+            self.model_name + f"-{temperature}" if temperature else "" + message_content
+        )
 
         # Check if prompt response is in cache
         response = self.disk_cache.get(prompt_hash)
 
         if response is None:
             # If not in cache, make request to client using chat interface
-            response = self.client.chat(model=self.model_name, messages=messages)
+            response = self.client.chat(
+                model=self.model_name,
+                messages=messages,
+                options={"temperature": temperature} if temperature else None,
+            )
 
             # Cache the response with hashed prompt as key
             self.disk_cache.set(prompt_hash, response)
 
         return response["message"]["content"]
 
-    def chat(self, messages: List[Dict[str, str]]) -> str:
+    def chat(
+        self, messages: List[Dict[str, str]], temperature: Optional[float] = None
+    ) -> str:
         self.logger.info("Chatting with messages: %s", messages)
-        response = self._cached_chat(messages=messages)
+        response = self._cached_chat(messages=messages, temperature=temperature)
         self.logger.info("Received chat response: %s...", response[:850])
         return response.strip()
 
@@ -129,11 +139,12 @@ class LLMInterface:
     def generate_pydantic(
         self,
         prompt_template: str,
-        output_schema: BaseModel,
+        output_schema: Type[BaseModel],
         system: str = "",
         logger: Optional[logging.Logger] = None,
         debug_saver: Optional[Callable[[str, Dict[str, Any], str], None]] = None,
         extra_validation: Optional[Callable[[BaseModel], Optional[str]]] = None,
+        temperature: Optional[float] = None,
         **kwargs,
     ) -> Optional[BaseModel]:
         """
@@ -147,7 +158,7 @@ class LLMInterface:
 
         Args:
             prompt_template (str): The template containing placeholders for formatting the prompt.
-            output_schema (BaseModel): A Pydantic model that defines the expected schema of the output data.
+            output_schema (Type[BaseModel]): A Pydantic model that defines the expected schema of the output data.
             system (str): An optional system prompt used during the generation process.
             logger (Optional[logging.Logger]): An optional logger for recording the generated prompt and events.
             debug_saver (Optional[Callable[[str, Dict[str, Any], str], None]]): An optional callback for saving debugging information,
@@ -179,7 +190,7 @@ class LLMInterface:
         while iteration < 3:
             iteration += 1
 
-            raw_response = self.chat(messages=messages)
+            raw_response = self.chat(messages=messages, temperature=temperature)
             if not self.support_json_mode:
                 raw_response = self._strip_text_from_json_response(raw_response)
 

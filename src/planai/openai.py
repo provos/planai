@@ -92,6 +92,9 @@ class OpenAIWrapper:
             "max_tokens": kwargs.get("max_tokens", self.max_tokens),
         }
 
+        if "temperature" in kwargs:
+            api_params["temperature"] = kwargs["temperature"]
+
         try:
             response = self.client.chat.completions.create(**api_params)
             # Format output to simulate Ollama's response structure
