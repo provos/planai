@@ -85,13 +85,20 @@ class AnthropicWrapper:
         filtered_messages = [msg for msg in messages if msg["role"] != "system"]
 
         try:
-            response = self.client.messages.create(
-                max_tokens=kwargs.get("max_tokens", self.max_tokens),
-                messages=filtered_messages,
-                model=kwargs.get("model", "claude-3-5-sonnet-20240620"),
-                temperature=kwargs.get("temperature", None),
-                system=system_message,  # Pass the system message here
-            )
+            # Common parameters
+            params = {
+                "max_tokens": kwargs.get("max_tokens", self.max_tokens),
+                "messages": filtered_messages,
+                "model": kwargs.get("model", "claude-3-5-sonnet-20240620"),
+                "system": system_message,  # Pass the system message here
+            }
+
+            # Conditionally add temperature if it exists in kwargs
+            if "temperature" in kwargs:
+                params["temperature"] = kwargs["temperature"]
+
+            # Call the function with the constructed parameters
+            response = self.client.messages.create(**params)
 
             # Extract content blocks as text and simulate Ollama-like response
             content = "".join(
