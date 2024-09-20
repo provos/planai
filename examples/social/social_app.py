@@ -56,6 +56,10 @@ class SocialMediaPost(Task):
 class SearchNewsWorker(CachedTaskWorker):
     output_types: List[Type[Task]] = [SelectedNews]
 
+    def extra_cache_key(self, task: SearchQuery) -> str:
+        # let's get different news each day
+        return datetime.now().strftime("%Y-%m-%d")
+
     def consume_work(self, task: SearchQuery):
         # Use SerperGoogleSearchTool to search news
         news_results = SerperGoogleSearchTool.search_internet(
