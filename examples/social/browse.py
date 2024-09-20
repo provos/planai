@@ -29,7 +29,7 @@ class WebBrowser:
                 content type and the page content will be None.
         """
         with sync_playwright() as p:
-            browser = p.chromium.launch()
+            browser = p.chromium.launch(args=["--disable-gpu"])
             context = browser.new_context()
             page = context.new_page()
 
