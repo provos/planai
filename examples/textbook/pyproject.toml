@@ -2,7 +2,7 @@
 name = "textbook"
 version = "0.1.0"
 description = "An example to use PlanAI to generate textbook Q&A questions."
-authors = ["Your Name <you@example.com>"]
+authors = ["Niels Provos"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
