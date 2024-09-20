@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "textbook"
+version = "0.1.0"
+description = "An example to use PlanAI to generate textbook Q&A questions."
+authors = ["Niels Provos"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+planai = {path = "../../", develop = true}
+playwright = "^1.47.0"
+beautifulsoup4 = "^4.12.3"
+html2text = "^2024.2.26"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
