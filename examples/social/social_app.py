@@ -198,26 +198,27 @@ class CreatePostWorker(CachedLLMTaskWorker):
     )
     prompt: str = dedent(
         """
-Your task is to create a series of engaging and thought-provoking social media posts for the following profile; drawing inspiration from the list of selected news articles provided above. Each post should captivate curiosity and spark discussion among followers by focusing on a single theme or insight derived from the news titles and contents.
+Your task is to craft a series of engaging and intriguing social media posts tailored for the profile described below. Use the list of selected news articles provided above as inspiration. Each post should captivate an audience by diving deeply into a single theme or insight discovered within the news titles and contents.
 
 Profile Description:
 {profile_description}
 
 Guidelines for creating the posts:
-1. Begin with a captivating opening which can be partially inspired by the profile's core interests but should mainly be based on interesting news.
-2. Draw inspiration from specific content in the news articles, offering intriguing insights related to that single focus.
-3. Avoid forcefully mixing disparate topics; instead, allow each post to explore one theme deeply or provide a fresh perspective.
-4. Foster engagement by posing a thought-provoking, open-ended question or inviting followers to share their perspectives.
-5. The call for action should be subtle and not overaly generic, encouraging followers to engage with the post in a meaningful way.
-6. Write so that it looks like it's coming from a human, not a robot.
+1. Start with a captivating hook directly inspired by an intriguing piece of news and align it with the personality or interests outlined in the profile description.
+2. Focus on a specific content detail from the news articles, offering a fresh and thought-provoking perspective related to this theme.
+3. Concentrate on a single theme per post, avoiding the blending of unrelated topics.
+4. Create engagement by posing an open-ended question or inviting followers to share their thoughts.
+5. Use a subtle call to action that feels natural and individualized, rather than generic, prompting followers to interact with the content thoughtfully.
+6. The tone and style should read like a human and not like an LLM.
 
-Ensure each social media post is concise yet impactful, adhering to the character limits of platforms like Twitter (280 characters) and Threads, while maintaining engagement and clarity. Each response should be a single, coherent post ready for publication. Don't use any other emojis or special characters. You are allowed to use smileys like :) or :(.
+Each social media post must be captivating and concise, adhering to a limit of 280 characters, while maintaining clear engagement and insight.
+Avoid using emojis or special characters, but feel free to use simple smileys like :) or :(.
 
 Example Posts:
 "AI's new frontier is reshaping our creativity. With fusion models on the rise, how might this redefine our artistic expressions? I will explore this in my next project. Curious what anyone else can report?"
-"Quantum challenges could soon defeat traditional crypot. lattice encryption will likely be standardized but it's so expensive. When is the right moment to switch over to it? Thoughts?"
+"Quantum challenges could soon defeat traditional crypto. Lattice encryption may be the future but it's costly. When should we switch? Thoughts?"
 
-Now, craft three potential posts that each relate to a specific insight or theme from the selected news articles, allowing for depth and relevance:
+Now, craft three distinct posts, each exploring a specific insight or theme from the selected news articles, ensuring depth and relevance:
     """
     ).strip()
 
@@ -228,6 +229,25 @@ Now, craft three potential posts that each relate to a specific insight or theme
 
     def consume_work(self, task: SelectedPages):
         super().consume_work(task)
+
+    def extra_validation(
+        self, response: SocialMediaPost, input_task: SelectedPages
+    ) -> Optional[str]:
+        messages = []
+        for i, post in enumerate(
+            [response.post1, response.post2, response.post3], start=1
+        ):
+            if len(post) > 280:
+                messages.append(
+                    f"post{i} exceeds character limit: {len(post)} characters."
+                )
+            elif len(post) < 200:
+                messages.append(
+                    f"post{i} is too short: {len(post)} characters - it should be at least 200 characters."
+                )
+        if messages:
+            return " ".join(messages)
+        return None
 
 
 def main():
