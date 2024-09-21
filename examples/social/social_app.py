@@ -163,7 +163,7 @@ Adhere to these principles to produce a final document that is streamlined, rele
 
     def pre_process(self, task: PageResult) -> PageResult:
         task = task.model_copy()
-        task.content = task.content[:45000]
+        task.content = task.content[:85000]
         return task
 
     def consume_work(self, task: PageResult):
@@ -182,7 +182,7 @@ class CombineResults(JoinedTaskWorker):
             PageResult(
                 title=task.title,
                 link=task.link,
-                content=task.content[:9000],
+                content=task.content[:19000],
             )
             for task in tasks
         ]
@@ -211,7 +211,7 @@ Guidelines for creating the posts:
 5. Use a subtle call to action that feels natural and individualized, rather than generic, prompting followers to interact with the content thoughtfully.
 6. The tone and style should read like a human and not like an LLM.
 
-Each social media post must be captivating and concise, adhering to a limit of 280 characters, while maintaining clear engagement and insight.
+Each social media post must be captivating and concise, adhering to a limit of {min_length} to {max_length} characters, while maintaining clear engagement and insight.
 Avoid using emojis or special characters, but feel free to use simple smileys like :) or :(.
 
 Example Posts:
@@ -221,11 +221,17 @@ Example Posts:
 Now, craft three distinct posts, each exploring a specific insight or theme from the selected news articles, ensuring depth and relevance:
     """
     ).strip()
+    max_length: int = Field(500, description="Maximum length of the generated post")
+    min_length: int = Field(200, description="Minimum length of the generated post")
 
     profile_description: str
 
     def format_prompt(self, task: Task) -> str:
-        return self.prompt.format(profile_description=self.profile_description)
+        return self.prompt.format(
+            profile_description=self.profile_description,
+            min_length=self.min_length,
+            max_length=self.max_length,
+        )
 
     def consume_work(self, task: SelectedPages):
         super().consume_work(task)
@@ -237,13 +243,13 @@ Now, craft three distinct posts, each exploring a specific insight or theme from
         for i, post in enumerate(
             [response.post1, response.post2, response.post3], start=1
         ):
-            if len(post) > 280:
+            if len(post) > self.max_length:
                 messages.append(
                     f"post{i} exceeds character limit: {len(post)} characters."
                 )
-            elif len(post) < 200:
+            elif len(post) < self.min_length:
                 messages.append(
-                    f"post{i} is too short: {len(post)} characters - it should be at least 200 characters."
+                    f"post{i} is too short: {len(post)} characters - it should be at least {self.min_length} characters."
                 )
         if messages:
             return " ".join(messages)
