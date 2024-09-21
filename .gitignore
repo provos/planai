@@ -132,3 +132,4 @@ output/
 debug/
 examples/**/*.json
 examples/**/*.txt
+examples/social/config-*.yaml
