@@ -112,6 +112,8 @@ def get_inheritance_chain(cls: Type[TaskWorker]) -> List[str]:
 class Dispatcher:
     def __init__(self, graph: "Graph", web_port=5000):
         self.graph = graph
+        self.web_port = web_port
+
         # We have a default Queue for all tasks
         self.work_queue = Queue()
 
@@ -133,8 +135,7 @@ class Dispatcher:
         self.notifiers_lock = Lock()
         self.stop_event = Event()
         self._active_tasks = 0
-        self.task_completion_event = threading.Event()
-        self.web_port = web_port
+        self.task_completion_event = Event()
         self.debug_active_tasks: Dict[int, Tuple[TaskWorker, Task]] = {}
         self.completed_tasks: Deque[Tuple[TaskWorker, Task]] = deque(
             maxlen=100
@@ -148,7 +149,7 @@ class Dispatcher:
         self.total_completed_tasks = 0
         self.total_failed_tasks = 0
         self.task_id_counter = 0
-        self.task_lock = threading.Lock()
+        self.task_lock = Lock()
 
     @property
     def active_tasks(self):
