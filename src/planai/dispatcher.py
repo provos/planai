@@ -70,6 +70,7 @@ from queue import Empty, Queue
 from threading import Event, Lock, RLock
 from typing import (
     TYPE_CHECKING,
+    Any,
     DefaultDict,
     Deque,
     Dict,
@@ -82,6 +83,7 @@ from typing import (
 
 from .stats import WorkerStat
 from .task import Task, TaskWorker
+from .user_input import UserInputRequest
 from .web_interface import is_quit_requested, run_web_interface
 
 if TYPE_CHECKING:
@@ -114,6 +116,7 @@ class Dispatcher:
         self.graph = graph
         self.web_port = web_port
 
+        self.task_lock = Lock()
         # We have a default Queue for all tasks
         self.work_queue = Queue()
 
@@ -149,7 +152,10 @@ class Dispatcher:
         self.total_completed_tasks = 0
         self.total_failed_tasks = 0
         self.task_id_counter = 0
-        self.task_lock = Lock()
+
+        # managing user requests
+        self.user_input_requests = Queue()
+        self.user_pending_requests: Dict[str, UserInputRequest] = {}
 
     @property
     def active_tasks(self):
@@ -411,6 +417,9 @@ class Dispatcher:
             self._per_worker_max_parallel_tasks[worker_class_name] = max_parallel_tasks
 
     def _dispatch_once(self) -> bool:
+        # Check if there are user input requests
+        self._dispatch_user_requests()
+
         queues = [(None, self.work_queue)] + list(self._per_worker_queue.items())
         random.shuffle(queues)
         for name, queue in queues:
@@ -446,6 +455,32 @@ class Dispatcher:
                 pass  # this queue is empty, try the next one
 
         return False
+
+    def _dispatch_user_requests(self):
+        """
+        Handles the dispatching and processing of user input requests and their results.
+
+        This function is responsible for the following:
+        1. Checking for any pending user input requests and logging the instructions required
+           for each. The requests are stored in a dictionary for tracking by their task ID.
+        2. Checking for completed user input results, processing each result by matching it
+           with its corresponding request, and then delivering the user's input back to the
+           TaskWorker that requested it.
+
+        The function operates in a non-blocking manner, retrieving requests and results from
+        their respective queues only if they are available.
+        """
+        while not self.user_input_requests.empty():
+            request: UserInputRequest = (
+                self.user_input_requests.get_nowait()
+            )  # Non-blocking retrieval
+            logging.info(
+                "User Input Required: Task ID %s - %s",
+                request.task_id,
+                request.instruction,
+            )
+            with self.task_lock:
+                self.user_pending_requests[request.task_id] = request
 
     def dispatch(self):
         while True:
@@ -546,6 +581,31 @@ class Dispatcher:
             worker: stat.get_statistics() for worker, stat in self.worker_stats.items()
         }
         return stats
+
+    def get_user_input_requests(self) -> List[Dict]:
+        with self.task_lock:
+            return [
+                {
+                    "task_id": request.task_id,
+                    "instruction": request.instruction,
+                    "accepted_mime_types": request.accepted_mime_types,
+                }
+                for request in self.user_pending_requests.values()
+            ]
+
+    def set_user_input_result(self, task_id: str, result: Any):
+        logging.info(
+            "User Input Received: Task ID %s - Result: %s",
+            task_id,
+            result,
+        )
+
+        # Locate the relevant request if needed, using task_id
+        with self.task_lock:
+            if task_id in self.user_pending_requests:
+                request: UserInputRequest = self.user_pending_requests.pop(task_id)
+                # Provide the result to the requesting TaskWorker's queue
+                request._response_queue.put(result)
 
     def _get_task_id(self, task: Task) -> str:
         # Use the last entry in the _provenance list as the task ID
@@ -675,3 +735,17 @@ class Dispatcher:
             True  # This ensures the web thread will exit when the main thread exits
         )
         web_thread.start()
+
+    def request_user_input(
+        self,
+        task_id: str,
+        instruction: str,
+        accepted_mime_types: List[str] = ["text/html"],
+    ) -> Any:
+        request = UserInputRequest(
+            task_id=task_id,
+            instruction=instruction,
+            accepted_mime_types=accepted_mime_types,
+        )
+        self.user_input_requests.put(request)
+        return request._response_queue.get()  # Block until result is available

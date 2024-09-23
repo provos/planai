@@ -551,6 +551,25 @@ class TaskWorker(BaseModel, ABC):
     def _validate_connection(self):
         pass
 
+    def request_user_input(
+        self,
+        task: "Task",
+        instruction: str,
+        accepted_mime_types: List[str] = ["text/html"],
+    ) -> Any:
+        if self._graph is None or self._graph._dispatcher is None:
+            raise RuntimeError("Graph or Dispatcher is not initialized.")
+
+        # Use the task's own ID for tracking the input request
+        if not self._last_input_task:
+            raise RuntimeError("No input task to provide context for user input.")
+
+        task_id = self._graph._dispatcher._get_task_id(task)
+        result = self._graph._dispatcher.request_user_input(
+            task_id, instruction, accepted_mime_types
+        )
+        return result
+
 
 def main():
     class MagicTaskWork(Task):

@@ -264,6 +264,9 @@ class Graph(BaseModel):
             terminal_thread = Thread(target=self._terminal_display_thread)
             terminal_thread.start()
 
+        # Allow workers to log messages
+        self._log_lines = []
+
         # Apply the max parallel tasks settings
         for worker_class, max_parallel_tasks in self._max_parallel_tasks.items():
             dispatcher.set_max_parallel_tasks(worker_class, max_parallel_tasks)
@@ -337,7 +340,6 @@ class Graph(BaseModel):
     def _start_terminal_display(self):
         self._stop_terminal_display_event = Event()
         self._stop_terminal_display_event.clear()
-        self._log_lines = []
 
     def _terminal_display_thread(self):
         try:
@@ -452,7 +454,14 @@ class Graph(BaseModel):
 
 
 def main():
+    import argparse
     import random
+
+    parser = argparse.ArgumentParser(description="Simple Graph Example")
+    parser.add_argument(
+        "--run-dashboard", action="store_true", help="Run the web dashboard"
+    )
+    args = parser.parse_args()
 
     # Define custom Task classes
     class Task1WorkItem(Task):
@@ -483,6 +492,16 @@ def main():
         def consume_work(self, task: Task2WorkItem):
             self.print(f"Task2 consuming: {task.processed_data}")
             time.sleep(random.uniform(0.3, 2.5))
+
+            if args.run_dashboard:
+                # demonstrate the ability to request user input
+                if random.random() < 0.1:
+                    self.request_user_input(
+                        task=task,
+                        instruction="Please provide a value",
+                        accepted_mime_types=["text/html", "application/pdf"],
+                    )
+
             for i in range(11):
                 final = f"Final: {task.processed_data} at iteration {i}!"
                 self.publish_work(Task3WorkItem(final_result=final), input_task=task)
@@ -516,7 +535,11 @@ def main():
     ]
 
     # Run the Graph
-    graph.run(initial_work)
+    graph.run(
+        initial_work,
+        run_dashboard=args.run_dashboard,
+        display_terminal=not args.run_dashboard,
+    )
 
 
 if __name__ == "__main__":

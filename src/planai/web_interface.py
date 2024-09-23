@@ -16,7 +16,14 @@ import threading
 import time
 from typing import TYPE_CHECKING, Optional
 
-from flask import Flask, Response, jsonify, render_template, send_from_directory
+from flask import (
+    Flask,
+    Response,
+    jsonify,
+    render_template,
+    request,
+    send_from_directory,
+)
 
 if TYPE_CHECKING:
     from .dispatcher import Dispatcher
@@ -42,20 +49,28 @@ def stream():
     def event_stream():
         last_data = None
         last_trace = None
+        last_requests = None
         while True:
             current_data = get_current_data()
             current_trace = get_current_trace()
+            current_requests = dispatcher.get_user_input_requests()
 
-            if current_data != last_data or current_trace != last_trace:
+            if (
+                current_data != last_data
+                or current_trace != last_trace
+                or current_requests != last_requests
+            ):
                 combined_data = {
                     "tasks": current_data,
                     "trace": current_trace,
                     "stats": dispatcher.get_execution_statistics(),
+                    "user_requests": current_requests,
                 }
                 yield f"data: {json.dumps(combined_data)}\n\n"
 
             last_data = current_data
             last_trace = current_trace
+            last_requests = current_requests
             time.sleep(0.2)
 
     def get_current_data():
@@ -77,6 +92,41 @@ def stream():
 def quit():
     global quit_event
     quit_event.set()
+    return jsonify({"status": "ok"})
+
+
+@app.route("/user_input", methods=["POST"])
+def user_input():
+    # Check if 'task_id' is part of the form data
+    if "task_id" not in request.form:
+        return jsonify({"status": "error", "message": "task_id missing"})
+
+    task_id = request.form["task_id"]
+
+    # Handle abort case
+    if request.form.get("abort"):
+        dispatcher.set_user_input_result(task_id, None)
+        return jsonify({"status": "ok"})
+
+    # Check if there is a file part in the request
+    if "file" not in request.files:
+        return jsonify({"status": "error", "message": "File missing"})
+
+    file = request.files["file"]
+
+    if file.filename == "":
+        return jsonify({"status": "error", "message": "No file selected"})
+
+    # Here we simply read the file content if needed
+    result = file.read()
+
+    print(
+        f"Task ID: {task_id}, File Size: {len(result)} bytes"
+    )  # Print file size for debugging
+
+    # Pass the result to the dispatcher
+    dispatcher.set_user_input_result(task_id, result)
+
     return jsonify({"status": "ok"})
 
 

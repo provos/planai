@@ -260,3 +260,52 @@ h2 {
     background-color: rgba(97, 218, 251, 0.2);
     /* Slightly darker on hover for dark mode */
 }
+
+.user-input-section {
+    margin-bottom: 20px;
+}
+
+.user-request-tile {
+    border: 2px dashed var(--border-color);
+    border-radius: 4px;
+    padding: 20px;
+    margin-bottom: 10px;
+    text-align: center;
+    position: relative;
+    transition: background-color 0.3s ease;
+    background-color: var(--task-item-bg);
+    color: var(--text-color);
+}
+
+.user-request-tile.drag-over {
+    background-color: var(--adding-color);
+}
+
+.user-request-tile p {
+    margin: 5px 0;
+    font-size: 16px;
+    color: var(--text-color);
+}
+
+.abort-button {
+    border: none;
+    background-color: #ff6666;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 10px;
+    transition: background-color 0.3s ease;
+}
+
+.abort-button:hover {
+    background-color: #ff3333;
+}
+
+[data-theme="dark"] .abort-button {
+    background-color: #b32d2d;
+}
+
+[data-theme="dark"] .abort-button:hover {
+    background-color: #992626;
+}
