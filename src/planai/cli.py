@@ -32,6 +32,7 @@ import sys
 
 from planai import llm_from_config
 
+from .cli_cache import handle_cache_subcommand
 from .cli_optimize_prompt import optimize_prompt
 
 
@@ -40,15 +41,15 @@ def create_parser():
 
     # Global arguments
     parser.add_argument(
-        "--llm-provider", type=str, required=True, help="LLM provider name"
+        "--llm-provider", type=str, required=False, help="LLM provider name"
     )
     parser.add_argument(
-        "--llm-model", type=str, required=True, help="LLM model name for generation"
+        "--llm-model", type=str, required=False, help="LLM model name for generation"
     )
     parser.add_argument(
         "--llm-reason-model",
         type=str,
-        required=True,
+        required=False,
         help="LLM model name for reasoning",
     )
 
@@ -97,6 +98,23 @@ def create_parser():
         required=False,
         help="LLM model name for generation to be used for the prompt that is being optimized. This should be the same LLM as being used in production.",
     )
+
+    # Subcommand cache
+    cache_parser = subparsers.add_parser("cache", help="Inspect and manipulate cache")
+    cache_parser.add_argument(
+        "cache_dir", type=str, help="Directory of the diskcache to operate on"
+    )
+    cache_parser.add_argument(
+        "--output-task-filter",
+        type=str,
+        help="Filter for output task type",
+        default=None,
+    )
+    cache_parser.add_argument(
+        "--delete", type=str, help="Delete a specific cache key", default=None
+    )
+    cache_parser.add_argument("--clear", action="store_true", help="Clear the cache")
+
     return parser
 
 
@@ -106,6 +124,10 @@ def main(args=None):
 
     parser = create_parser()
     parsed_args = parser.parse_args(args)
+
+    if parsed_args.command == "cache":
+        handle_cache_subcommand(parsed_args)
+        return
 
     llm_fast = llm_from_config(
         provider=parsed_args.llm_provider, model_name=parsed_args.llm_model
