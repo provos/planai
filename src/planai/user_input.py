@@ -1,5 +1,5 @@
 from queue import Queue
-from typing import Any, List
+from typing import List
 
 from pydantic import BaseModel, Field, PrivateAttr
 
@@ -11,8 +11,3 @@ class UserInputRequest(BaseModel):
         default_factory=lambda: ["text/html", "application/pdf"]
     )
     _response_queue: Queue = PrivateAttr(default_factory=Queue)
-
-
-class UserInputResult(BaseModel):
-    task_id: str
-    result: Any

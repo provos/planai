@@ -44,6 +44,7 @@ class Graph(BaseModel):
     _sink_worker: Optional[TaskWorker] = PrivateAttr(default=None)
 
     _worker_distances: Dict[str, Dict[str, int]] = PrivateAttr(default_factory=dict)
+    _has_terminal: bool = PrivateAttr(default=False)
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -260,9 +261,12 @@ class Graph(BaseModel):
         self._dispatcher = dispatcher
 
         if display_terminal:
+            self._has_terminal = True
             self._start_terminal_display()
             terminal_thread = Thread(target=self._terminal_display_thread)
             terminal_thread.start()
+        else:
+            self._has_terminal = False
 
         # Allow workers to log messages
         self._log_lines = []
@@ -443,8 +447,11 @@ class Graph(BaseModel):
         print("\033[H")
 
     def print(self, *args):
-        message = " ".join(str(arg) for arg in args)
-        self._log_lines.append(message)
+        if self._has_terminal:
+            message = " ".join(str(arg) for arg in args)
+            self._log_lines.append(message)
+        else:
+            print(*args)
 
     def __str__(self) -> str:
         return f"Graph: {self.name} with {len(self.workers)} tasks"
@@ -495,11 +502,14 @@ def main():
 
             if args.run_dashboard:
                 # demonstrate the ability to request user input
-                if random.random() < 0.1:
-                    self.request_user_input(
+                if random.random() < 0.15:
+                    result, mime_type = self.request_user_input(
                         task=task,
                         instruction="Please provide a value",
                         accepted_mime_types=["text/html", "application/pdf"],
+                    )
+                    self.print(
+                        f"User input: {len(result) if result else None} ({mime_type})"
                     )
 
             for i in range(11):

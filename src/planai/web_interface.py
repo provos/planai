@@ -14,7 +14,7 @@
 import json
 import threading
 import time
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from flask import (
     Flask,
@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 
-dispatcher: Optional["Dispatcher"] = None
+dispatcher: "Dispatcher" = None
 quit_event = threading.Event()
 
 
@@ -105,7 +105,7 @@ def user_input():
 
     # Handle abort case
     if request.form.get("abort"):
-        dispatcher.set_user_input_result(task_id, None)
+        dispatcher.set_user_input_result(task_id, None, None)
         return jsonify({"status": "ok"})
 
     # Check if there is a file part in the request
@@ -117,15 +117,18 @@ def user_input():
     if file.filename == "":
         return jsonify({"status": "error", "message": "No file selected"})
 
+    # Get the MIME type of the uploaded file
+    mime_type = file.content_type
+
     # Here we simply read the file content if needed
     result = file.read()
 
     print(
-        f"Task ID: {task_id}, File Size: {len(result)} bytes"
+        f"Task ID: {task_id}, File Size: {len(result)} bytes - mime_type: {mime_type}"
     )  # Print file size for debugging
 
     # Pass the result to the dispatcher
-    dispatcher.set_user_input_result(task_id, result)
+    dispatcher.set_user_input_result(task_id, result, mime_type)
 
     return jsonify({"status": "ok"})
 

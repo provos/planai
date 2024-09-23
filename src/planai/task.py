@@ -556,19 +556,37 @@ class TaskWorker(BaseModel, ABC):
         task: "Task",
         instruction: str,
         accepted_mime_types: List[str] = ["text/html"],
-    ) -> Any:
+    ) -> Tuple[Any, Optional[str]]:
+        """
+        Requests user input during the execution of a task with specified instructions and accepted MIME types.
+
+        This method facilitates interaction with the user by sending a request for additional input needed
+        to proceed with the task's execution. This interaction may be needed when it's not possible to get
+        relevant content programmatically.
+
+        Parameters:
+        - task (Task): The current task for which user input is being requested. This object must be part
+          of the initialized graph and dispatcher.
+        - instruction (str): Instructions to the user describing the nature of the requested input.
+          This string should be clear to prompt the expected response.
+        - accepted_mime_types (List[str], optional): A list of acceptable MIME types for the user input.
+          Defaults to ["text/html"]. This parameter specifies the format expectations for input validation.
+
+        Returns:
+        - Tuple[Any, Optional[str]]: A tuple where the first element is the user's input (data), and the second
+          element (if available) is the MIME type of the provided data.
+
+        Raises:
+        - RuntimeError: If the graph or dispatcher is not initialized.
+        """
         if self._graph is None or self._graph._dispatcher is None:
             raise RuntimeError("Graph or Dispatcher is not initialized.")
 
-        # Use the task's own ID for tracking the input request
-        if not self._last_input_task:
-            raise RuntimeError("No input task to provide context for user input.")
-
         task_id = self._graph._dispatcher._get_task_id(task)
-        result = self._graph._dispatcher.request_user_input(
+        result, mime_type = self._graph._dispatcher.request_user_input(
             task_id, instruction, accepted_mime_types
         )
-        return result
+        return result, mime_type
 
 
 def main():

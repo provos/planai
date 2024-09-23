@@ -593,19 +593,26 @@ class Dispatcher:
                 for request in self.user_pending_requests.values()
             ]
 
-    def set_user_input_result(self, task_id: str, result: Any):
+    def set_user_input_result(
+        self, task_id: str, result: Any, mime_type: Optional[str] = None
+    ):
         logging.info(
             "User Input Received: Task ID %s - Result: %s",
             task_id,
-            result,
+            result[:30] if result else "<None>",
         )
 
-        # Locate the relevant request if needed, using task_id
+        # Locate the request for task_id and inform the TaskWorker
         with self.task_lock:
             if task_id in self.user_pending_requests:
                 request: UserInputRequest = self.user_pending_requests.pop(task_id)
                 # Provide the result to the requesting TaskWorker's queue
-                request._response_queue.put(result)
+                request._response_queue.put(
+                    (
+                        result,
+                        mime_type,
+                    )
+                )
 
     def _get_task_id(self, task: Task) -> str:
         # Use the last entry in the _provenance list as the task ID
