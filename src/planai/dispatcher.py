@@ -597,9 +597,10 @@ class Dispatcher:
         self, task_id: str, result: Any, mime_type: Optional[str] = None
     ):
         logging.info(
-            "User Input Received: Task ID %s - Result: %s",
+            "User Input Received: Task ID %s - Result: %s (MIME Type: %s)",
             task_id,
             result[:30] if result else "<None>",
+            mime_type,
         )
 
         # Locate the request for task_id and inform the TaskWorker
