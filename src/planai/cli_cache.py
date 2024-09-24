@@ -5,6 +5,10 @@ from diskcache import Cache
 
 def handle_cache_subcommand(parsed_args):
     cache = Cache(parsed_args.cache_dir)
+    if parsed_args.search_dirs:
+        for search_dir in parsed_args.search_dirs:
+            sys.path.append(search_dir)
+
     if parsed_args.clear:
         cache.clear()
         print("Cache cleared successfully.")

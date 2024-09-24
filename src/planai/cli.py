@@ -29,11 +29,17 @@ Usage:
 
 import argparse
 import sys
+from typing import List
 
 from planai import llm_from_config
 
 from .cli_cache import handle_cache_subcommand
 from .cli_optimize_prompt import optimize_prompt
+
+
+def parse_comma_separated_list(arg: str) -> List[str]:
+    # Split the argument by commas and strip any extra whitespace
+    return [item.strip() for item in arg.split(",")]
 
 
 def create_parser():
@@ -114,6 +120,12 @@ def create_parser():
         "--delete", type=str, help="Delete a specific cache key", default=None
     )
     cache_parser.add_argument("--clear", action="store_true", help="Clear the cache")
+    cache_parser.add_argument(
+        "--search-dirs",
+        type=parse_comma_separated_list,
+        help="Comma-separated list of directories to search for Python modules",
+        default=None,
+    )
 
     return parser
 
