@@ -37,10 +37,12 @@ class LLMInterface:
         client: Optional[Any] = None,
         host: Optional[str] = None,
         support_json_mode: bool = True,
+        support_structured_outputs: bool = False,
     ):
         self.model_name = model_name
         self.client = client if client else Client(host=host)
         self.support_json_mode = support_json_mode
+        self.support_structured_outputs = support_structured_outputs
 
         self.logger = setup_logging(
             logs_dir=log_dir, logs_prefix="llm_interface", logger_name=__name__
@@ -52,7 +54,10 @@ class LLMInterface:
         )
 
     def _cached_chat(
-        self, messages: List[Dict[str, str]], temperature: Optional[float] = None
+        self,
+        messages: List[Dict[str, str]],
+        temperature: Optional[float] = None,
+        response_schema: Optional[Type[BaseModel]] = None,
     ) -> str:
         # Concatenate all messages to use as the cache key
         message_content = "".join([msg["role"] + msg["content"] for msg in messages])
@@ -64,11 +69,21 @@ class LLMInterface:
         response = self.disk_cache.get(prompt_hash)
 
         if response is None:
+            kwargs = {}
+
+            # some models can generate structured outputs
+            if self.support_structured_outputs and response_schema:
+                kwargs["response_schema"] = response_schema
+
+            # ollama expects temperature to be passed as an option
+            options = {}
+            if temperature:
+                options["temperature"] = temperature
+                kwargs["options"] = options
+
             # If not in cache, make request to client using chat interface
             response = self.client.chat(
-                model=self.model_name,
-                messages=messages,
-                options={"temperature": temperature} if temperature else None,
+                model=self.model_name, messages=messages, **kwargs
             )
 
             # Cache the response with hashed prompt as key
@@ -77,12 +92,20 @@ class LLMInterface:
         return response["message"]["content"]
 
     def chat(
-        self, messages: List[Dict[str, str]], temperature: Optional[float] = None
+        self,
+        messages: List[Dict[str, str]],
+        temperature: Optional[float] = None,
+        response_schema: Optional[Type[BaseModel]] = None,
     ) -> str:
         self.logger.info("Chatting with messages: %s", messages)
-        response = self._cached_chat(messages=messages, temperature=temperature)
-        self.logger.info("Received chat response: %s...", response[:850])
-        return response.strip()
+        response = self._cached_chat(
+            messages=messages, temperature=temperature, response_schema=response_schema
+        )
+        self.logger.info(
+            "Received chat response: %s...",
+            response[:850] if isinstance(response, str) else response,
+        )
+        return response.strip() if isinstance(response, str) else response
 
     def _cached_generate(self, prompt: str, system: str = "", format: str = "") -> str:
         # Hash the prompt to use as the cache key
@@ -190,11 +213,22 @@ class LLMInterface:
         while iteration < 3:
             iteration += 1
 
-            raw_response = self.chat(messages=messages, temperature=temperature)
+            raw_response = self.chat(
+                messages=messages,
+                temperature=temperature,
+                response_schema=output_schema,
+            )
             if not self.support_json_mode:
                 raw_response = self._strip_text_from_json_response(raw_response)
 
-            error_message, response = self._parse_response(raw_response, parser)
+            if self.support_structured_outputs:
+                # If the model supports structured outputs, the response is already a pydantic object
+                response = raw_response
+                error_message = (
+                    "The model refused the request" if response is None else None
+                )
+            else:
+                error_message, response = self._parse_response(raw_response, parser)
 
             if response is None:
                 messages.extend(

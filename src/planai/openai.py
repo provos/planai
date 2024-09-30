@@ -77,14 +77,29 @@ class OpenAIWrapper:
 
     def chat(self, messages: List[Dict[str, str]], **kwargs) -> Dict[str, Any]:
         """
-        Conduct a chat conversation using the OpenAI API.
+        Conduct a chat conversation using the OpenAI API, with optional structured output.
+
+        This method interfaces with the OpenAI API to provide conversational capabilities.
+        It supports structured outputs using Pydantic models to ensure responses adhere
+        to specific JSON schemas if a `response_schema` is provided.
 
         Args:
-            messages (list[Mapping[str, str]]): A list of message dictionaries, each containing 'role' and 'content'.
-            **kwargs: Additional arguments to pass to the API.
+            messages (List[Dict[str, str]]): A list of dictionaries representing the conversation
+                                             history, where each dictionary contains 'role' (e.g., 'system',
+                                             'user', 'assistant') and 'content' (the message text).
+            **kwargs: Additional parameters that can include:
+                - model (str): The OpenAI model to be used. Defaults to 'gpt-3.5-turbo' if not specified.
+                - max_tokens (int): Maximum number of tokens for the API call. Defaults to the instance's max_tokens.
+                - temperature (float): The temperature setting for the response generation.
+                - response_schema (Type[BaseModel]): An optional Pydantic model for structured output.
 
         Returns:
-            A dictionary containing the OpenAI response formatted to match Ollama's expected output.
+            Dict[str, Any]: If a `response_schema` is specified, returns a dictionary containing parsed content
+                            according to the schema. If the model refuses the request, it returns a refusal message.
+                            Without a `response_schema`, it returns the OpenAI response formatted with the message content.
+
+        Raises:
+            Exception: Propagates any exceptions raised during the API interaction.
         """
         api_params = {
             "model": kwargs.get("model", "gpt-3.5-turbo"),
@@ -92,13 +107,26 @@ class OpenAIWrapper:
             "max_tokens": kwargs.get("max_tokens", self.max_tokens),
         }
 
-        if "temperature" in kwargs:
-            api_params["temperature"] = kwargs["temperature"]
+        if "options" in kwargs:
+            if "temperature" in kwargs["options"]:
+                api_params["temperature"] = kwargs["options"]["temperature"]
 
         try:
-            response = self.client.chat.completions.create(**api_params)
-            # Format output to simulate Ollama's response structure
-            content = response.choices[0].message.content
+            if "response_schema" in kwargs:
+                response = self.client.beta.chat.completions.parse(
+                    response_format=kwargs.get("response_schema"),
+                    **api_params,
+                )
+                message = response.choices[0].message
+
+                # Check for refusal
+                if "refusal" in message:
+                    return {"refusal": message.refusal, "content": None, "done": False}
+
+                content = message.parsed
+            else:
+                response = self.client.chat.completions.create(**api_params)
+                content = response.choices[0].message.content
 
             return {"message": {"content": content}}
 

@@ -227,6 +227,42 @@ class TestLLMInterface(unittest.TestCase):
         # Check the response
         self.assertEqual(call_args[2], output_model)
 
+    def test_chat_supporting_structured_outputs(self):
+        # Create a dummy Pydantic model as output schema
+        class StructuredOutputModel(BaseModel):
+            field1: str
+            field2: int
+
+        # Mock the structured response from the chat method
+        structured_response = StructuredOutputModel(field1="direct", field2=123)
+        self.llm_interface.support_structured_outputs = True
+
+        self.mock_client.chat.return_value = {
+            "message": {"content": structured_response}
+        }
+
+        # Performing the test
+        response = self.llm_interface.generate_pydantic(
+            prompt_template="Dummy prompt",
+            output_schema=StructuredOutputModel,
+            system=self.system,
+        )
+
+        # Assertions to ensure the response is directly the structured output
+        self.assertEqual(response, structured_response)
+
+        # Ensure chat was called once with expected messages
+        self.mock_client.chat.assert_called_once()
+
+        # Check the message format
+        expected_messages = [
+            {"role": "system", "content": self.system},
+            {"role": "user", "content": "Dummy prompt"},
+        ]
+        call_args = self.mock_client.chat.call_args[1]
+        self.assertEqual(call_args["messages"], expected_messages)
+        self.assertEqual(call_args["response_schema"], StructuredOutputModel)
+
 
 if __name__ == "__main__":
     unittest.main()

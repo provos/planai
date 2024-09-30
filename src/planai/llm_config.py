@@ -23,10 +23,17 @@ def llm_from_config(
             if api_key is None:
                 raise ValueError("OPENAI_API_KEY not found in environment variables")
             wrapper = OpenAIWrapper(api_key=api_key, max_tokens=max_tokens)
+            # add gpt-4o once the switch is made
+            support_structured_outputs = model_name in [
+                "gpt-4o-mini",
+                "gpt-4o-mini-2024-07-18",
+                "gpt-4o-2024-08-06",
+            ]
             return LLMInterface(
                 model_name=model_name,
                 log_dir=log_dir,
                 client=wrapper,
+                support_structured_outputs=support_structured_outputs,
             )
         case "anthropic":
             api_key = os.getenv("ANTHROPIC_API_KEY")

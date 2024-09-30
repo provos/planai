@@ -36,6 +36,16 @@ PROMPT = dedent(
     """
 ).strip()
 
+PROMPT_STRUCTURED_OUTPUT = dedent(
+    """
+    Here is your input data:
+    {task}
+
+    Here are your instructions:
+    {instructions}
+    """
+).strip()
+
 
 class LLMTaskWorker(TaskWorker):
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -99,7 +109,11 @@ class LLMTaskWorker(TaskWorker):
             return self.extra_validation(response, task)
 
         response = self.llm.generate_pydantic(
-            prompt_template=PROMPT,
+            prompt_template=(
+                PROMPT
+                if not self.llm.support_structured_outputs
+                else PROMPT_STRUCTURED_OUTPUT
+            ),
             output_schema=self._output_type(),
             system=self.system_prompt,
             task=processed_task.model_dump_json(indent=2),
@@ -120,7 +134,11 @@ class LLMTaskWorker(TaskWorker):
         processed_task = self.pre_process(task)
 
         return self.llm.generate_full_prompt(
-            prompt_template=PROMPT,
+            prompt_template=(
+                PROMPT
+                if not self.llm.support_structured_outputs
+                else PROMPT_STRUCTURED_OUTPUT
+            ),
             system=self.system_prompt,
             task=processed_task.model_dump_json(indent=2),
             instructions=task_prompt,
