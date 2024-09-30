@@ -94,8 +94,9 @@ class AnthropicWrapper:
             }
 
             # Conditionally add temperature if it exists in kwargs
-            if "temperature" in kwargs:
-                params["temperature"] = kwargs["temperature"]
+            if "options" in kwargs:
+                if "temperature" in kwargs["options"]:
+                    params["temperature"] = kwargs["options"]["temperature"]
 
             # Call the function with the constructed parameters
             response = self.client.messages.create(**params)
