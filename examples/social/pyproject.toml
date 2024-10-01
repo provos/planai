@@ -1,7 +1,7 @@
 [tool.poetry]
-name = "textbook"
+name = "social"
 version = "0.1.0"
-description = "An example to use PlanAI to generate textbook Q&A questions."
+description = "An example to use PlanAI to get ideas for posting on social networks."
 authors = ["Niels Provos"]
 readme = "README.md"
 
