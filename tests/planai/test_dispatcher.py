@@ -115,40 +115,6 @@ class TestDispatcher(unittest.TestCase):
         self.dispatcher.work_queue = Queue()
         self.dispatcher.stop_event = Event()
 
-    def test_add_provenance(self):
-        task = DummyTask(data="test")
-        task._provenance = [("Task1", 1), ("Task2", 2)]
-        self.dispatcher._add_provenance(task)
-        self.assertEqual(
-            self.dispatcher.provenance,
-            {(("Task1", 1),): 1, (("Task1", 1), ("Task2", 2)): 1},
-        )
-
-    def test_remove_provenance(self):
-        task = DummyTask(data="test")
-        worker = DummyTaskWorkerSimple()
-        task._provenance = [("Task1", 1), ("Task2", 2)]
-        self.dispatcher._add_provenance(task)
-
-        with patch.object(self.dispatcher, "_notify_task_completion") as mock_notify:
-            self.dispatcher._remove_provenance(task, worker)
-            self.assertEqual(self.dispatcher.provenance, {})
-            mock_notify.assert_not_called()
-
-    def test_watch(self):
-        notifier = Mock(spec=TaskWorker)
-        result = self.dispatcher.watch((DummyTask.__name__, 1), notifier)
-        self.assertTrue(result)
-        self.assertIn((DummyTask.__name__, 1), self.dispatcher.notifiers)
-        self.assertIn(notifier, self.dispatcher.notifiers[(DummyTask.__name__, 1)])
-
-    def test_unwatch(self):
-        notifier = Mock(spec=TaskWorker)
-        self.dispatcher.notifiers = {(DummyTask.__name__, 1): [notifier]}
-        result = self.dispatcher.unwatch((DummyTask.__name__, 1), notifier)
-        self.assertTrue(result)
-        self.assertNotIn((DummyTask.__name__, 1), self.dispatcher.notifiers)
-
     def test_dispatch(self):
         worker = Mock(spec=TaskWorker)
         task = DummyTask(data="test")
@@ -238,7 +204,9 @@ class TestDispatcher(unittest.TestCase):
         self.dispatcher.increment_active_tasks(worker)
         self.dispatcher.work_queue = Queue()  # Ensure the queue is empty
 
-        with patch.object(self.dispatcher, "_remove_provenance") as mock_remove:
+        with patch.object(
+            self.dispatcher._provenance_tracker, "_remove_provenance"
+        ) as mock_remove:
             self.dispatcher._task_completed(worker, task, future)
             mock_remove.assert_called_once_with(task, worker)
 
@@ -256,7 +224,9 @@ class TestDispatcher(unittest.TestCase):
         self.dispatcher.increment_active_tasks(worker)
         self.dispatcher.work_queue = Queue()  # Ensure the queue is empty
 
-        with patch.object(self.dispatcher, "_remove_provenance") as mock_remove:
+        with patch.object(
+            self.dispatcher._provenance_tracker, "_remove_provenance"
+        ) as mock_remove:
             self.dispatcher._task_completed(worker, task, future)
             mock_remove.assert_called_once_with(task, worker)
 
@@ -266,7 +236,9 @@ class TestDispatcher(unittest.TestCase):
     def test_add_work(self):
         worker = Mock(spec=TaskWorker)
         task = DummyTask(data="test")
-        with patch.object(self.dispatcher, "_add_provenance") as mock_add:
+        with patch.object(
+            self.dispatcher._provenance_tracker, "_add_provenance"
+        ) as mock_add:
             self.dispatcher.add_work(worker, task)
             mock_add.assert_called_once_with(task)
         self.assertFalse(self.dispatcher.work_queue.empty())
@@ -328,8 +300,8 @@ class TestDispatcherThreading(unittest.TestCase):
             for _ in range(num_operations):
                 task = DummyTask(data="test")
                 task._provenance = [("Task1", 1)]
-                self.dispatcher._add_provenance(task)
-                self.dispatcher._remove_provenance(task, worker)
+                self.dispatcher._provenance_tracker._add_provenance(task)
+                self.dispatcher._provenance_tracker._remove_provenance(task, worker)
 
         threads = [
             threading.Thread(target=modify_provenance) for _ in range(num_threads)
@@ -342,7 +314,7 @@ class TestDispatcherThreading(unittest.TestCase):
             thread.join()
 
         # All operations should cancel out, leaving the provenance empty or with zero counts
-        for value in self.dispatcher.provenance.values():
+        for value in self.dispatcher._provenance_tracker.provenance.values():
             self.assertEqual(value, 0, "Provenance count should be 0 for all tasks")
 
     def test_stress_dispatcher(self):
@@ -565,7 +537,11 @@ class TestDispatcherThreading(unittest.TestCase):
         self.assertEqual(failed_task.data, "test_exception")
 
         # Check that the provenance was properly removed
-        self.assertEqual(len(dispatcher.provenance), 0, "Provenance should be empty")
+        self.assertEqual(
+            len(dispatcher._provenance_tracker.provenance),
+            0,
+            "Provenance should be empty",
+        )
 
         # Verify that the task is not in the active tasks list
         self.assertEqual(
