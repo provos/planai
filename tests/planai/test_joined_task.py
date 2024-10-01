@@ -121,8 +121,6 @@ class TestJoinedTaskWorker(unittest.TestCase):
             len(self.worker3._joined_results), 0
         )  # All joined results should have been processed
 
-        self.graph._thread_pool.shutdown(wait=True)
-
 
 class InitialTask(Task):
     data: str
@@ -232,8 +230,6 @@ class TestJoinedTaskWorkerStress(unittest.TestCase):
         # Verify that the work queue is empty and there are no active tasks
         self.assertEqual(self.dispatcher.work_queue.qsize(), 0)
         self.assertEqual(self.dispatcher._active_tasks, 0)
-
-        self.graph._thread_pool.shutdown(wait=True)
 
 
 if __name__ == "__main__":

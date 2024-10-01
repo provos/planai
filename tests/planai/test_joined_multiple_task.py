@@ -177,8 +177,6 @@ class TestComplexJoinedTaskWorker(unittest.TestCase):
         self.assertEqual(len(outputs), 1)
         self.assertEqual(outputs[0].result, 5)
 
-        self.graph._thread_pool.shutdown(wait=True)
-
 
 if __name__ == "__main__":
     unittest.main()

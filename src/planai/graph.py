@@ -15,7 +15,6 @@ import logging
 import shutil
 import time
 from collections import deque
-from concurrent.futures import ThreadPoolExecutor
 from threading import Event, Thread
 from typing import Dict, List, Optional, Set, Tuple, Type
 
@@ -38,18 +37,12 @@ class Graph(BaseModel):
     dependencies: Dict[TaskWorker, List[TaskWorker]] = Field(default_factory=dict)
 
     _dispatcher: Optional[Dispatcher] = PrivateAttr(default=None)
-    _thread_pool: Optional[ThreadPoolExecutor] = PrivateAttr(default=None)
     _max_parallel_tasks: Dict[Type[TaskWorker], int] = PrivateAttr(default_factory=dict)
     _sink_tasks: List[TaskType] = PrivateAttr(default_factory=list)
     _sink_worker: Optional[TaskWorker] = PrivateAttr(default=None)
 
     _worker_distances: Dict[str, Dict[str, int]] = PrivateAttr(default_factory=dict)
     _has_terminal: bool = PrivateAttr(default=False)
-
-    def __init__(self, **data):
-        super().__init__(**data)
-        if self._thread_pool is None:
-            self._thread_pool = ThreadPoolExecutor()
 
     def add_worker(self, task: TaskWorker) -> "Graph":
         """Add a task to the Graph."""
@@ -303,8 +296,6 @@ class Graph(BaseModel):
             self._stop_terminal_display_event.set()
             terminal_thread.join()
             logging.info("Terminal display stopped")
-
-        self._thread_pool.shutdown(wait=True)
 
         for worker in self.workers:
             worker.completed()

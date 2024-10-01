@@ -110,10 +110,10 @@ class SingleThreadedExecutor:
 class TestDispatcher(unittest.TestCase):
     def setUp(self):
         self.graph = Mock(spec=Graph)
-        self.graph._thread_pool = SingleThreadedExecutor()
-        self.dispatcher = Dispatcher(self.graph)
+        self.dispatcher = Dispatcher(self.graph, start_thread_pool=False)
         self.dispatcher.work_queue = Queue()
         self.dispatcher.stop_event = Event()
+        self.dispatcher._thread_pool = SingleThreadedExecutor()
 
     def test_dispatch(self):
         worker = Mock(spec=TaskWorker)
@@ -129,7 +129,7 @@ class TestDispatcher(unittest.TestCase):
         self.assertEqual(self.dispatcher.active_tasks, 1)
 
         # Simulate task completion
-        future = self.graph._thread_pool.tasks[0]
+        future = self.dispatcher._thread_pool.tasks[0]
         future.add_done_callback.assert_called_once()
         callback = future.add_done_callback.call_args[0][0]
         callback(future)
@@ -263,11 +263,10 @@ class TestDispatcher(unittest.TestCase):
 class TestDispatcherThreading(unittest.TestCase):
     def setUp(self):
         self.graph = Mock(spec=Graph)
-        self.graph._thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=4)
         self.dispatcher = Dispatcher(self.graph)
 
     def tearDown(self):
-        self.graph._thread_pool.shutdown(wait=True)
+        self.dispatcher._thread_pool.shutdown(wait=True)
 
     def test_concurrent_add_work(self):
         num_threads = 10
@@ -561,8 +560,6 @@ class TestDispatcherThreading(unittest.TestCase):
             "Task DummyTask failed with exception: Test exception", cm.output[0]
         )
 
-        self.graph._thread_pool.shutdown(wait=True)
-
     def test_max_parallel_tasks(self):
         num_tasks = 10
         max_parallel = 2
@@ -671,7 +668,7 @@ class TestDispatcherConcurrent(unittest.TestCase):
             dispatcher.total_completed_tasks == total_processed
         ), f"Completed tasks {dispatcher.total_completed_tasks} should match total processed ({total_processed})"
 
-        graph._thread_pool.shutdown(wait=False)
+        dispatcher._thread_pool.shutdown(wait=False)
 
     def test_concurrent_success_and_failures(self):
         graph = Graph(name="Test Graph")
@@ -757,7 +754,7 @@ class TestDispatcherConcurrent(unittest.TestCase):
         self.assertEqual(dispatcher.work_queue.qsize(), 0, "Work queue should be empty")
         self.assertEqual(dispatcher.active_tasks, 0, "No active tasks should remain")
 
-        graph._thread_pool.shutdown(wait=True)
+        dispatcher._thread_pool.shutdown(wait=True)
 
 
 if __name__ == "__main__":

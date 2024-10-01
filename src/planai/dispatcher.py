@@ -60,18 +60,10 @@ import random
 import threading
 import time
 from collections import defaultdict, deque
+from concurrent.futures import ThreadPoolExecutor
 from queue import Empty, Queue
 from threading import Event, Lock
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Deque,
-    Dict,
-    List,
-    Optional,
-    Tuple,
-    Type,
-)
+from typing import TYPE_CHECKING, Any, Deque, Dict, List, Optional, Tuple, Type
 
 from .provenance import ProvenanceChain, ProvenanceTracker
 from .stats import WorkerStat
@@ -99,8 +91,11 @@ def get_inheritance_chain(cls: Type[TaskWorker]) -> List[str]:
 
 
 class Dispatcher:
-    def __init__(self, graph: "Graph", web_port=5000):
-        self.graph = graph
+    def __init__(
+        self, graph: "Graph", web_port: int = 5000, start_thread_pool: bool = True
+    ):
+        self._thread_pool = ThreadPoolExecutor() if start_thread_pool else None
+
         self.web_port = web_port
 
         self.task_lock = Lock()
@@ -245,7 +240,7 @@ class Dispatcher:
         task_completed_callback: callable,
     ):
         self.increment_active_tasks(worker)
-        future = self.graph._thread_pool.submit(*arguments)
+        future = self._thread_pool.submit(*arguments)
         future.add_done_callback(task_completed_callback)
 
     def _dispatch_user_requests(self):
@@ -526,6 +521,8 @@ class Dispatcher:
             while not is_quit_requested():
                 # Sleep for a short time to avoid busy waiting
                 time.sleep(0.1)
+
+        self._thread_pool.shutdown(wait=True)
 
     def start_web_interface(self):
         web_thread = threading.Thread(
