@@ -152,7 +152,7 @@ class TestComplexJoinedTaskWorker(unittest.TestCase):
         dispatch_thread = threading.Thread(target=self.dispatcher.dispatch)
         dispatch_thread.start()
 
-        self.dispatcher.trace((("InitialTaskWorker", 1),))
+        self.graph.trace((("InitialTaskWorker", 1),))
 
         # Add initial work
         self.dispatcher.add_multiple_work(initial_work)

@@ -65,7 +65,6 @@ from queue import Empty, Queue
 from threading import Event, Lock
 from typing import TYPE_CHECKING, Any, Deque, Dict, List, Optional, Tuple, Type
 
-from .provenance import ProvenanceChain, ProvenanceTracker
 from .stats import WorkerStat
 from .task import Task, TaskWorker
 from .user_input import UserInputRequest
@@ -111,8 +110,6 @@ class Dispatcher:
         # we are using the work_available Event to signal the dispatcher that there might be work
         self.work_available = threading.Event()
 
-        self._provenance_tracker = ProvenanceTracker()
-
         self.stop_event = Event()
         self._active_tasks = 0
         self.task_completion_event = Event()
@@ -133,17 +130,6 @@ class Dispatcher:
         # managing user requests
         self.user_input_requests = Queue()
         self.user_pending_requests: Dict[str, UserInputRequest] = {}
-
-    def trace(self, prefix: ProvenanceChain):
-        self._provenance_tracker.trace(prefix)
-
-    def watch(
-        self, prefix: ProvenanceChain, notifier: TaskWorker, task: Optional[Task] = None
-    ) -> bool:
-        return self._provenance_tracker.watch(prefix, notifier, task)
-
-    def unwatch(self, prefix: ProvenanceChain, notifier: TaskWorker) -> bool:
-        return self._provenance_tracker.unwatch(prefix, notifier)
 
     @property
     def active_tasks(self):
@@ -479,14 +465,14 @@ class Dispatcher:
                     self.worker_stats[worker.name].increment_completed()
 
             if task:
-                self._provenance_tracker._remove_provenance(task, worker)
+                worker._graph._provenance_tracker._remove_provenance(task, worker)
 
             if self.decrement_active_tasks(worker):
                 self.task_completion_event.set()
 
     def add_work(self, worker: TaskWorker, task: Task):
         task_copy = task.model_copy()
-        self._provenance_tracker._add_provenance(task_copy)
+        worker._graph._provenance_tracker._add_provenance(task_copy)
         self._add_to_queue(worker, task_copy)
 
     def add_multiple_work(self, work_items: List[Tuple[TaskWorker, Task]]):
@@ -495,7 +481,7 @@ class Dispatcher:
         # before all the provenance is added.
         work_items = [(worker, task.model_copy()) for worker, task in work_items]
         for worker, task in work_items:
-            self._provenance_tracker._add_provenance(task)
+            worker._graph._provenance_tracker._add_provenance(task)
         for worker, task in work_items:
             self._add_to_queue(worker, task)
 

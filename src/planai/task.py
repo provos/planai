@@ -305,7 +305,7 @@ class TaskWorker(BaseModel, ABC):
             The prefix to trace. Must be a tuple representing a part of a task's provenance chain.
             This is the sequence of task identifiers leading up to (but not including) the current task.
         """
-        self._graph._dispatcher.trace(prefix)
+        self._graph.trace(prefix)
 
     def watch(self, prefix: "ProvenanceChain", task: Optional[Task] = None) -> bool:
         """
@@ -338,7 +338,7 @@ class TaskWorker(BaseModel, ABC):
         """
         if not isinstance(prefix, tuple):
             raise ValueError("Prefix must be a tuple")
-        return self._graph._dispatcher.watch(prefix, self, task)
+        return self._graph.watch(prefix, self, task)
 
     def unwatch(self, prefix: "ProvenanceChain") -> bool:
         """
@@ -352,7 +352,7 @@ class TaskWorker(BaseModel, ABC):
         """
         if not isinstance(prefix, tuple):
             raise ValueError("Prefix must be a tuple")
-        return self._graph._dispatcher.unwatch(prefix, self)
+        return self._graph.unwatch(prefix, self)
 
     def print(self, *args):
         """

@@ -113,29 +113,25 @@ class TestTaskWorker(unittest.TestCase):
     def test_watch(self):
         graph = Mock()
         self.worker._graph = graph
-        mock_dispatcher = Mock()
-        graph._dispatcher = mock_dispatcher
         task = DummyTask()
         task._provenance = [("DummyTask", 1)]
         prefix = task.prefix_for_input_task(DummyTask)
         self.assertIsNotNone(prefix)
         result = self.worker.watch(prefix)
         self.assertIsNotNone(prefix)
-        mock_dispatcher.watch.assert_called_once_with(prefix, self.worker, None)
-        self.assertEqual(result, mock_dispatcher.watch.return_value)
+        graph.watch.assert_called_once_with(prefix, self.worker, None)
+        self.assertEqual(result, graph.watch.return_value)
 
     def test_unwatch(self):
         graph = Mock()
         self.worker._graph = graph
-        mock_dispatcher = Mock()
-        graph._dispatcher = mock_dispatcher
         task = DummyTask()
         task._provenance = [("DummyTask", 1)]
         result = self.worker.unwatch(task.prefix_for_input_task(DummyTask))
-        mock_dispatcher.unwatch.assert_called_once_with(
+        graph.unwatch.assert_called_once_with(
             task.prefix_for_input_task(DummyTask), self.worker
         )
-        self.assertEqual(result, mock_dispatcher.unwatch.return_value)
+        self.assertEqual(result, graph.unwatch.return_value)
 
     def test_pre_consume_work(self):
         task = DummyTask()

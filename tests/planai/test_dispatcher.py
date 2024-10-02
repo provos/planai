@@ -27,6 +27,7 @@ from pydantic import Field, PrivateAttr
 
 from planai.dispatcher import Dispatcher
 from planai.graph import Graph
+from planai.provenance import ProvenanceTracker
 from planai.task import Task, TaskWorker
 
 
@@ -110,6 +111,7 @@ class SingleThreadedExecutor:
 class TestDispatcher(unittest.TestCase):
     def setUp(self):
         self.graph = Mock(spec=Graph)
+        self.graph._provenance_tracker = ProvenanceTracker()
         self.dispatcher = Dispatcher(self.graph, start_thread_pool=False)
         self.dispatcher.work_queue = Queue()
         self.dispatcher.stop_event = Event()
@@ -117,6 +119,7 @@ class TestDispatcher(unittest.TestCase):
 
     def test_dispatch(self):
         worker = Mock(spec=TaskWorker)
+        worker._graph = self.graph
         task = DummyTask(data="test")
         self.dispatcher.work_queue.put((worker, task))
 
@@ -139,6 +142,7 @@ class TestDispatcher(unittest.TestCase):
 
     def test_execute_task(self):
         worker = Mock(spec=TaskWorker)
+        worker._graph = self.graph
         future = Mock()
         task = DummyTask(data="test")
         self.dispatcher._execute_task(worker, task)
@@ -149,6 +153,7 @@ class TestDispatcher(unittest.TestCase):
 
     def test_task_to_dict(self):
         worker = DummyTaskWorkerSimple()
+        worker._graph = self.graph
         task = DummyTask(data="test")
         task._provenance = [("Task1", 1)]
         task._input_provenance = [DummyTask(data="input")]
@@ -160,6 +165,7 @@ class TestDispatcher(unittest.TestCase):
 
     def test_get_queued_tasks(self):
         worker = DummyTaskWorkerSimple()
+        worker._graph = self.graph
         task = DummyTask(data="test")
         self.dispatcher.work_queue.put((worker, task))
         result = self.dispatcher.get_queued_tasks()
@@ -169,6 +175,7 @@ class TestDispatcher(unittest.TestCase):
 
     def test_get_active_tasks(self):
         worker = DummyTaskWorkerSimple()
+        worker._graph = self.graph
         task = DummyTask(data="test")
         self.dispatcher.debug_active_tasks = {1: (worker, task)}
         result = self.dispatcher.get_active_tasks()
@@ -178,6 +185,7 @@ class TestDispatcher(unittest.TestCase):
 
     def test_get_completed_tasks(self):
         worker = DummyTaskWorkerSimple()
+        worker._graph = self.graph
         task = DummyTask(data="test")
         self.dispatcher.completed_tasks = deque([(worker, task)])
         result = self.dispatcher.get_completed_tasks()
@@ -188,6 +196,7 @@ class TestDispatcher(unittest.TestCase):
     def test_notify_completed(self):
         future = Mock()
         worker = DummyTaskWorkerSimple()
+        worker._graph = self.graph
         task = DummyTask(data="test")
         self.dispatcher.increment_active_tasks(worker)
         self.dispatcher._task_completed(worker, task, future)
@@ -196,6 +205,7 @@ class TestDispatcher(unittest.TestCase):
 
     def test_task_completed(self):
         worker = Mock(spec=TaskWorker)
+        worker._graph = self.graph
         task = DummyTask(data="test")
         future = Mock()
         future.result.return_value = None
@@ -205,7 +215,7 @@ class TestDispatcher(unittest.TestCase):
         self.dispatcher.work_queue = Queue()  # Ensure the queue is empty
 
         with patch.object(
-            self.dispatcher._provenance_tracker, "_remove_provenance"
+            self.graph._provenance_tracker, "_remove_provenance"
         ) as mock_remove:
             self.dispatcher._task_completed(worker, task, future)
             mock_remove.assert_called_once_with(task, worker)
@@ -215,6 +225,7 @@ class TestDispatcher(unittest.TestCase):
 
     def test_task_completed_with_remaining_tasks(self):
         worker = Mock(spec=TaskWorker)
+        worker._graph = self.graph
         task = DummyTask(data="test")
         future = Mock()
         future.result.return_value = None
@@ -225,7 +236,7 @@ class TestDispatcher(unittest.TestCase):
         self.dispatcher.work_queue = Queue()  # Ensure the queue is empty
 
         with patch.object(
-            self.dispatcher._provenance_tracker, "_remove_provenance"
+            self.graph._provenance_tracker, "_remove_provenance"
         ) as mock_remove:
             self.dispatcher._task_completed(worker, task, future)
             mock_remove.assert_called_once_with(task, worker)
@@ -235,9 +246,10 @@ class TestDispatcher(unittest.TestCase):
 
     def test_add_work(self):
         worker = Mock(spec=TaskWorker)
+        worker._graph = self.graph
         task = DummyTask(data="test")
         with patch.object(
-            self.dispatcher._provenance_tracker, "_add_provenance"
+            self.graph._provenance_tracker, "_add_provenance"
         ) as mock_add:
             self.dispatcher.add_work(worker, task)
             mock_add.assert_called_once_with(task)
@@ -262,7 +274,7 @@ class TestDispatcher(unittest.TestCase):
 
 class TestDispatcherThreading(unittest.TestCase):
     def setUp(self):
-        self.graph = Mock(spec=Graph)
+        self.graph = Graph(name="Test Graph")
         self.dispatcher = Dispatcher(self.graph)
 
     def tearDown(self):
@@ -275,6 +287,7 @@ class TestDispatcherThreading(unittest.TestCase):
         def add_work():
             for _ in range(num_tasks_per_thread):
                 worker = Mock(spec=TaskWorker)
+                worker._graph = self.graph
                 task = DummyTask(data="test")
                 self.dispatcher.add_work(worker, task)
 
@@ -294,13 +307,14 @@ class TestDispatcherThreading(unittest.TestCase):
         num_threads = 10
         num_operations = 1000
         worker = DummyTaskWorkerSimple()
+        worker._graph = self.graph
 
         def modify_provenance():
             for _ in range(num_operations):
                 task = DummyTask(data="test")
                 task._provenance = [("Task1", 1)]
-                self.dispatcher._provenance_tracker._add_provenance(task)
-                self.dispatcher._provenance_tracker._remove_provenance(task, worker)
+                self.graph._provenance_tracker._add_provenance(task)
+                self.graph._provenance_tracker._remove_provenance(task, worker)
 
         threads = [
             threading.Thread(target=modify_provenance) for _ in range(num_threads)
@@ -313,7 +327,7 @@ class TestDispatcherThreading(unittest.TestCase):
             thread.join()
 
         # All operations should cancel out, leaving the provenance empty or with zero counts
-        for value in self.dispatcher._provenance_tracker.provenance.values():
+        for value in self.graph._provenance_tracker.provenance.values():
             self.assertEqual(value, 0, "Provenance count should be 0 for all tasks")
 
     def test_stress_dispatcher(self):
@@ -322,6 +336,8 @@ class TestDispatcherThreading(unittest.TestCase):
         num_tasks_per_worker = 1000
 
         workers = [Mock(spec=TaskWorker) for _ in range(num_workers)]
+        for worker in workers:
+            worker._graph = self.graph
 
         def worker_task(worker):
             for i in range(num_tasks_per_worker):
@@ -374,6 +390,7 @@ class TestDispatcherThreading(unittest.TestCase):
 
         # Create a worker that raises an exception
         worker = ExceptionRaisingTaskWorker()
+        worker._graph = self.graph
 
         # Add tasks to the dispatcher
         for i in range(num_tasks):
@@ -415,6 +432,8 @@ class TestDispatcherThreading(unittest.TestCase):
     @patch("planai.dispatcher.logging.exception")
     def test_task_retry(self, mock_log_exception, mock_log_error, mock_log_info):
         worker = RetryTaskWorker(num_retries=2, fail_attempts=2)
+        worker._graph = self.graph
+
         task = DummyTask(data="test-retry")
 
         self.dispatcher.increment_active_tasks(worker)
@@ -456,6 +475,8 @@ class TestDispatcherThreading(unittest.TestCase):
         self, mock_log_exception, mock_log_error, mock_log_info
     ):
         worker = RetryTaskWorker(num_retries=2, fail_attempts=3)
+        worker._graph = self.graph
+
         task = DummyTask(data="test-retry-exhausted")
 
         self.dispatcher.increment_active_tasks(worker)
@@ -537,7 +558,7 @@ class TestDispatcherThreading(unittest.TestCase):
 
         # Check that the provenance was properly removed
         self.assertEqual(
-            len(dispatcher._provenance_tracker.provenance),
+            len(self.graph._provenance_tracker.provenance),
             0,
             "Provenance should be empty",
         )
@@ -566,6 +587,7 @@ class TestDispatcherThreading(unittest.TestCase):
 
         # Create a custom worker
         worker = LimitedParallelTaskWorker()
+        worker._graph = self.graph
 
         # Set up the dispatcher
         self.dispatcher.set_max_parallel_tasks(LimitedParallelTaskWorker, max_parallel)

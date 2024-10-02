@@ -23,6 +23,7 @@ from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from .dispatcher import Dispatcher
 from .joined_task import InitialTaskWorker
+from .provenance import ProvenanceChain, ProvenanceTracker
 from .task import Task, TaskType, TaskWorker
 
 # Initialize colorama for Windows compatibility
@@ -37,12 +38,27 @@ class Graph(BaseModel):
     dependencies: Dict[TaskWorker, List[TaskWorker]] = Field(default_factory=dict)
 
     _dispatcher: Optional[Dispatcher] = PrivateAttr(default=None)
+    _provenance_tracker: ProvenanceTracker = PrivateAttr(
+        default_factory=ProvenanceTracker
+    )
+
     _max_parallel_tasks: Dict[Type[TaskWorker], int] = PrivateAttr(default_factory=dict)
     _sink_tasks: List[TaskType] = PrivateAttr(default_factory=list)
     _sink_worker: Optional[TaskWorker] = PrivateAttr(default=None)
 
     _worker_distances: Dict[str, Dict[str, int]] = PrivateAttr(default_factory=dict)
     _has_terminal: bool = PrivateAttr(default=False)
+
+    def trace(self, prefix: ProvenanceChain):
+        self._provenance_tracker.trace(prefix)
+
+    def watch(
+        self, prefix: ProvenanceChain, notifier: TaskWorker, task: Optional[Task] = None
+    ) -> bool:
+        return self._provenance_tracker.watch(prefix, notifier, task)
+
+    def unwatch(self, prefix: ProvenanceChain, notifier: TaskWorker) -> bool:
+        return self._provenance_tracker.unwatch(prefix, notifier)
 
     def add_worker(self, task: TaskWorker) -> "Graph":
         """Add a task to the Graph."""
@@ -301,6 +317,20 @@ class Graph(BaseModel):
             worker.completed()
 
     def inject_initial_task_worker(self, initial_tasks: List[Tuple[TaskWorker, Task]]):
+        """
+        Injects an initial task worker and sets up dependencies for the given initial tasks.
+
+        This method creates an `InitialTaskWorker` instance and adds it to the worker list.
+        It then sets up dependencies between the initial task worker and each worker in the
+        provided `initial_tasks` list without performing any checks.
+
+        Args:
+            initial_tasks (List[Tuple[TaskWorker, Task]]): A list of tuples where each tuple
+            contains a `TaskWorker` and a `Task`.
+
+        Returns:
+            None
+        """
         initial_worker = InitialTaskWorker()
         self.add_worker(initial_worker)
         for worker, _ in initial_tasks:
