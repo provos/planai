@@ -16,7 +16,7 @@ import shutil
 import time
 from collections import deque
 from threading import Event, Thread
-from typing import Dict, List, Optional, Set, Tuple, Type
+from typing import Dict, List, Optional, Sequence, Set, Tuple, Type
 
 from colorama import Fore, Style, init
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
@@ -45,9 +45,14 @@ class Graph(BaseModel):
     _max_parallel_tasks: Dict[Type[TaskWorker], int] = PrivateAttr(default_factory=dict)
     _sink_tasks: List[TaskType] = PrivateAttr(default_factory=list)
     _sink_worker: Optional[TaskWorker] = PrivateAttr(default=None)
+    _initial_worker: TaskWorker = PrivateAttr(default=None)
 
     _worker_distances: Dict[str, Dict[str, int]] = PrivateAttr(default_factory=dict)
     _has_terminal: bool = PrivateAttr(default=False)
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        self._initial_worker = InitialTaskWorker()
 
     def trace(self, prefix: ProvenanceChain):
         self._provenance_tracker.trace(prefix)
@@ -218,7 +223,7 @@ class Graph(BaseModel):
 
     def run(
         self,
-        initial_tasks: List[Tuple[TaskWorker, Task]],
+        initial_tasks: Sequence[Tuple[TaskWorker, Task]],
         run_dashboard: bool = False,
         display_terminal: bool = True,
     ) -> None:
@@ -285,20 +290,14 @@ class Graph(BaseModel):
             dispatcher.set_max_parallel_tasks(worker_class, max_parallel_tasks)
 
         # let the workers now that we are about to start
-        for worker in self.workers:
-            worker.init()
-
-        # initial mock worker
-        origin_worker = InitialTaskWorker()
+        self.init_workers()
 
         for worker, task in initial_tasks:
             success, error = worker.validate_task(type(task), worker)
             if not success:
                 raise error
 
-            task._provenance = [(origin_worker.name, 1)] + task._provenance
-
-            dispatcher.add_work(worker, task)
+            self._add_work(worker, task)
 
         # Wait for all tasks to complete
         logging.info(f"Graph {self.name} started - waiting for completion")
@@ -316,6 +315,16 @@ class Graph(BaseModel):
         for worker in self.workers:
             worker.completed()
 
+    def init_workers(self):
+        for worker in self.workers:
+            worker.init()
+
+    def _add_work(self, worker: TaskWorker, task: Task):
+        task._provenance = [(self._initial_worker.name, 1)] + task._provenance
+
+        assert self._dispatcher is not None
+        self._dispatcher.add_work(worker, task)
+
     def inject_initial_task_worker(self, initial_tasks: List[Tuple[TaskWorker, Task]]):
         """
         Injects an initial task worker and sets up dependencies for the given initial tasks.
@@ -331,11 +340,10 @@ class Graph(BaseModel):
         Returns:
             None
         """
-        initial_worker = InitialTaskWorker()
-        self.add_worker(initial_worker)
+        self.add_worker(self._initial_worker)
         for worker, _ in initial_tasks:
             # we just fake the dependency and don't do any checks
-            self._set_dependency(initial_worker, worker, register=False)
+            self._set_dependency(self._initial_worker, worker, register=False)
 
     def compute_worker_distances(self):
         for worker in self.workers:
@@ -538,7 +546,7 @@ def main():
                 self.publish_work(Task3WorkItem(final_result=final), input_task=task)
 
     class Task3Worker(TaskWorker):
-        output_types: Set[Type[Task]] = set()
+        output_types: List[Type[Task]] = []
 
         def consume_work(self, task: Task3WorkItem):
             self.print(f"Task3 consuming: {task.final_result}")

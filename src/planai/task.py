@@ -31,8 +31,8 @@ from typing import (
 from pydantic import BaseModel, Field, PrivateAttr
 
 if TYPE_CHECKING:
-    from .dispatcher import ProvenanceChain
     from .graph import Graph
+    from .provenance import ProvenanceChain
 
 
 TaskType = TypeVar("TaskType", bound="Task")
@@ -41,6 +41,7 @@ TaskType = TypeVar("TaskType", bound="Task")
 class Task(BaseModel):
     _provenance: List[Tuple[str, int]] = PrivateAttr(default_factory=list)
     _input_provenance: List["Task"] = PrivateAttr(default_factory=list)
+    _private_state: Dict[str, Any] = PrivateAttr(default_factory=dict)
     _retry_count: int = PrivateAttr(default=0)
     _start_time: Optional[float] = PrivateAttr(default=None)
     _end_time: Optional[float] = PrivateAttr(default=None)
@@ -119,10 +120,18 @@ class Task(BaseModel):
             self._input_provenance = input_task.copy_input_provenance() + [
                 input_task.model_copy()
             ]
+            # merge private state
+            self._private_state.update(input_task._private_state)
         else:
             self._provenance = []
             self._input_provenance = []
         return self
+
+    def add_private_state(self, key: str, value: Any):
+        self._private_state[key] = value
+
+    def get_private_state(self, key: str):
+        return self._private_state.pop(key, None)
 
 
 class WorkBufferContext:
@@ -414,10 +423,8 @@ class TaskWorker(BaseModel, ABC):
             "Task %s published work with provenance %s", self.name, task._provenance
         )
 
-        # Verify if there is a consumer for the given task class
-        consumer = self._consumers.get(task.__class__)
-        if consumer is None:
-            raise ValueError(f"No consumer registered for {task.__class__.__name__}")
+        # find the consumer for this task to publish to
+        consumer = self._get_consumer(task)
 
         logging.info(
             "Worker %s publishing work to consumer %s with task type %s",
@@ -428,6 +435,13 @@ class TaskWorker(BaseModel, ABC):
 
         # this requires that anything that might call publish_work is wrapped in a work_buffer_context
         self._local.ctx.add_to_buffer(consumer, task)
+
+    def _get_consumer(self, task: Task) -> "TaskWorker":
+        # Verify if there is a consumer for the given task class
+        consumer = self._consumers.get(task.__class__)
+        if consumer is None:
+            raise ValueError(f"No consumer registered for {task.__class__.__name__}")
+        return consumer
 
     def completed(self):
         """Called to let the worker know that it has finished processing all work."""
@@ -457,23 +471,7 @@ class TaskWorker(BaseModel, ABC):
             Tuple[bool, Exception]: A tuple containing a boolean indicating success and an exception if validation failed.
         """
         # Ensure consumer has a consume_work method taking task_cls as parameter
-        consume_method = getattr(consumer, "consume_work", None)
-        if not consume_method:
-            return False, AttributeError(
-                f"{consumer.__class__.__name__} has no method consume_work"
-            )
-
-        # Check the type of the first parameter of consume_work method
-        signature = inspect.signature(consume_method)
-        parameters = signature.parameters
-        if len(parameters) != 1:
-            return False, TypeError(
-                f"Method consume_work in {consumer.__class__.__name__} must accept one parameter"
-            )
-
-        # Get the type hints for consume_work
-        type_hints = get_type_hints(consume_method)
-        first_param_type = type_hints.get("task", None)
+        first_param_type = consumer.get_task_class()
 
         if first_param_type is not task_cls:
             return False, TypeError(
