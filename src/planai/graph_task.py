@@ -76,6 +76,8 @@ class GraphTask(TaskWorker):
     def consume_work(self, task: Task):
         # save the task provenance
         new_task = task.model_copy()
+        new_task._provenance = []
+        new_task._input_provenance = []
         new_task.add_private_state(PRIVATE_STATE_KEY, task)
 
         # and dispatch it to the sub-graph. this also sets the task provenance to InitialTaskWorker

@@ -190,7 +190,7 @@ class TaskWorker(BaseModel, ABC):
         description="The types of work this task can output",
     )
     num_retries: int = Field(
-        0, description="The number of retries allowed for this task"
+        default=0, description="The number of retries allowed for this task"
     )
 
     _state_lock: threading.RLock = PrivateAttr(default_factory=threading.RLock)
