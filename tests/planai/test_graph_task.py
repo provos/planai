@@ -119,9 +119,6 @@ class TestGraphTask(unittest.TestCase):
         class SubInputTask(Task):
             data: str
 
-        class SubOutputTask(Task):
-            data: str
-
         class SubInitWorker(TaskWorker):
             output_types: List[Type[Task]] = [SubGraphTask]
 
