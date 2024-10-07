@@ -21,7 +21,7 @@ from .task import Task, TaskWorker
 PRIVATE_STATE_KEY = "_graph_task_private_state"
 
 
-class GraphTask(TaskWorker):
+class SubGraphWorker(TaskWorker):
     graph: Graph = Field(
         ..., description="The graph that will be run as part of this TaskWorker"
     )
@@ -164,7 +164,7 @@ def main():
     sub_graph.set_dependency(task1, task2)
 
     # Create the graph task
-    graph_task = GraphTask(graph=sub_graph, entry_worker=task1, exit_worker=task2)
+    graph_task = SubGraphWorker(graph=sub_graph, entry_worker=task1, exit_worker=task2)
 
     # Create the final consumer
     task3 = Task3Worker()

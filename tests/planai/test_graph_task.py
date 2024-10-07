@@ -3,7 +3,7 @@ import unittest
 from typing import List, Type
 
 from planai.graph import Graph
-from planai.graph_task import GraphTask
+from planai.graph_task import SubGraphWorker
 from planai.joined_task import JoinedTaskWorker
 from planai.task import Task, TaskWorker
 
@@ -31,7 +31,7 @@ class MainWorker(TaskWorker):
         self.publish_work(sub_task, input_task=task)
 
 
-class SubGraphWorker(TaskWorker):
+class SubGraphHandler(TaskWorker):
     output_types: List[Type[Task]] = [SubGraphTask]
 
     def consume_work(self, task: SubGraphTask):
@@ -54,7 +54,7 @@ class FinalWorker(TaskWorker):
         expected_provenance = [
             ("InitialTaskWorker", 1),
             ("MainWorker", 1),
-            ("GraphTask", 1),
+            ("SubGraphWorker", 1),
         ]
         self.verify_provenance(task, expected_provenance)
 
@@ -70,13 +70,13 @@ class TestGraphTask(unittest.TestCase):
     def test_graph_task_provenance(self):
         # Create subgraph
         subgraph = Graph(name="SubGraph")
-        subgraph_worker = SubGraphWorker()
+        subgraph_worker = SubGraphHandler()
         subgraph_entry = subgraph_worker  # Entry point
         subgraph_exit = subgraph_worker  # Exit point
         subgraph.add_workers(subgraph_worker)
 
         # Create GraphTask
-        graph_task = GraphTask(
+        graph_task = SubGraphWorker(
             graph=subgraph, entry_worker=subgraph_entry, exit_worker=subgraph_exit
         )
 
@@ -168,7 +168,7 @@ class TestGraphTask(unittest.TestCase):
         subgraph.set_dependency(sub_init_worker, sub_worker).next(sub_join_worker)
 
         # Create GraphTask
-        graph_task = GraphTask(
+        graph_task = SubGraphWorker(
             graph=subgraph, entry_worker=subgraph_entry, exit_worker=subgraph_exit
         )
 
