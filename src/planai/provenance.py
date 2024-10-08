@@ -180,7 +180,7 @@ class ProvenanceTracker:
 
         if len(sorted_to_notify):
             logging.info(
-                f"Postpoing {len(sorted_to_notify)} remaining notifications till later: {','.join([str(x[0].name) for x in sorted_to_notify])}"
+                f"Postponing {len(sorted_to_notify)} remaining notifications till later: {','.join([str(x[0].name) for x in sorted_to_notify])}"
             )
 
         # Use a named function instead of a lambda to avoid closure issues
@@ -202,7 +202,7 @@ class ProvenanceTracker:
             return 0
         if not last_worker_name:
             return float("inf")
-        return self.graph._worker_distances.get(last_worker_name, {}).get(
+        return worker._graph._worker_distances.get(last_worker_name, {}).get(
             worker.name, float("inf")
         )
 
@@ -211,6 +211,10 @@ class ProvenanceTracker:
         with self.provenance_lock:
             if prefix not in self.provenance_trace:
                 self.provenance_trace[prefix] = []
+
+    def get_traces(self) -> Dict:
+        with self.provenance_lock:
+            return self.provenance_trace
 
     def watch(
         self, prefix: ProvenanceChain, notifier: TaskWorker, task: Optional[Task] = None
