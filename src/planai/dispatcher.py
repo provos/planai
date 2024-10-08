@@ -95,6 +95,7 @@ class Dispatcher:
     ):
         self._thread_pool = ThreadPoolExecutor() if start_thread_pool else None
 
+        self.graph = graph
         self.web_port = web_port
 
         self.task_lock = Lock()
@@ -317,8 +318,7 @@ class Dispatcher:
         return data
 
     def get_traces(self) -> Dict:
-        with self.provenance_lock:
-            return self.provenance_trace
+        return self.graph._provenance_tracker.get_traces()
 
     def get_queued_tasks(self) -> List[Dict]:
         work_items = []
