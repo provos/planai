@@ -266,6 +266,9 @@ class Graph(BaseModel):
                     "The dashboard will make the graph wait for manual termination. This is usually not desired when using a sink worker."
                 )
 
+        # Allow workers to log messages
+        self._log_lines = []
+
         # Start the dispatcher
         dispatcher = Dispatcher(self)
         dispatch_thread = Thread(target=dispatcher.dispatch)
@@ -281,9 +284,6 @@ class Graph(BaseModel):
             terminal_thread.start()
         else:
             self._has_terminal = False
-
-        # Allow workers to log messages
-        self._log_lines = []
 
         # Apply the max parallel tasks settings
         for worker_class, max_parallel_tasks in self._max_parallel_tasks.items():
