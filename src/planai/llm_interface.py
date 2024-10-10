@@ -245,6 +245,9 @@ class LLMInterface:
             if extra_validation:
                 extra_error_message = extra_validation(response)
                 if extra_error_message:
+                    if self.support_structured_outputs:
+                        # the raw response was a pydantic object, so we need to dump it to a string
+                        raw_response = raw_response.model_dump_json()
                     messages.extend(
                         [
                             {"role": "assistant", "content": raw_response},
