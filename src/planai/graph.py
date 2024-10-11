@@ -476,8 +476,9 @@ class Graph(BaseModel):
         print("\033[H")
 
     def print(self, *args):
+        message = " ".join(str(arg) for arg in args)
+        logging.info("Application: %s", message)
         if self._has_terminal:
-            message = " ".join(str(arg) for arg in args)
             self._log_lines.append(message)
         else:
             print(*args)
