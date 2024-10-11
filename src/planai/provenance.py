@@ -173,6 +173,10 @@ class ProvenanceTracker:
         sorted_to_notify = sorted(
             to_notify, key=lambda x: self._get_worker_distance(x[0], worker.name)
         )
+        if len(sorted_to_notify) > 1:
+            logging.info(
+                f"Prioritizing notifications based on distance from {worker.name}: {','.join([str(x[0].name) for x in sorted_to_notify])}"
+            )
 
         notifier, prefix = sorted_to_notify.pop(0)
 
