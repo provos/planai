@@ -90,6 +90,7 @@ class JoinedTaskWorker(TaskWorker):
                 raise ValueError(
                     f"Trying to remove a Task {prefix} that is not being watched."
                 )
+            logging.info("Removing watch for %s in %s", prefix, self.name)
             # Sort the tasks based on their _provenance before sending them
             # This allows for better caching and reproducibility
             sorted_tasks = sorted(
