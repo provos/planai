@@ -24,18 +24,6 @@ from .cached_task import CachedTaskWorker
 from .llm_interface import LLMInterface
 from .task import Task, TaskWorker
 
-PROMPT = dedent(
-    """
-    Here is your input data:
-    {task}
-
-    Here are your instructions:
-    {instructions}
-
-    {format_instructions}
-    """
-).strip()
-
 PROMPT_STRUCTURED_OUTPUT = dedent(
     """
     Here is your input data:
@@ -45,6 +33,8 @@ PROMPT_STRUCTURED_OUTPUT = dedent(
     {instructions}
     """
 ).strip()
+
+PROMPT_FORMAT_INSTRUCTIONS = "\n\n{format_instructions}"
 
 
 class LLMTaskWorker(TaskWorker):
@@ -110,9 +100,12 @@ class LLMTaskWorker(TaskWorker):
 
         response = self.llm.generate_pydantic(
             prompt_template=(
-                PROMPT
-                if not self.llm.support_structured_outputs
-                else PROMPT_STRUCTURED_OUTPUT
+                PROMPT_STRUCTURED_OUTPUT
+                + (
+                    PROMPT_FORMAT_INSTRUCTIONS
+                    if not self.llm.support_structured_outputs
+                    else ""
+                )
             ),
             output_schema=self._output_type(),
             system=self.system_prompt,
@@ -135,9 +128,12 @@ class LLMTaskWorker(TaskWorker):
 
         return self.llm.generate_full_prompt(
             prompt_template=(
-                PROMPT
-                if not self.llm.support_structured_outputs
-                else PROMPT_STRUCTURED_OUTPUT
+                PROMPT_STRUCTURED_OUTPUT
+                + (
+                    PROMPT_FORMAT_INSTRUCTIONS
+                    if not self.llm.support_structured_outputs
+                    else ""
+                )
             ),
             system=self.system_prompt,
             task=processed_task.model_dump_json(indent=2),
