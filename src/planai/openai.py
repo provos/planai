@@ -13,7 +13,7 @@
 # limitations under the License.
 from typing import Any, Dict, List, Literal, Mapping
 
-from openai import OpenAI
+from openai import ContentFilterFinishReasonError, OpenAI
 
 
 class OpenAIWrapper:
@@ -129,6 +129,12 @@ class OpenAIWrapper:
                 content = response.choices[0].message.content
 
             return {"message": {"content": content}}
-
+        except ContentFilterFinishReasonError:
+            # Handle the content filter error
+            return {
+                "error": "Content was rejected by the content filter.",
+                "content": None,
+                "done": False,
+            }
         except Exception as e:
             raise e
