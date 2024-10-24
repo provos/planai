@@ -89,6 +89,11 @@ class LLMInterface:
             # Cache the response with hashed prompt as key
             self.disk_cache.set(prompt_hash, response)
 
+        if "error" in response:
+            self.logger.error("Error in chat response: %s", response["error"])
+        elif "refusal" in response:
+            self.logger.error("Model refused the request: %s", response["refusal"])
+
         return response["message"]["content"]
 
     def chat(
