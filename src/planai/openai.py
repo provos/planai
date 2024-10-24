@@ -13,7 +13,7 @@
 # limitations under the License.
 from typing import Any, Dict, List, Literal, Mapping
 
-from openai import ContentFilterFinishReasonError, OpenAI
+from openai import ContentFilterFinishReasonError, OpenAI, LengthFinishReasonError
 
 
 class OpenAIWrapper:
@@ -129,6 +129,13 @@ class OpenAIWrapper:
                 content = response.choices[0].message.content
 
             return {"message": {"content": content}}
+        except LengthFinishReasonError:
+            # Handle the length error
+            return {
+                "error": "Response exceeded the maximum allowed length.",
+                "content": None,
+                "done": False,
+            }
         except ContentFilterFinishReasonError:
             # Handle the content filter error
             return {
