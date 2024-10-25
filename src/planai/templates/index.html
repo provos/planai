@@ -380,35 +380,59 @@
         // User input requests
         function updateUserRequests(userRequests) {
             const requestsContainer = document.getElementById('user-input-requests');
-            requestsContainer.innerHTML = ''; // Clear any existing content
+            const existingTiles = requestsContainer.getElementsByClassName('user-request-tile');
 
+            // Map existing tiles by data-task-id
+            const existingTilesMap = {};
+            Array.from(existingTiles).forEach(tile => {
+                const taskId = tile.getAttribute('data-task-id');
+                existingTilesMap[taskId] = tile;
+            });
+
+            // Set of current user request IDs
+            const userRequestIds = new Set(userRequests.map(request => request.task_id.toString()));
+
+            // Add new request tiles
             userRequests.forEach(request => {
-                const requestTile = document.createElement('div');
-                requestTile.className = 'user-request-tile';
-                requestTile.setAttribute('data-task-id', request.task_id);
-                requestTile.setAttribute('data-accepted-mime-types', request.accepted_mime_types.join(','));
+                const taskId = request.task_id.toString();
+                if (!existingTilesMap[taskId]) {
+                    // Create new tile
+                    const requestTile = document.createElement('div');
+                    requestTile.className = 'user-request-tile';
+                    requestTile.setAttribute('data-task-id', taskId);
+                    requestTile.setAttribute('data-accepted-mime-types', request.accepted_mime_types.join(','));
 
-                requestTile.innerHTML = `
-            <p><strong>Instruction:</strong> ${request.instruction}</p>
-            <p>Drag a file here to upload or</p>
-            <button class="abort-button">Abort</button>
-        `;
+                    requestTile.innerHTML = `
+                <p><strong>Instruction:</strong> ${request.instruction}</p>
+                <p>Drag a file here to upload or</p>
+                <button class="abort-button">Abort</button>
+            `;
 
-                requestTile.addEventListener('dragover', function (event) {
-                    event.preventDefault();
-                    requestTile.classList.add('drag-over');
-                });
+                    requestTile.addEventListener('dragover', function (event) {
+                        event.preventDefault();
+                        requestTile.classList.add('drag-over');
+                    });
 
-                requestTile.addEventListener('dragleave', function () {
-                    requestTile.classList.remove('drag-over');
-                });
+                    requestTile.addEventListener('dragleave', function () {
+                        requestTile.classList.remove('drag-over');
+                    });
 
-                requestTile.addEventListener('drop', handleFileDrop);
+                    requestTile.addEventListener('drop', handleFileDrop);
 
-                const abortButton = requestTile.querySelector('.abort-button');
-                abortButton.addEventListener('click', () => abortRequest(request.task_id));
+                    const abortButton = requestTile.querySelector('.abort-button');
+                    abortButton.addEventListener('click', () => abortRequest(request.task_id));
 
-                requestsContainer.appendChild(requestTile);
+                    requestsContainer.appendChild(requestTile);
+                }
+                // Existing requests are immutable; no updates needed
+            });
+
+            // Remove tiles that are no longer in userRequests
+            Array.from(existingTiles).forEach(tile => {
+                const taskId = tile.getAttribute('data-task-id');
+                if (!userRequestIds.has(taskId)) {
+                    requestsContainer.removeChild(tile);
+                }
             });
         }
 
