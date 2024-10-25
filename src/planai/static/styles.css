@@ -9,6 +9,9 @@
     --removing-color: #ffe6e6;
     --notification-color: #ffff99;
     --notification-hover-color: #ffff66;
+    --link-color: #0066cc;
+    --link-hover-color: #004499;
+    --link-visited-color: #551a8b;
 }
 
 [data-theme="dark"] {
@@ -22,6 +25,9 @@
     --removing-color: #4d1a1a;
     --notification-color: #4d4d00;
     --notification-hover-color: #666600;
+    --link-color: #61dafb;
+    --link-hover-color: #2bb7da;
+    --link-visited-color: #a25dbb;
 }
 
 
@@ -39,6 +45,21 @@ body {
 h1,
 h2 {
     color: var(--header-color);
+}
+
+a {
+    color: var(--link-color);
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+a:hover {
+    color: var(--link-hover-color);
+    text-decoration: underline;
+}
+
+a:visited {
+    color: var(--link-visited-color);
 }
 
 .task-list {
