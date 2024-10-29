@@ -125,6 +125,8 @@ class OpenAIWrapper:
 
                 content = message.parsed
             else:
+                if "format" in kwargs and kwargs["format"] == "json":
+                    api_params["response_format"] = {"type": "json_object"}
                 response = self.client.chat.completions.create(**api_params)
                 content = response.choices[0].message.content
 

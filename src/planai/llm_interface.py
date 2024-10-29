@@ -74,6 +74,8 @@ class LLMInterface:
             # some models can generate structured outputs
             if self.support_structured_outputs and response_schema:
                 kwargs["response_schema"] = response_schema
+            elif self.support_json_mode:
+                kwargs["format"] = "json"
 
             # ollama expects temperature to be passed as an option
             options = {}
