@@ -104,7 +104,7 @@ class OpenAIWrapper:
         api_params = {
             "model": kwargs.get("model", "gpt-3.5-turbo"),
             "messages": messages,
-            "max_tokens": kwargs.get("max_tokens", self.max_tokens),
+            "max_completion_tokens": kwargs.get("max_tokens", self.max_tokens),
         }
 
         if "options" in kwargs:

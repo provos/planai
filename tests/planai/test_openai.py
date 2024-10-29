@@ -83,7 +83,7 @@ class TestOpenAIWrapper(unittest.TestCase):
         self.assertEqual(response, {"message": {"content": "Chat response content"}})
 
         self.mock_client.chat.completions.create.assert_called_once_with(
-            model="gpt-3.5-turbo", messages=messages, max_tokens=4096
+            model="gpt-3.5-turbo", messages=messages, max_completion_tokens=4096
         )
 
     def test_chat_with_length_error(self):
