@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import MagicMock, Mock, patch
 
 from openai import ContentFilterFinishReasonError, LengthFinishReasonError
+from openai.types import CompletionUsage
 
 from planai.openai import OpenAIWrapper
 
@@ -74,7 +75,10 @@ class TestOpenAIWrapper(unittest.TestCase):
 
     def test_chat_basic(self):
         self.mock_client.chat.completions.create.return_value = Mock(
-            choices=[Mock(message=Mock(content="Chat response content"))]
+            choices=[Mock(message=Mock(content="Chat response content"))],
+            usage=CompletionUsage(
+                completion_tokens=9, prompt_tokens=10, total_tokens=19
+            ),
         )
 
         messages = [{"role": "user", "content": "Hello, assistant!"}]
@@ -127,7 +131,12 @@ class TestOpenAIWrapper(unittest.TestCase):
         # Configure __contains__ to allow 'in' checks
         mock_message.__contains__.side_effect = lambda key: key in mock_message.__dict__
 
-        mock_response = Mock(choices=[Mock(message=mock_message)])
+        mock_response = Mock(
+            choices=[Mock(message=mock_message)],
+            usage=CompletionUsage(
+                completion_tokens=9, prompt_tokens=10, total_tokens=19
+            ),
+        )
         self.mock_client.beta.chat.completions.parse.return_value = mock_response
 
         messages = [{"role": "user", "content": "Test message"}]
@@ -139,7 +148,10 @@ class TestOpenAIWrapper(unittest.TestCase):
 
     def test_chat_with_options(self):
         self.mock_client.chat.completions.create.return_value = Mock(
-            choices=[Mock(message=Mock(content="Chat response with options"))]
+            choices=[Mock(message=Mock(content="Chat response with options"))],
+            usage=CompletionUsage(
+                completion_tokens=9, prompt_tokens=10, total_tokens=19
+            ),
         )
 
         messages = [{"role": "user", "content": "Test message"}]

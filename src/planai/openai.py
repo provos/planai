@@ -11,9 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
 from typing import Any, Dict, List, Literal, Mapping
 
-from openai import ContentFilterFinishReasonError, OpenAI, LengthFinishReasonError
+from openai import ContentFilterFinishReasonError, LengthFinishReasonError, OpenAI
 
 
 class OpenAIWrapper:
@@ -129,6 +130,25 @@ class OpenAIWrapper:
                     api_params["response_format"] = {"type": "json_object"}
                 response = self.client.chat.completions.create(**api_params)
                 content = response.choices[0].message.content
+
+            # Log the usage details
+            usage = response.usage
+            logging.info(
+                "Usage details - Prompt tokens: %d, Completion tokens: %d, Total tokens: %d, Cached tokens: %d, Reasoning tokens: %d",
+                usage.prompt_tokens,
+                usage.completion_tokens,
+                usage.total_tokens,
+                (
+                    usage.prompt_tokens_details.cached_tokens
+                    if usage.prompt_tokens_details
+                    else 0
+                ),
+                (
+                    usage.completion_tokens_details.reasoning_tokens
+                    if usage.completion_tokens_details
+                    else 0
+                ),
+            )
 
             return {"message": {"content": content}}
         except LengthFinishReasonError:
