@@ -38,11 +38,13 @@ class LLMInterface:
         host: Optional[str] = None,
         support_json_mode: bool = True,
         support_structured_outputs: bool = False,
+        support_system_prompt: bool = True,
     ):
         self.model_name = model_name
         self.client = client if client else Client(host=host)
         self.support_json_mode = support_json_mode
         self.support_structured_outputs = support_structured_outputs
+        self.support_system_prompt = support_system_prompt
 
         self.logger = setup_logging(
             logs_dir=log_dir, logs_prefix="llm_interface", logger_name=__name__
@@ -211,10 +213,10 @@ class LLMInterface:
         if logger:
             logger.info("Generated prompt: %s", formatted_prompt)
 
-        messages = [
-            {"role": "system", "content": system},
-            {"role": "user", "content": formatted_prompt},
-        ]
+        messages = []
+        if self.support_system_prompt:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": formatted_prompt})
 
         iteration = 0
         while iteration < 3:
@@ -255,6 +257,10 @@ class LLMInterface:
                     if self.support_structured_outputs:
                         # the raw response was a pydantic object, so we need to dump it to a string
                         raw_response = raw_response.model_dump_json()
+                    elif not isinstance(raw_response, str):
+                        raise ValueError(
+                            "The response should be a string if the model does not support structured outputs."
+                        )
                     messages.extend(
                         [
                             {"role": "assistant", "content": raw_response},

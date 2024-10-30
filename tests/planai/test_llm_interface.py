@@ -263,6 +263,78 @@ class TestLLMInterface(unittest.TestCase):
         self.assertEqual(call_args["messages"], expected_messages)
         self.assertEqual(call_args["response_schema"], StructuredOutputModel)
 
+    def test_chat_without_system_prompt(self):
+        # Create a dummy Pydantic model as output schema
+        class StructuredOutputModel(BaseModel):
+            field1: str
+            field2: int
+
+        # Mock the structured response from the chat method
+        structured_response = StructuredOutputModel(field1="direct", field2=123)
+        self.llm_interface.support_structured_outputs = True
+        self.llm_interface.support_system_prompt = (
+            False  # Simulate model without system prompt support
+        )
+
+        self.mock_client.chat.return_value = {
+            "message": {"content": structured_response}
+        }
+
+        # Performing the test
+        response = self.llm_interface.generate_pydantic(
+            prompt_template="Dummy prompt",
+            output_schema=StructuredOutputModel,
+            system=self.system,
+        )
+
+        # Assertions to ensure the response is directly the structured output
+        self.assertEqual(response, structured_response)
+
+        # Ensure chat was called once with expected messages
+        self.mock_client.chat.assert_called_once()
+
+        # Check the message format
+        expected_messages = [
+            {"role": "user", "content": "Dummy prompt"},
+        ]
+        call_args = self.mock_client.chat.call_args[1]
+        self.assertEqual(call_args["messages"], expected_messages)
+        self.assertEqual(call_args["response_schema"], StructuredOutputModel)
+
+    def test_generate_pydantic_without_json_mode(self):
+        # Create a dummy Pydantic model as output schema
+        class StructuredOutputModel(BaseModel):
+            field1: str
+            field2: int
+
+        # Mock the response from the chat method
+        raw_response = '{"field1": "direct", "field2": 123}'
+        stripped_response = '{"field1": "direct", "field2": 123}'  # Assuming the stripped response is the same for simplicity
+        self.llm_interface.support_json_mode = (
+            False  # Simulate model without JSON mode support
+        )
+
+        self.mock_client.chat.return_value = {"message": {"content": raw_response}}
+
+        with patch.object(
+            self.llm_interface,
+            "_strip_text_from_json_response",
+            return_value=stripped_response,
+        ) as mock_strip:
+            # Performing the test
+            response = self.llm_interface.generate_pydantic(
+                prompt_template="Dummy prompt",
+                output_schema=StructuredOutputModel,
+                system=self.system,
+            )
+
+            # Assertions to ensure the response is correctly parsed
+            expected_response = StructuredOutputModel(field1="direct", field2=123)
+            self.assertEqual(response, expected_response)
+
+            # Ensure _strip_text_from_json_response was called
+            mock_strip.assert_called_once_with(raw_response)
+
 
 if __name__ == "__main__":
     unittest.main()

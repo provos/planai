@@ -30,11 +30,15 @@ def llm_from_config(
                 "gpt-4o-2024-08-06",
                 "gpt-4o",
             ]
+            support_json_mode = model_name not in ["o1-mini", "o1-preview"]
+            support_system_prompt = model_name not in ["o1-mini", "o1-preview"]
             return LLMInterface(
                 model_name=model_name,
                 log_dir=log_dir,
                 client=wrapper,
+                support_json_mode=support_json_mode,
                 support_structured_outputs=support_structured_outputs,
+                support_system_prompt=support_system_prompt,
             )
         case "anthropic":
             api_key = os.getenv("ANTHROPIC_API_KEY")
