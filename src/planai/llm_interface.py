@@ -325,7 +325,7 @@ Here is the output schema:
 {schema}
 ```
 """
-        schema = pydantic_object.schema().copy()
+        schema = pydantic_object.model_json_schema().copy()
 
         schema.pop("title", None)
         schema.pop("type", None)
