@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import logging
-from typing import Any, Dict, List, Literal, Mapping
+from typing import Any, Dict, List, Optional
 
 from openai import ContentFilterFinishReasonError, LengthFinishReasonError, OpenAI
+
+from .llm_tool import Tool
 
 
 class OpenAIWrapper:
@@ -22,7 +24,12 @@ class OpenAIWrapper:
         self.client = OpenAI(api_key=api_key)
         self.max_tokens = max_tokens
 
-    def chat(self, messages: List[Dict[str, str]], **kwargs) -> Dict[str, Any]:
+    def chat(
+        self,
+        messages: List[Dict[str, str]],
+        tools: Optional[List[Tool]] = None,
+        **kwargs
+    ) -> Dict[str, Any]:
         """
         Conduct a chat conversation using the OpenAI API, with optional structured output.
 
