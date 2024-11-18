@@ -1,7 +1,9 @@
+import inspect
+import re
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Optional, Type, get_type_hints
-import inspect
-import json
+
+from textwrap import dedent
 
 
 @dataclass
@@ -38,6 +40,69 @@ def _type_to_json_schema(type_hint: Type) -> Dict[str, Any]:
         return {"type": "string"}
 
 
+def _parse_docstring(docstring: str) -> tuple[str, dict[str, str]]:
+    """
+    Parse a docstring to extract the main description and parameter descriptions.
+
+    Args:
+        docstring: The function's docstring
+
+    Returns:
+        tuple: (main_description, parameter_descriptions)
+    """
+    if not docstring:
+        return "", {}
+
+    # Split docstring into sections
+    parts = re.split(r"\n\s*\n", dedent(docstring).strip())
+
+    # Get main description (first paragraph)
+    main_desc = parts[0].strip()
+
+    # Parse parameter descriptions
+    param_desc = {}
+    current_param = None
+    in_args_section = False
+
+    # Join all parts after the main description
+    remaining_text = "\n".join(parts[1:]) if len(parts) > 1 else ""
+
+    args_lines = []
+    for line in remaining_text.split("\n"):
+        line = line.rstrip()
+
+        # Check if we're entering the Args section
+        if line.lower().endswith("args:"):
+            in_args_section = True
+            continue
+
+        if not in_args_section:
+            continue
+
+        if line and not line.startswith(" "):
+            in_args_section = False
+            continue
+        
+        args_lines.append(line)
+
+    # find parameter descriptions    
+    args_lines = dedent("\n".join(args_lines)).split("\n")
+    for line in args_lines:
+        # Check for new parameter
+        if line and not line.startswith(" "):
+            # Look for parameter definition (param: description)
+            param_match = re.match(r"(\w+):\s*(.*)", line)
+            print(param_match)
+            if param_match:
+                current_param = param_match.group(1)
+                param_desc[current_param] = param_match.group(2)
+        # Add to existing parameter description
+        elif current_param and line:
+            param_desc[current_param] = param_desc[current_param] + " " + line.strip()
+
+    return main_desc, param_desc
+
+
 def create_tool(
     func: Callable[..., Any],
     name: Optional[str] = None,
@@ -71,23 +136,12 @@ def create_tool(
     func_doc = inspect.getdoc(func) or ""
     func_desc = description or func_doc.split("\n\n")[0] if func_doc else func_name
 
+    # Parse docstring
+    main_desc, param_docs = _parse_docstring(func_doc)
+    func_desc = description or main_desc or func_name
+
     # Get type hints
     type_hints = get_type_hints(func)
-
-    # Parse docstring for parameter descriptions
-    param_docs = {}
-    if func_doc:
-        current_param = None
-        for line in func_doc.split("\n"):
-            line = line.strip()
-            if line.startswith("Args:"):
-                continue
-            if ":" in line and not line.endswith(":"):
-                param_name, param_desc = line.split(":", 1)
-                param_name = param_name.strip()
-                param_docs[param_name] = param_desc.strip()
-            elif current_param and line:
-                param_docs[current_param] += " " + line
 
     # Get default values
     signature = inspect.signature(func)
