@@ -11,9 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Dict, List, Literal, Mapping
+from typing import Any, Dict, List, Literal, Mapping, Optional
 
 from anthropic import Anthropic, APIError
+
+from .llm_tool import Tool
 
 
 class AnthropicWrapper:
@@ -65,12 +67,13 @@ class AnthropicWrapper:
         except APIError as e:
             raise e
 
-    def chat(self, messages: List[Dict[str, str]], **kwargs) -> Dict[str, Any]:
+    def chat(self, messages: List[Dict[str, str]], tools: Optional[List[Tool]] = None, **kwargs) -> Dict[str, Any]:
         """
         Conduct a chat conversation using the Anthropic API.
 
         Args:
             messages (list[Mapping[str, str]]): A list of message dictionaries, each containing 'role' and 'content'.
+            tools (Optional[List[Tool]], optional): A list of tools to be used in the conversation. Defaults to None.
             **kwargs: Additional arguments to pass to the generate function.
 
         Returns:
@@ -91,7 +94,18 @@ class AnthropicWrapper:
                 "messages": filtered_messages,
                 "model": kwargs.get("model", "claude-3-5-sonnet-20240620"),
                 "system": system_message,  # Pass the system message here
+                "tools": [],
             }
+
+            if tools:
+                params["tools"] = [
+                    {
+                        "name": tool.name,
+                        "description": tool.description,
+                        "input_schema": tool.parameters,
+                    }
+                    for tool in tools
+                ]
 
             # Conditionally add temperature if it exists in kwargs
             if "options" in kwargs:

@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import logging
-from typing import Any, Dict, List, Literal, Mapping
+from typing import Any, Dict, List, Literal, Mapping, Optional
 
 from openai import ContentFilterFinishReasonError, LengthFinishReasonError, OpenAI
+
+from .llm_tool import Tool
 
 
 class OpenAIWrapper:
@@ -76,7 +78,7 @@ class OpenAIWrapper:
         except Exception as e:
             raise e
 
-    def chat(self, messages: List[Dict[str, str]], **kwargs) -> Dict[str, Any]:
+    def chat(self, messages: List[Dict[str, str]], tools: Optional[List[Tool]] = None, **kwargs) -> Dict[str, Any]:
         """
         Conduct a chat conversation using the OpenAI API, with optional structured output.
 
@@ -88,6 +90,7 @@ class OpenAIWrapper:
             messages (List[Dict[str, str]]): A list of dictionaries representing the conversation
                                              history, where each dictionary contains 'role' (e.g., 'system',
                                              'user', 'assistant') and 'content' (the message text).
+            tools (Optional[List[Tool]], optional): A list of tools to be used in the conversation. Defaults to None.
             **kwargs: Additional parameters that can include:
                 - model (str): The OpenAI model to be used. Defaults to 'gpt-3.5-turbo' if not specified.
                 - max_tokens (int): Maximum number of tokens for the API call. Defaults to the instance's max_tokens.
@@ -105,8 +108,18 @@ class OpenAIWrapper:
         api_params = {
             "model": kwargs.get("model", "gpt-3.5-turbo"),
             "messages": messages,
-            "max_completion_tokens": kwargs.get("max_tokens", self.max_tokens),
+            "functions": [],
         }
+
+        if tools:
+            api_params["functions"] = [
+                {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "parameters": tool.parameters,
+                }
+                for tool in tools
+            ]
 
         if "options" in kwargs:
             if "temperature" in kwargs["options"]:

@@ -24,6 +24,7 @@ from pydantic import BaseModel
 
 from .pydantic_output_parser import MinimalPydanticOutputParser
 from .utils import setup_logging
+from .llm_tool import Tool  # Import the Tool class
 
 # Load environment variables from .env.local file
 load_dotenv(".env.local")
@@ -58,6 +59,7 @@ class LLMInterface:
     def _cached_chat(
         self,
         messages: List[Dict[str, str]],
+        tools: Optional[List[Tool]] = None,
         temperature: Optional[float] = None,
         response_schema: Optional[Type[BaseModel]] = None,
     ) -> str:
@@ -87,7 +89,7 @@ class LLMInterface:
 
             # If not in cache, make request to client using chat interface
             response = self.client.chat(
-                model=self.model_name, messages=messages, **kwargs
+                model=self.model_name, messages=messages, tools=tools, **kwargs
             )
 
             # Cache the response with hashed prompt as key
@@ -103,12 +105,16 @@ class LLMInterface:
     def chat(
         self,
         messages: List[Dict[str, str]],
+        tools: Optional[List[Tool]] = None,
         temperature: Optional[float] = None,
         response_schema: Optional[Type[BaseModel]] = None,
     ) -> str:
         self.logger.info("Chatting with messages: %s", messages)
         response = self._cached_chat(
-            messages=messages, temperature=temperature, response_schema=response_schema
+            messages=messages,
+            tools=tools,
+            temperature=temperature,
+            response_schema=response_schema,
         )
         self.logger.info(
             "Received chat response: %s...",
