@@ -22,7 +22,9 @@ class TestOpenAIWrapper(unittest.TestCase):
 
     def test_chat_basic(self):
         self.mock_client.chat.completions.create.return_value = Mock(
-            choices=[Mock(message=Mock(content="Chat response content"))],
+            choices=[
+                Mock(message=Mock(content="Chat response content", tool_calls=[]))
+            ],
             usage=CompletionUsage(
                 completion_tokens=9, prompt_tokens=10, total_tokens=19
             ),
@@ -74,7 +76,7 @@ class TestOpenAIWrapper(unittest.TestCase):
     def test_chat_with_response_schema(self):
         # Mock the beta chat completion with parsing
         mock_parsed_content = {"parsed": "data"}
-        mock_message = MagicMock(parsed=mock_parsed_content)
+        mock_message = MagicMock(parsed=mock_parsed_content, tool_calls=[])
         # Configure __contains__ to allow 'in' checks
         mock_message.__contains__.side_effect = lambda key: key in mock_message.__dict__
 
@@ -95,7 +97,9 @@ class TestOpenAIWrapper(unittest.TestCase):
 
     def test_chat_with_options(self):
         self.mock_client.chat.completions.create.return_value = Mock(
-            choices=[Mock(message=Mock(content="Chat response with options"))],
+            choices=[
+                Mock(message=Mock(content="Chat response with options", tool_calls=[]))
+            ],
             usage=CompletionUsage(
                 completion_tokens=9, prompt_tokens=10, total_tokens=19
             ),

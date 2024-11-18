@@ -47,22 +47,50 @@ class AnthropicWrapper:
         # Filter out the system message to prevent duplication if it's not needed in the messages parameter
         filtered_messages = [msg for msg in messages if msg["role"] != "system"]
 
+        # Common parameters
+        params = {
+            "max_tokens": kwargs.get("max_tokens", self.max_tokens),
+            "messages": filtered_messages,
+            "model": kwargs.get("model", "claude-3-5-sonnet-20240620"),
+            "system": system_message,  # Pass the system message here
+        }
+
+        # Conditionally add temperature if it exists in kwargs
+        if "options" in kwargs:
+            if "temperature" in kwargs["options"]:
+                params["temperature"] = kwargs["options"]["temperature"]
+
+        if tools:
+            # Convert tools to Anthropic tool format
+            params["tools"] = [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": tool.name,
+                        "description": tool.description,
+                        "parameters": tool.parameters,
+                    },
+                }
+                for tool in tools
+            ]
+
         try:
-            # Common parameters
-            params = {
-                "max_tokens": kwargs.get("max_tokens", self.max_tokens),
-                "messages": filtered_messages,
-                "model": kwargs.get("model", "claude-3-5-sonnet-20240620"),
-                "system": system_message,  # Pass the system message here
-            }
-
-            # Conditionally add temperature if it exists in kwargs
-            if "options" in kwargs:
-                if "temperature" in kwargs["options"]:
-                    params["temperature"] = kwargs["options"]["temperature"]
-
             # Call the function with the constructed parameters
             response = self.client.messages.create(**params)
+
+            # Handle tool calls if present
+            if response.content[0].type == "tool_calls":
+                return {
+                    "message": {"content": ""},
+                    "tool_calls": [
+                        {
+                            "id": tool_call.id,
+                            "name": tool_call.function.name,
+                            "arguments": tool_call.function.arguments,
+                        }
+                        for tool_call in response.content[0].tool_calls
+                    ],
+                }
 
             # Extract content blocks as text and simulate Ollama-like response
             content = "".join(

@@ -56,6 +56,53 @@ class LLMInterface:
             directory=".response_cache", eviction_policy="least-recently-used"
         )
 
+    def _execute_tool(
+        self, tool_calls: List[Dict[str, Any]], tools: List[Tool]
+    ) -> List[Dict[str, str]]:
+        """Execute tool calls and format results for the conversation."""
+        tool_results = []
+        tool_map = {tool.name: tool for tool in tools}
+
+        for tool_call in tool_calls:
+            tool_name = tool_call.get("name") or tool_call.get("function", {}).get(
+                "name"
+            )
+            arguments = tool_call.get("arguments") or tool_call.get("function", {}).get(
+                "arguments", {}
+            )
+
+            if isinstance(arguments, str):
+                # Parse JSON string if needed
+                try:
+                    arguments = json.loads(arguments)
+                except json.JSONDecodeError:
+                    self.logger.error(f"Failed to parse tool arguments: {arguments}")
+                    continue
+
+            if tool_name in tool_map:
+                try:
+                    result = tool_map[tool_name].execute(**arguments)
+                    tool_results.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tool_call.get("id", ""),
+                            "name": tool_name,
+                            "content": str(result),
+                        }
+                    )
+                except Exception as e:
+                    self.logger.error(f"Tool execution failed: {str(e)}")
+                    tool_results.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tool_call.get("id", ""),
+                            "name": tool_name,
+                            "content": f"Error: {str(e)}",
+                        }
+                    )
+
+        return tool_results
+
     def _cached_chat(
         self,
         messages: List[Dict[str, str]],
@@ -65,8 +112,13 @@ class LLMInterface:
     ) -> str:
         # Concatenate all messages to use as the cache key
         message_content = "".join([msg["role"] + msg["content"] for msg in messages])
+        tool_content = ""
+        if tools:
+            tool_content = "".join([f"{t.name}{t.description}" for t in tools])
         prompt_hash = self._generate_hash(
-            self.model_name + f"-{temperature}" if temperature else "" + message_content
+            self.model_name + f"-{temperature}"
+            if temperature
+            else "" + message_content + tool_content
         )
 
         # Check if prompt response is in cache
@@ -74,6 +126,7 @@ class LLMInterface:
 
         if response is None:
             kwargs = {}
+            current_messages = messages.copy()
 
             # some models can generate structured outputs
             if self.support_structured_outputs and response_schema:
@@ -87,10 +140,23 @@ class LLMInterface:
                 options["temperature"] = temperature
                 kwargs["options"] = options
 
-            # If not in cache, make request to client using chat interface
-            response = self.client.chat(
-                model=self.model_name, tools=tools, messages=messages, **kwargs
-            )
+            while True:
+                # Make request to client using chat interface
+                response = self.client.chat(
+                    model=self.model_name,
+                    tools=tools,
+                    messages=current_messages,
+                    **kwargs,
+                )
+
+                # Check if the response contains tool calls
+                tool_calls = response.get("tool_calls", [])
+                if not tool_calls:
+                    break
+
+                # Execute tools and add results to messages
+                tool_results = self._execute_tool(tool_calls, tools or [])
+                current_messages.extend(tool_results)
 
             # Cache the response with hashed prompt as key
             self.disk_cache.set(prompt_hash, response)

@@ -61,6 +61,20 @@ class OpenAIWrapper:
             "max_completion_tokens": kwargs.get("max_tokens", self.max_tokens),
         }
 
+        if tools:
+            # Convert tools to OpenAI function format
+            api_params["tools"] = [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": tool.name,
+                        "description": tool.description,
+                        "parameters": tool.parameters,
+                    },
+                }
+                for tool in tools
+            ]
+
         if "options" in kwargs:
             if "temperature" in kwargs["options"]:
                 api_params["temperature"] = kwargs["options"]["temperature"]
@@ -82,7 +96,8 @@ class OpenAIWrapper:
                 if "format" in kwargs and kwargs["format"] == "json":
                     api_params["response_format"] = {"type": "json_object"}
                 response = self.client.chat.completions.create(**api_params)
-                content = response.choices[0].message.content
+                message = response.choices[0].message
+                content = message.content
 
             # Log the usage details
             usage = response.usage
@@ -103,7 +118,19 @@ class OpenAIWrapper:
                 ),
             )
 
-            return {"message": {"content": content}}
+            return_message = {"message": {"content": content}}
+        # Check for tool calls
+            if message.tool_calls:
+                return_message["tool_calls"] = [
+                    {
+                        "id": tool_call.id,
+                        "name": tool_call.function.name,
+                        "arguments": tool_call.function.arguments,
+                    }
+                    for tool_call in message.tool_calls
+                ]
+
+            return return_message
         except LengthFinishReasonError:
             # Handle the length error
             return {
