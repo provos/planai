@@ -20,59 +20,6 @@ class TestOpenAIWrapper(unittest.TestCase):
         self.api_key = "test_api_key"
         self.openai_wrapper = OpenAIWrapper(api_key=self.api_key)
 
-    def test_generate_basic_prompt(self):
-        # Mock the response from the client
-        self.mock_client.chat.completions.create.return_value = Mock(
-            choices=[Mock(message=Mock(content="Test response content"))]
-        )
-
-        prompt = "Test prompt"
-        response = self.openai_wrapper.generate(prompt=prompt)
-
-        self.assertEqual(response, {"response": "Test response content", "done": True})
-
-        # Verify that the client's chat.completions.create was called with correct parameters
-        self.mock_client.chat.completions.create.assert_called_once()
-        args, kwargs = self.mock_client.chat.completions.create.call_args
-        self.assertEqual(kwargs["model"], "gpt-3.5-turbo")
-        self.assertEqual(kwargs["max_tokens"], 4096)
-        self.assertEqual(kwargs["messages"], [{"role": "user", "content": prompt}])
-
-    def test_generate_with_system_message(self):
-        self.mock_client.chat.completions.create.return_value = Mock(
-            choices=[Mock(message=Mock(content="System message response"))]
-        )
-
-        prompt = "Test prompt"
-        system = "System message"
-        response = self.openai_wrapper.generate(prompt=prompt, system=system)
-
-        self.assertEqual(
-            response, {"response": "System message response", "done": True}
-        )
-
-        self.mock_client.chat.completions.create.assert_called_once()
-        args, kwargs = self.mock_client.chat.completions.create.call_args
-        expected_messages = [
-            {"role": "system", "content": system},
-            {"role": "user", "content": prompt},
-        ]
-        self.assertEqual(kwargs["messages"], expected_messages)
-
-    def test_generate_with_json_format(self):
-        self.mock_client.chat.completions.create.return_value = Mock(
-            choices=[Mock(message=Mock(content='{"key": "value"}'))]
-        )
-
-        prompt = "Test prompt"
-        response = self.openai_wrapper.generate(prompt=prompt, format="json")
-
-        self.assertEqual(response, {"response": '{"key": "value"}', "done": True})
-
-        self.mock_client.chat.completions.create.assert_called_once()
-        args, kwargs = self.mock_client.chat.completions.create.call_args
-        self.assertEqual(kwargs["response_format"], {"type": "json_object"})
-
     def test_chat_basic(self):
         self.mock_client.chat.completions.create.return_value = Mock(
             choices=[Mock(message=Mock(content="Chat response content"))],
@@ -165,16 +112,6 @@ class TestOpenAIWrapper(unittest.TestCase):
         self.mock_client.chat.completions.create.assert_called_once()
         args, kwargs = self.mock_client.chat.completions.create.call_args
         self.assertEqual(kwargs["temperature"], 0.7)
-
-    def test_generate_exception_propagation(self):
-        self.mock_client.chat.completions.create.side_effect = Exception(
-            "Test exception"
-        )
-
-        with self.assertRaises(Exception) as context:
-            self.openai_wrapper.generate(prompt="Test prompt")
-
-        self.assertEqual(str(context.exception), "Test exception")
 
     def test_chat_exception_propagation(self):
         self.mock_client.chat.completions.create.side_effect = Exception(

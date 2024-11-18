@@ -21,50 +21,6 @@ class AnthropicWrapper:
         self.client = Anthropic(api_key=api_key)
         self.max_tokens = max_tokens
 
-    def generate(
-        self,
-        prompt: str,
-        system: str = "",
-        format: Literal["", "json"] = "",
-        model: str = "claude-3-5-sonnet-20240620",
-    ) -> Mapping[str, Any]:
-        """
-        Create a response using the requested Anthropic model.
-
-        Args:
-            prompt (str): The main input prompt for the model.
-            system (str, optional): The system message to set the behavior of the assistant. Defaults to ''.
-            format (Literal['', 'json'], optional): If set to 'json', the response will be in JSON format. Defaults to ''.
-            model (str, optional): The Anthropic model to use. Defaults to 'claude-3-5-sonnet-20240620'.
-            max_tokens (int, optional): Maximum number of tokens in the response. Defaults to 4096.
-
-        Raises:
-            Exception: For any API errors.
-
-        Returns:
-            Mapping[str, Any]: A dictionary containing the response and completion status.
-        """
-        messages = []
-        messages.append({"role": "user", "content": prompt})
-
-        try:
-            response = self.client.messages.create(
-                max_tokens=self.max_tokens,
-                messages=messages,
-                model=model,
-                system=system,
-            )
-
-            # Extract the text from content blocks
-            content = "".join(
-                block.text for block in response.content if block.type == "text"
-            )
-
-            return {"response": content, "done": True}
-
-        except APIError as e:
-            raise e
-
     def chat(self, messages: List[Dict[str, str]], **kwargs) -> Dict[str, Any]:
         """
         Conduct a chat conversation using the Anthropic API.
