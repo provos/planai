@@ -116,32 +116,6 @@ class LLMInterface:
         )
         return response.strip() if isinstance(response, str) else response
 
-    def _cached_generate(self, prompt: str, system: str = "", format: str = "") -> str:
-        # Hash the prompt to use as the cache key
-        prompt_hash = self._generate_hash(
-            self.model_name + "\n" + system + "\n" + prompt
-        )
-
-        # Check if prompt response is in cache
-        response = self.disk_cache.get(prompt_hash)
-
-        if response is None:
-            # If not in cache, make request to client
-            response = self.client.generate(
-                model=self.model_name, prompt=prompt, system=system, format=format
-            )
-
-            # Cache the response with hashed prompt as key
-            self.disk_cache.set(prompt_hash, response)
-
-        return response
-
-    def generate(self, prompt: str, system: str = "") -> str:
-        self.logger.info("Generating text with prompt: %s...", prompt[:850])
-        response = self._cached_generate(prompt=prompt, system=system)
-        self.logger.info("Generated text: %s...", response["response"][:850])
-        return response["response"].strip()
-
     def _strip_text_from_json_response(self, response: str) -> str:
         pattern = r"^[^{\[]*([{\[].*[}\]])[^}\]]*$"
         match = re.search(pattern, response, re.DOTALL)

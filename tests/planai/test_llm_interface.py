@@ -38,52 +38,6 @@ class TestLLMInterface(unittest.TestCase):
         self.response_content = "Paris"
         self.response_data = {"message": {"content": self.response_content}}
 
-    def test_generate_with_cache_miss(self):
-        self.mock_client.generate.return_value = {"response": self.response_content}
-
-        # Call generate
-        response = self.llm_interface.generate(prompt=self.prompt, system=self.system)
-
-        self.mock_client.generate.assert_called_once_with(
-            model=self.llm_interface.model_name,
-            prompt=self.prompt,
-            system=self.system,
-            format="",
-        )
-        # Since we changed to use self.response_content directly
-        self.assertEqual(response, self.response_content)
-
-    def test_generate_with_cache_hit(self):
-        prompt_hash = self.llm_interface._generate_hash(
-            self.llm_interface.model_name + "\n" + self.system + "\n" + self.prompt
-        )
-        self.llm_interface.disk_cache.set(
-            prompt_hash, {"response": self.response_content}
-        )
-
-        # Call generate
-        response = self.llm_interface.generate(prompt=self.prompt, system=self.system)
-
-        # Since it's a cache hit, no chat call should happen
-        self.mock_client.generate.assert_not_called()
-
-        # Confirming expected parsing
-        self.assertEqual(response, self.response_content)
-
-    def test_generate_invalid_json_response(self):
-        # Simulate invalid JSON response
-        invalid_json_response = {"response": "Not a JSON {...."}
-        self.mock_client.generate.return_value = invalid_json_response
-
-        with patch("planai.llm_interface.logging.Logger") as mock_logger:
-            self.llm_interface.logger = mock_logger
-            response = self.llm_interface.generate(
-                prompt=self.prompt, system=self.system
-            )
-
-            # Expecting the invalid content since there's no parsing
-            self.assertEqual(response, "Not a JSON {....")
-
     def test_generate_pydantic_valid_response(self):
         output_model = DummyPydanticModel(field1="test", field2=42)
         valid_json_response = '{"field1": "test", "field2": 42}'
@@ -113,17 +67,6 @@ class TestLLMInterface(unittest.TestCase):
         )
 
         self.assertIsNone(response)  # Expecting None due to parsing error
-
-    def test_cached_generate_caching_mechanism(self):
-        # First call should miss cache and make client call
-        self.mock_client.generate.return_value = self.response_data
-        response = self.llm_interface._cached_generate(self.prompt, self.system)
-        self.assertEqual(response, self.response_data)
-
-        # Second call should hit cache, no additional client call
-        response = self.llm_interface._cached_generate(self.prompt, self.system)
-        self.mock_client.generate.assert_called_once()  # Still called only once
-        self.assertEqual(response, self.response_data)
 
     def test_generate_pydantic_with_retry_logic_and_prompt_check(self):
         # Simulate an invalid JSON response that fails to parse initially
