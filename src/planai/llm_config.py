@@ -16,6 +16,7 @@ def llm_from_config(
     hostname: Optional[str] = None,
     username: Optional[str] = None,
     log_dir: str = "logs",
+    use_cache: bool = True,
 ) -> LLMInterface:
     match provider:
         case "openai":
@@ -39,6 +40,7 @@ def llm_from_config(
                 support_json_mode=support_json_mode,
                 support_structured_outputs=support_structured_outputs,
                 support_system_prompt=support_system_prompt,
+                use_cache=use_cache,
             )
         case "anthropic":
             api_key = os.getenv("ANTHROPIC_API_KEY")
@@ -50,6 +52,7 @@ def llm_from_config(
                 log_dir=log_dir,
                 client=wrapper,
                 support_json_mode=False,
+                use_cache=use_cache,
             )
         case "remote_ollama":
             ssh = SSHConnection(
@@ -61,12 +64,14 @@ def llm_from_config(
                 model_name=model_name,
                 log_dir=log_dir,
                 client=client,
+                use_cache=use_cache,
             )
         case "ollama":
             return LLMInterface(
                 model_name=model_name,
                 log_dir=log_dir,
                 host=host,
+                use_cache=use_cache,
             )
 
     raise ValueError(f"Invalid LLM provider in config: {provider}")

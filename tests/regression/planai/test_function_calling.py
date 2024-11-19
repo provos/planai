@@ -7,6 +7,7 @@ from unittest.mock import Mock
 import pytest
 from pydantic import BaseModel
 
+from planai.llm_config import llm_from_config
 from planai.llm_interface import LLMInterface
 from planai.llm_tool import Tool, tool
 
@@ -60,22 +61,57 @@ def search_data_in_vector_db(query: str) -> str:
     return json.dumps(mock_results)
 
 
+# Update the fixture to use a configurable LLM
 @pytest.fixture(scope="module")
-def llm_client():
-    """Create a real Ollama client for testing."""
-    client = LLMInterface(
-        model_name="llama3.2",  # or your specific model
+def llm_client(request):
+    provider = request.config.getoption("--provider", default="ollama")
+    model_name = request.config.getoption("--model", default="llama3.2")
+    host = request.config.getoption("--host", default=None)
+    hostname = request.config.getoption("--hostname", default=None)
+    username = request.config.getoption("--username", default=None)
+
+    client = llm_from_config(
+        provider=provider,
+        model_name=model_name,
+        host=host,
+        hostname=hostname,
+        username=username,
         log_dir="logs",
-        host="http://localhost:11434",
         use_cache=False,
-        support_json_mode=False,
     )
+    
+    # a hack to disable json mode as that makes testing easier
+    client.support_json_mode = False
+
     return client
+
+
+# Adding custom command-line options for pytest
+def pytest_addoption(parser):
+    parser.addoption(
+        "--provider", action="store", default="ollama", help="LLM provider to use"
+    )
+    parser.addoption(
+        "--model", action="store", default="llama3", help="Model name to use"
+    )
+    parser.addoption("--host", action="store", default=None, help="Host for Ollama")
+    parser.addoption(
+        "--hostname",
+        action="store",
+        default=None,
+        help="SSH hostname (for remote Ollama)",
+    )
+    parser.addoption(
+        "--username",
+        action="store",
+        default=None,
+        help="SSH username (for remote Ollama)",
+    )
 
 
 @pytest.mark.regression
 class TestFunctionCalling:
-    """Regression tests for function calling using real Ollama client."""
+    """Regression tests for function calling using a real LLM client."""
 
     def test_flight_time_query(self, llm_client):
         """Test that the LLM correctly handles flight time queries using function calling."""
@@ -181,5 +217,6 @@ class TestFunctionCalling:
             )
 
 
+# Add main execution to run tests with pytest
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
