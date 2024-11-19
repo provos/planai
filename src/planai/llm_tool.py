@@ -1,9 +1,8 @@
 import inspect
 import re
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Optional, Type, get_type_hints
-
 from textwrap import dedent
+from typing import Any, Callable, Dict, Optional, Type, get_type_hints
 
 
 @dataclass
@@ -12,6 +11,17 @@ class Tool:
     description: str
     parameters: Dict[str, Any]
     func: Callable[..., Any] = field(repr=False)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert the tool to a dictionary format compatible with Ollama."""
+        return {
+            "type": "function",
+            "function": {
+                "name": self.name,
+                "description": self.description,
+                "parameters": self.parameters,
+            },
+        }
 
     def execute(self, **kwargs) -> Any:
         return self.func(**kwargs)
@@ -82,10 +92,10 @@ def _parse_docstring(docstring: str) -> tuple[str, dict[str, str]]:
         if line and not line.startswith(" "):
             in_args_section = False
             continue
-        
+
         args_lines.append(line)
 
-    # find parameter descriptions    
+    # find parameter descriptions
     args_lines = dedent("\n".join(args_lines)).split("\n")
     for line in args_lines:
         # Check for new parameter

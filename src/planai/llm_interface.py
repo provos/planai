@@ -30,6 +30,14 @@ from .utils import setup_logging
 load_dotenv(".env.local")
 
 
+class NoCache:
+    def get(self, key):
+        return None
+
+    def set(self, key, value):
+        pass
+
+
 class LLMInterface:
     def __init__(
         self,
@@ -40,6 +48,7 @@ class LLMInterface:
         support_json_mode: bool = True,
         support_structured_outputs: bool = False,
         support_system_prompt: bool = True,
+        use_cache: bool = True,
     ):
         self.model_name = model_name
         self.client = client if client else Client(host=host)
@@ -52,8 +61,12 @@ class LLMInterface:
         )
 
         # Initialize disk cache for caching responses
-        self.disk_cache = diskcache.Cache(
-            directory=".response_cache", eviction_policy="least-recently-used"
+        self.disk_cache = (
+            diskcache.Cache(
+                directory=".response_cache", eviction_policy="least-recently-used"
+            )
+            if use_cache
+            else NoCache()
         )
 
     def _execute_tool(
@@ -121,6 +134,8 @@ class LLMInterface:
             else "" + message_content + tool_content
         )
 
+        self.logger.info("Chatting with messages: %s", messages)
+
         # Check if prompt response is in cache
         response = self.disk_cache.get(prompt_hash)
 
@@ -141,22 +156,28 @@ class LLMInterface:
                 kwargs["options"] = options
 
             while True:
+                converted_tools = [tool.to_dict() for tool in tools] if tools else []
                 # Make request to client using chat interface
                 response = self.client.chat(
                     model=self.model_name,
-                    tools=tools,
+                    tools=converted_tools,
                     messages=current_messages,
                     **kwargs,
                 )
 
+                self.logger.info("Received chat response: %s", response)
+
                 # Check if the response contains tool calls
-                tool_calls = response.get("tool_calls", [])
+                tool_calls = response.get("message", {}).get("tool_calls", [])
                 if not tool_calls:
                     break
 
+                self.logger.info("Received tool calls: %s", tool_calls)
                 # Execute tools and add results to messages
                 tool_results = self._execute_tool(tool_calls, tools or [])
                 current_messages.extend(tool_results)
+
+                self.logger.info("Chatting with messages: %s", current_messages)
 
             # Cache the response with hashed prompt as key
             self.disk_cache.set(prompt_hash, response)
@@ -175,7 +196,6 @@ class LLMInterface:
         temperature: Optional[float] = None,
         response_schema: Optional[Type[BaseModel]] = None,
     ) -> str:
-        self.logger.info("Chatting with messages: %s", messages)
         response = self._cached_chat(
             messages=messages,
             tools=tools,
