@@ -70,51 +70,54 @@ class LLMInterface:
         )
 
     def _execute_tool(
-        self, tool_calls: List[Dict[str, Any]], tools: List[Tool]
+        self, tool_call: Dict[str, Any], tools: List[Tool]
     ) -> List[Dict[str, str]]:
         """Execute tool calls and format results for the conversation."""
-        tool_results = []
+        tool_name = tool_call.get("name") or tool_call.get("function", {}).get("name")
+        arguments = tool_call.get("arguments") or tool_call.get("function", {}).get(
+            "arguments", {}
+        )
+
+        if isinstance(arguments, str):
+            # Parse JSON string if needed
+            try:
+                arguments = json.loads(arguments)
+            except json.JSONDecodeError:
+                self.logger.error("Failed to parse tool arguments: %s", arguments)
+                return []
+
         tool_map = {tool.name: tool for tool in tools}
-
-        for tool_call in tool_calls:
-            tool_name = tool_call.get("name") or tool_call.get("function", {}).get(
-                "name"
-            )
-            arguments = tool_call.get("arguments") or tool_call.get("function", {}).get(
-                "arguments", {}
-            )
-
-            if isinstance(arguments, str):
-                # Parse JSON string if needed
-                try:
-                    arguments = json.loads(arguments)
-                except json.JSONDecodeError:
-                    self.logger.error(f"Failed to parse tool arguments: {arguments}")
-                    continue
-
-            if tool_name in tool_map:
-                try:
-                    result = tool_map[tool_name].execute(**arguments)
-                    tool_results.append(
-                        {
-                            "role": "tool",
-                            "tool_call_id": tool_call.get("id", ""),
-                            "name": tool_name,
-                            "content": str(result),
-                        }
-                    )
-                except Exception as e:
-                    self.logger.error(f"Tool execution failed: {str(e)}")
-                    tool_results.append(
-                        {
-                            "role": "tool",
-                            "tool_call_id": tool_call.get("id", ""),
-                            "name": tool_name,
-                            "content": f"Error: {str(e)}",
-                        }
-                    )
-
-        return tool_results
+        if tool_name in tool_map:
+            try:
+                result = tool_map[tool_name].execute(**arguments)
+                return [
+                    {
+                        "role": "assistant",
+                        "Content": "",
+                        "tool_calls": [
+                            {
+                                "id": tool_call.get("id", ""),
+                                "type": "function",
+                                "function": {
+                                    "name": tool_name,
+                                    "arguments": arguments,  # Ollama requires this as a Dict but OpenAI requires it as a string
+                                },
+                            }
+                        ],
+                    },
+                    {
+                        "role": "tool",
+                        "name": tool_name,
+                        "tool_call_id": tool_call.get("id", ""),
+                        "content": str(result),
+                    },
+                ]
+            except Exception as e:
+                self.logger.error("Tool execution failed: %s", e)
+                return []
+        else:
+            self.logger.error("Tool '%s' not found.", tool_name)
+            return []
 
     def _cached_chat(
         self,
@@ -174,8 +177,9 @@ class LLMInterface:
 
                 self.logger.info("Received tool calls: %s", tool_calls)
                 # Execute tools and add results to messages
-                tool_results = self._execute_tool(tool_calls, tools or [])
-                current_messages.extend(tool_results)
+                for tool_call in tool_calls:
+                    tool_messages = self._execute_tool(tool_call, tools)
+                    current_messages.extend(tool_messages)
 
                 self.logger.info("Chatting with messages: %s", current_messages)
 

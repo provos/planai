@@ -79,34 +79,11 @@ def llm_client(request):
         log_dir="logs",
         use_cache=False,
     )
-    
+
     # a hack to disable json mode as that makes testing easier
     client.support_json_mode = False
 
     return client
-
-
-# Adding custom command-line options for pytest
-def pytest_addoption(parser):
-    parser.addoption(
-        "--provider", action="store", default="ollama", help="LLM provider to use"
-    )
-    parser.addoption(
-        "--model", action="store", default="llama3", help="Model name to use"
-    )
-    parser.addoption("--host", action="store", default=None, help="Host for Ollama")
-    parser.addoption(
-        "--hostname",
-        action="store",
-        default=None,
-        help="SSH hostname (for remote Ollama)",
-    )
-    parser.addoption(
-        "--username",
-        action="store",
-        default=None,
-        help="SSH username (for remote Ollama)",
-    )
 
 
 @pytest.mark.regression

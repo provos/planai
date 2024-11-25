@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import json
 import logging
 from typing import Any, Dict, List, Optional
 
@@ -55,6 +56,22 @@ class OpenAIWrapper:
         Raises:
             Exception: Propagates any exceptions raised during the API interaction.
         """
+
+        # if there are tool_calls, convert them to OpenAI format
+        messages = messages.copy()
+        for message in messages:
+            if "tool_calls" in message:
+                for tool_call in message["tool_calls"]:
+                    if (
+                        not "function" in tool_call
+                        or not "arguments" in tool_call["function"]
+                    ):
+                        continue
+                    if isinstance(tool_call["function"]["arguments"], dict):
+                        tool_call["function"]["arguments"] = json.dumps(
+                            tool_call["function"]["arguments"]
+                        )
+
         api_params = {
             "model": kwargs.get("model", "gpt-3.5-turbo"),
             "messages": messages,
@@ -62,18 +79,8 @@ class OpenAIWrapper:
         }
 
         if tools:
-            # Convert tools to OpenAI function format
-            api_params["tools"] = [
-                {
-                    "type": "function",
-                    "function": {
-                        "name": tool.name,
-                        "description": tool.description,
-                        "parameters": tool.parameters,
-                    },
-                }
-                for tool in tools
-            ]
+            # Convert tools to OpenAI function format which at the moment is identical to the tool format
+            api_params["tools"] = tools
 
         if "options" in kwargs:
             if "temperature" in kwargs["options"]:
@@ -119,9 +126,9 @@ class OpenAIWrapper:
             )
 
             return_message = {"message": {"content": content}}
-        # Check for tool calls
+            # Check for tool calls
             if message.tool_calls:
-                return_message["tool_calls"] = [
+                return_message["message"]["tool_calls"] = [
                     {
                         "id": tool_call.id,
                         "name": tool_call.function.name,

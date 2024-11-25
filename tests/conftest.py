@@ -41,6 +41,26 @@ def pytest_addoption(parser):
         help="run regression tests",
     )
 
+    parser.addoption(
+        "--provider", action="store", default="ollama", help="LLM provider to use"
+    )
+    parser.addoption(
+        "--model", action="store", default="llama3.2", help="Model name to use"
+    )
+    parser.addoption("--host", action="store", default=None, help="Host for Ollama")
+    parser.addoption(
+        "--hostname",
+        action="store",
+        default=None,
+        help="SSH hostname (for remote Ollama)",
+    )
+    parser.addoption(
+        "--username",
+        action="store",
+        default=None,
+        help="SSH username (for remote Ollama)",
+    )
+
 
 def pytest_collection_modifyitems(config, items):
     if not config.getoption("--run-regression"):
