@@ -158,7 +158,11 @@ class LLMInterface:
                 options["temperature"] = temperature
                 kwargs["options"] = options
 
-            while True:
+            num_tool_calls = 0
+            max_tool_calls = 5
+            while num_tool_calls < max_tool_calls:
+                num_tool_calls += 1
+                
                 converted_tools = [tool.to_dict() for tool in tools] if tools else []
                 # Make request to client using chat interface
                 response = self.client.chat(

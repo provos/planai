@@ -1,10 +1,18 @@
 import json
 import unittest
+from dataclasses import dataclass
+from typing import Any, Dict
 from unittest.mock import Mock, patch
 
 from pydantic import BaseModel
 
 from planai.llm_interface import LLMInterface
+from planai.llm_tool import tool
+
+
+@tool(name="mock_tool")
+def mock_function(param1: str, param2: int) -> str:
+    return f"Executed mock function with args: {param1}, {param2}"
 
 
 # Simple In-Memory Cache to Mock diskcache.Cache for Testing
@@ -152,7 +160,7 @@ class TestLLMInterface(unittest.TestCase):
             output_schema=DummyPydanticModel,
             system=self.system,
             debug_saver=mock_debug_saver,
-            **additional_kwargs
+            **additional_kwargs,
         )
 
         self.assertEqual(response, output_model)
@@ -277,6 +285,178 @@ class TestLLMInterface(unittest.TestCase):
 
             # Ensure _strip_text_from_json_response was called
             mock_strip.assert_called_once_with(raw_response)
+
+    def test_chat_with_tool_calls(self):
+        # Create a mock tool
+        mock_tool = mock_function
+
+        # Setup the mock responses for multiple interactions
+        self.mock_client.chat.side_effect = [
+            {
+                "message": {
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {
+                                "name": "mock_tool",
+                                "arguments": {"param1": "test", "param2": 42},
+                            },
+                        }
+                    ],
+                }
+            },
+            {"message": {"content": "Final response after tool execution"}},
+        ]
+
+        # Make the chat request with tool
+        response = self.llm_interface.chat(
+            messages=[{"role": "user", "content": "Use the mock tool"}],
+            tools=[mock_tool],
+        )
+
+        # Verify the chat method was called twice
+        self.assertEqual(self.mock_client.chat.call_count, 2)
+
+        # Check the final response
+        self.assertEqual(response, "Final response after tool execution")
+
+        # Verify the messages passed in the second call include tool execution results
+        second_call_messages = self.mock_client.chat.call_args_list[1][1]["messages"]
+        self.assertEqual(
+            len(second_call_messages), 3
+        )  # Original + tool call + tool result
+        self.assertEqual(second_call_messages[0]["role"], "user")
+        self.assertEqual(second_call_messages[1]["role"], "assistant")
+        self.assertEqual(second_call_messages[2]["role"], "tool")
+        self.assertEqual(second_call_messages[2]["name"], "mock_tool")
+
+    def test_chat_with_multiple_tool_calls(self):
+        mock_tool = mock_function
+
+        # Setup mock responses for multiple tool calls
+        self.mock_client.chat.side_effect = [
+            {
+                "message": {
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {
+                                "name": "mock_tool",
+                                "arguments": {"param1": "first", "param2": 1},
+                            },
+                        }
+                    ],
+                }
+            },
+            {
+                "message": {
+                    "content": "",
+                    "tool_calls": [
+                        {
+                            "id": "call_2",
+                            "type": "function",
+                            "function": {
+                                "name": "mock_tool",
+                                "arguments": {"param1": "second", "param2": 2},
+                            },
+                        }
+                    ],
+                }
+            },
+            {"message": {"content": "Final response after multiple tool executions"}},
+        ]
+
+        response = self.llm_interface.chat(
+            messages=[{"role": "user", "content": "Use the mock tool twice"}],
+            tools=[mock_tool],
+        )
+
+        # Verify chat was called three times
+        self.assertEqual(self.mock_client.chat.call_count, 3)
+
+        # Check final response
+        self.assertEqual(response, "Final response after multiple tool executions")
+
+        # Verify the complete conversation flow
+        final_call_messages = self.mock_client.chat.call_args_list[2][1]["messages"]
+        self.assertEqual(
+            len(final_call_messages), 5
+        )  # Original + 2 tool calls + 2 results
+
+    def test_chat_with_invalid_tool(self):
+        mock_tool = mock_function
+
+        # Setup mock response with invalid tool name
+        self.mock_client.chat.return_value = {
+            "message": {
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {
+                            "name": "invalid_tool",
+                            "arguments": {"param1": "test", "param2": 42},
+                        },
+                    }
+                ],
+            }
+        }
+
+        # Make the chat request
+        with self.assertLogs(level="ERROR") as log:
+            response = self.llm_interface.chat(
+                messages=[{"role": "user", "content": "Use an invalid tool"}],
+                tools=[mock_tool],
+            )
+
+            # Verify error was logged
+            self.assertTrue(
+                any(
+                    "Tool 'invalid_tool' not found" in message for message in log.output
+                )
+            )
+
+    def test_chat_with_tool_execution_error(self):
+        # Create a mock tool that raises an exception
+        @tool(name="mock_tool")
+        def error_execute(self, **kwargs) -> str:
+            raise Exception("Tool execution failed")
+
+        error_tool = error_execute
+
+        # Setup mock response
+        self.mock_client.chat.return_value = {
+            "message": {
+                "content": "",
+                "tool_calls": [
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {
+                            "name": "mock_tool",
+                            "arguments": {"param1": "test", "param2": 42},
+                        },
+                    }
+                ],
+            }
+        }
+
+        # Make the chat request
+        with self.assertLogs(level="ERROR") as log:
+            response = self.llm_interface.chat(
+                messages=[{"role": "user", "content": "Use the error tool"}],
+                tools=[error_tool],
+            )
+
+            # Verify error was logged
+            self.assertTrue(
+                any("Tool execution failed" in message for message in log.output)
+            )
 
 
 if __name__ == "__main__":
