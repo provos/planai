@@ -93,7 +93,7 @@ class LLMInterface:
                 return [
                     {
                         "role": "assistant",
-                        "Content": "",
+                        "content": "",
                         "tool_calls": [
                             {
                                 "id": tool_call.get("id", ""),
