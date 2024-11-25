@@ -17,8 +17,6 @@ from typing import Any, Dict, List, Optional
 
 from openai import ContentFilterFinishReasonError, LengthFinishReasonError, OpenAI
 
-from .llm_tool import Tool
-
 
 class OpenAIWrapper:
     def __init__(self, api_key: str, max_tokens: int = 4096):
@@ -28,7 +26,7 @@ class OpenAIWrapper:
     def chat(
         self,
         messages: List[Dict[str, str]],
-        tools: Optional[List[Tool]] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
         **kwargs
     ) -> Dict[str, Any]:
         """
