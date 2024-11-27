@@ -1,15 +1,27 @@
 import json
-import os
-import unittest
-from typing import Any, Dict, List, Optional
-from unittest.mock import Mock
+from typing import Optional
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from planai.llm_config import llm_from_config
-from planai.llm_interface import LLMInterface
-from planai.llm_tool import Tool, tool
+from planai.llm_tool import tool
+
+
+class FlightInfo(BaseModel):
+    departure_city: str = Field(..., description="The departure city airport code")
+    arrival_city: str = Field(..., description="The arrival city airport code")
+    departure_time: str = Field(..., description="The departure time")
+    arrival_time: str = Field(..., description="The arrival time")
+    duration: str = Field(..., description="The flight duration")
+
+
+class AIHistoryFact(BaseModel):
+    year: int = Field(..., description="The year of the historical event")
+    event: str = Field(..., description="Description of the historical event")
+    significance: str = Field(
+        ..., description="The significance of this event in AI history"
+    )
 
 
 @tool(name="get_flight_times")
@@ -80,9 +92,6 @@ def llm_client(request):
         use_cache=False,
     )
 
-    # a hack to disable json mode as that makes testing easier
-    client.support_json_mode = False
-
     return client
 
 
@@ -92,6 +101,7 @@ class TestFunctionCalling:
 
     def test_flight_time_query(self, llm_client):
         """Test that the LLM correctly handles flight time queries using function calling."""
+        llm_client.support_json_mode = False
         tools = [get_flight_times]
         question = "What is the flight time from JFK to LAX?"
 
@@ -121,6 +131,7 @@ class TestFunctionCalling:
 
     def test_ai_history_query(self, llm_client):
         """Test that the LLM correctly handles AI history queries using vector search."""
+        llm_client.support_json_mode = False
         tools = [search_data_in_vector_db]
         question = "When was Artificial Intelligence founded?"
 
@@ -160,6 +171,7 @@ class TestFunctionCalling:
     )
     def test_tool_selection(self, llm_client, query, expected_tool):
         """Test that the LLM correctly selects the appropriate tool based on the query."""
+        llm_client.support_json_mode = False
         tools = [get_flight_times, search_data_in_vector_db]
 
         messages = [
@@ -192,6 +204,100 @@ class TestFunctionCalling:
                 term in response.lower()
                 for term in ["artificial intelligence", "founded"]
             )
+
+
+@pytest.mark.regression
+class TestStructuredOutput:
+    """Regression tests for structured output generation using generate_pydantic."""
+
+    def test_flight_info_structured(self, llm_client):
+        """Test generating structured flight information."""
+        prompt = """Generate structured information about the flight from JFK to LAX.
+        Use the get_flight_times function to get accurate flight details."""
+
+        system = """You are a helpful assistant that provides flight information.
+        Always use the get_flight_times function to look up accurate flight details.
+        Structure the response according to the specified schema."""
+
+        response = llm_client.generate_pydantic(
+            prompt_template=prompt,
+            output_schema=FlightInfo,
+            system=system,
+            tools=[get_flight_times],
+        )
+
+        # Verify the structured response
+        assert isinstance(response, FlightInfo)
+        assert response.departure_city == "JFK"
+        assert response.arrival_city == "LAX"
+        assert "AM" in response.departure_time
+        assert "AM" in response.arrival_time
+        assert "5h" in response.duration
+
+    def test_ai_history_structured(self, llm_client):
+        """Test generating structured AI history information."""
+        prompt = """Generate structured information about when AI was founded as an academic discipline.
+        Use the search_data_in_vector_db function to get accurate historical information."""
+
+        system = """You are a helpful assistant that provides information about AI history.
+        Always use the search_data_in_vector_db function to look up accurate historical data.
+        Structure the response according to the specified schema."""
+
+        response = llm_client.generate_pydantic(
+            prompt_template=prompt,
+            output_schema=AIHistoryFact,
+            system=system,
+            tools=[search_data_in_vector_db],
+        )
+
+        # Verify the structured response
+        assert isinstance(response, AIHistoryFact)
+        assert response.year == 1956
+        assert "academic discipline" in response.event.lower()
+        assert response.significance != ""
+
+    @pytest.mark.parametrize("temp", [0.0, 0.7])
+    def test_temperature_effect(self, llm_client, temp):
+        """Test generating structured output with different temperature settings."""
+        prompt = """Generate structured information about the flight from LAX to JFK.
+        Use the get_flight_times function to get accurate flight details."""
+
+        response = llm_client.generate_pydantic(
+            prompt_template=prompt,
+            output_schema=FlightInfo,
+            system="You are a flight information assistant.",
+            tools=[get_flight_times],
+            temperature=temp,
+        )
+
+        # Core facts should remain consistent regardless of temperature
+        assert isinstance(response, FlightInfo)
+        assert response.departure_city == "LAX"
+        assert response.arrival_city == "JFK"
+        assert "PM" in response.departure_time
+        assert "PM" in response.arrival_time
+
+    def test_extra_validation(self, llm_client):
+        """Test generating structured output with additional validation."""
+
+        def validate_duration(model: FlightInfo) -> Optional[str]:
+            if not any(unit in model.duration for unit in ["h", "hr", "hour"]):
+                return "Duration must include hours"
+            return None
+
+        prompt = """Generate structured information about the flight from JFK to LAX.
+        Use the get_flight_times function to get accurate flight details."""
+
+        response = llm_client.generate_pydantic(
+            prompt_template=prompt,
+            output_schema=FlightInfo,
+            system="You are a flight information assistant.",
+            tools=[get_flight_times],
+            extra_validation=validate_duration,
+        )
+
+        assert isinstance(response, FlightInfo)
+        assert any(unit in response.duration for unit in ["h", "hr", "hour"])
 
 
 # Add main execution to run tests with pytest
