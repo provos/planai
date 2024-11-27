@@ -20,6 +20,7 @@ class Tool:
                 "name": self.name,
                 "description": self.description,
                 "parameters": self.parameters,
+                "strict": True,
             },
         }
 
@@ -157,7 +158,12 @@ def create_tool(
     signature = inspect.signature(func)
 
     # Build parameters schema
-    parameters = {"type": "object", "properties": {}, "required": []}
+    parameters = {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": False,
+    }
 
     for param_name, param in signature.parameters.items():
         if param_name == "self":  # Skip self parameter for methods
