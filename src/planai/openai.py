@@ -18,9 +18,7 @@ from typing import Any, Dict, List, Optional
 from openai import ContentFilterFinishReasonError, LengthFinishReasonError, OpenAI
 
 
-def translate_tools_for_openai(
-    self, messages: List[Dict[str, Any]]
-) -> List[Dict[str, Any]]:
+def translate_tools_for_openai(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     messages = messages.copy()
     for message in messages:
         if "tool_calls" in message:
