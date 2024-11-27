@@ -118,6 +118,7 @@ PlanAI supports advanced features like:
 - Caching results with `CachedTaskWorker`
 - Joining multiple task results with `JoinedTaskWorker`
 - Integrating with various LLM providers (OpenAI, Ollama, etc.)
+- Function calling for supported models
 - **Automatic Prompt Optimization**: Improve your LLMTaskWorker prompts using AI-driven optimization. [Learn more](PROMPT_OPTIMIZATION.md)
 
 
