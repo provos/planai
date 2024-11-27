@@ -162,7 +162,7 @@ class LLMInterface:
             max_tool_calls = 5
             while num_tool_calls < max_tool_calls:
                 num_tool_calls += 1
-                
+
                 converted_tools = [tool.to_dict() for tool in tools] if tools else []
                 # Make request to client using chat interface
                 response = self.client.chat(
@@ -247,6 +247,7 @@ class LLMInterface:
         prompt_template: str,
         output_schema: Type[BaseModel],
         system: str = "",
+        tools: Optional[List[Tool]] = None,
         logger: Optional[logging.Logger] = None,
         debug_saver: Optional[Callable[[str, Dict[str, Any], str], None]] = None,
         extra_validation: Optional[Callable[[BaseModel], Optional[str]]] = None,
@@ -300,6 +301,7 @@ class LLMInterface:
                 messages=messages,
                 temperature=temperature,
                 response_schema=output_schema,
+                tools=tools,
             )
             if not self.support_json_mode:
                 raw_response = self._strip_text_from_json_response(raw_response)
