@@ -18,6 +18,26 @@ from typing import Any, Dict, List, Optional
 from openai import ContentFilterFinishReasonError, LengthFinishReasonError, OpenAI
 
 
+def translate_tools_for_openai(
+    self, messages: List[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
+    messages = messages.copy()
+    for message in messages:
+        if "tool_calls" in message:
+            for tool_call in message["tool_calls"]:
+                if (
+                    "function" not in tool_call
+                    or "arguments" not in tool_call["function"]
+                ):
+                    continue
+                if isinstance(tool_call["function"]["arguments"], dict):
+                    tool_call["function"]["arguments"] = json.dumps(
+                        tool_call["function"]["arguments"]
+                    )
+
+    return messages
+
+
 class OpenAIWrapper:
     def __init__(self, api_key: str, max_tokens: int = 4096):
         self.client = OpenAI(api_key=api_key)
@@ -25,7 +45,7 @@ class OpenAIWrapper:
 
     def chat(
         self,
-        messages: List[Dict[str, str]],
+        messages: List[Dict[str, Any]],
         tools: Optional[List[Dict[str, Any]]] = None,
         **kwargs
     ) -> Dict[str, Any]:
@@ -56,19 +76,7 @@ class OpenAIWrapper:
         """
 
         # if there are tool_calls, convert them to OpenAI format
-        messages = messages.copy()
-        for message in messages:
-            if "tool_calls" in message:
-                for tool_call in message["tool_calls"]:
-                    if (
-                        not "function" in tool_call
-                        or not "arguments" in tool_call["function"]
-                    ):
-                        continue
-                    if isinstance(tool_call["function"]["arguments"], dict):
-                        tool_call["function"]["arguments"] = json.dumps(
-                            tool_call["function"]["arguments"]
-                        )
+        messages = translate_tools_for_openai(messages)
 
         api_params = {
             "model": kwargs.get("model", "gpt-3.5-turbo"),
@@ -83,6 +91,8 @@ class OpenAIWrapper:
         if "options" in kwargs:
             if "temperature" in kwargs["options"]:
                 api_params["temperature"] = kwargs["options"]["temperature"]
+
+        logging.debug("API parameters: %s", api_params)
 
         try:
             if "response_schema" in kwargs:
