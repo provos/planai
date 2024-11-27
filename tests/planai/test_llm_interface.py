@@ -1,7 +1,5 @@
 import json
 import unittest
-from dataclasses import dataclass
-from typing import Any, Dict
 from unittest.mock import Mock, patch
 
 from pydantic import BaseModel
@@ -409,7 +407,7 @@ class TestLLMInterface(unittest.TestCase):
 
         # Make the chat request
         with self.assertLogs(level="ERROR") as log:
-            response = self.llm_interface.chat(
+            _ = self.llm_interface.chat(
                 messages=[{"role": "user", "content": "Use an invalid tool"}],
                 tools=[mock_tool],
             )
@@ -448,7 +446,7 @@ class TestLLMInterface(unittest.TestCase):
 
         # Make the chat request
         with self.assertLogs(level="ERROR") as log:
-            response = self.llm_interface.chat(
+            _ = self.llm_interface.chat(
                 messages=[{"role": "user", "content": "Use the error tool"}],
                 tools=[error_tool],
             )
