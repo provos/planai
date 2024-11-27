@@ -116,7 +116,7 @@ class AnthropicWrapper:
         self,
         messages: List[Dict[str, str]],
         tools: Optional[List[Dict[str, Any]]] = None,
-        **kwargs
+        **kwargs,
     ) -> Dict[str, Any]:
         """
         Conduct a chat conversation using the Anthropic API.
