@@ -15,6 +15,7 @@
 
 from .cached_task import CachedTaskWorker
 from .graph import Graph
+from .graph_task import SubGraphWorker
 from .joined_task import InitialTaskWorker, JoinedTaskWorker
 from .llm_config import llm_from_config
 from .llm_task import CachedLLMTaskWorker, LLMTaskWorker
@@ -33,4 +34,5 @@ __all__ = [
     "CachedLLMTaskWorker",
     "JoinedTaskWorker",
     "PydanticDictWrapper",
+    "SubGraphWorker",
 ]

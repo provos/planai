@@ -21,7 +21,7 @@ from .task import Task, TaskWorker
 PRIVATE_STATE_KEY = "_graph_task_private_state"
 
 
-class SubGraphWorker(TaskWorker):
+class SubGraphWorkerInternal(TaskWorker):
     graph: Graph = Field(
         ..., description="The graph that will be run as part of this TaskWorker"
     )
@@ -82,6 +82,43 @@ class SubGraphWorker(TaskWorker):
 
         # and dispatch it to the sub-graph. this also sets the task provenance to InitialTaskWorker
         self.graph._add_work(self.entry_worker, new_task)
+
+
+def SubGraphWorker(
+    *,
+    graph: Graph,
+    entry_worker: TaskWorker,
+    exit_worker: TaskWorker,
+    name: str = "SubGraphWorker",
+) -> SubGraphWorkerInternal:
+    """
+    Factory function to create a SubGraphWorker that manages a subgraph within a larger PlanAI graph.
+
+    Parameters
+    ----------
+    name : str, optional
+        Custom name for the SubGraphWorker class, defaults to "SubGraphWorker"
+    graph : Graph
+        The graph that will be run as part of this TaskWorker
+    entry_worker : TaskWorker
+        The entry point worker of the graph that receives initial tasks
+    exit_worker : TaskWorker
+        The exit point worker of the graph that produces final outputs
+        Must have exactly one output type
+
+    Returns
+    -------
+    SubGraphWorkerInternal
+        A new instance of SubGraphWorker with the specified configuration
+
+    Raises
+    ------
+    ValueError
+        If the exit_worker has more than one output type
+    """
+    # Create a new class with the custom name
+    CustomClass = type(name, (SubGraphWorkerInternal,), {})
+    return CustomClass(graph=graph, entry_worker=entry_worker, exit_worker=exit_worker)
 
 
 def main():
@@ -164,7 +201,9 @@ def main():
     sub_graph.set_dependency(task1, task2)
 
     # Create the graph task
-    graph_task = SubGraphWorker(graph=sub_graph, entry_worker=task1, exit_worker=task2)
+    graph_task = SubGraphWorker(
+        name="SubGraph", graph=sub_graph, entry_worker=task1, exit_worker=task2
+    )
 
     # Create the final consumer
     task3 = Task3Worker()
