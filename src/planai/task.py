@@ -221,9 +221,6 @@ class TaskWorker(BaseModel, ABC):
     def name(self) -> str:
         """
         Returns the name of this worker class.
-
-        :return: The name of the class.
-        :rtype: str
         """
         return self.__class__.__name__
 
