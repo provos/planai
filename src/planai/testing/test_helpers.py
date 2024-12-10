@@ -92,3 +92,8 @@ class InvokeTaskWorker:
         assert (
             actual_types == expected_types
         ), f"Expected task types {expected_types}, got {actual_types}"
+
+
+def add_input_provenance(input_task: Task, provenance: Task) -> Task:
+    input_task._input_provenance.append(provenance)
+    return input_task
