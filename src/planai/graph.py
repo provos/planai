@@ -516,7 +516,7 @@ def main():
 
         def consume_work(self, task: Task1WorkItem):
             self.print(f"Task1 consuming: {task.data}")
-            time.sleep(random.uniform(0.2, 0.9))
+            time.sleep(random.uniform(0.4, 1.5))
             for i in range(7):
                 processed = f"Processed: {task.data.upper()} at iteration {i}"
                 self.publish_work(
@@ -528,7 +528,7 @@ def main():
 
         def consume_work(self, task: Task2WorkItem):
             self.print(f"Task2 consuming: {task.processed_data}")
-            time.sleep(random.uniform(0.3, 2.5))
+            time.sleep(random.uniform(0.5, 2.5))
 
             if args.run_dashboard:
                 # demonstrate the ability to request user input
@@ -551,7 +551,7 @@ def main():
 
         def consume_work(self, task: Task3WorkItem):
             self.print(f"Task3 consuming: {task.final_result}")
-            time.sleep(random.uniform(0.4, 1.2))
+            time.sleep(random.uniform(0.6, 1.2))
             self.print("Workflow complete!")
 
     # Create Graph
