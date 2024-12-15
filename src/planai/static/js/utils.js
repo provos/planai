@@ -21,3 +21,24 @@ export function renderObject(obj, indent = '') {
     }).join('<br>');
 }
 
+export function initTabs() {
+    const tabs = document.querySelectorAll('.tab-button');
+    const contents = document.querySelectorAll('.tab-content');
+
+    // Show first tab by default
+    tabs[0]?.classList.add('active');
+    contents[0]?.classList.add('active');
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            // Remove active class from all tabs and contents
+            tabs.forEach(t => t.classList.remove('active'));
+            contents.forEach(c => c.classList.remove('active'));
+
+            // Add active class to clicked tab and corresponding content
+            tab.classList.add('active');
+            const content = document.querySelector(tab.dataset.target);
+            content?.classList.add('active');
+        });
+    });
+}

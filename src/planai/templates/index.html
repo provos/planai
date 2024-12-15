@@ -19,11 +19,25 @@
         <!-- User request tiles will be dynamically inserted here -->
     </div>
 
-    <h2>Worker Statistics</h2>
-    <div id="worker-stats"></div>
+    <div class="tab-container">
+        <div class="tab-header">
+            <button class="tab-button" data-target="#worker-status">Worker Status</button>
+            <button class="tab-button" data-target="#worker-stats">Worker Statistics</button>
+            <button class="tab-button" data-target="#trace-visualization">Provenance Trace</button>
+        </div>
 
-    <h2>Provenance Trace</h2>
-    <div id="trace-visualization" class="trace-list"></div>
+        <div id="worker-status" class="tab-content">
+            <!-- Worker status content -->
+        </div>
+
+        <div id="worker-stats" class="tab-content">
+            <!-- Worker statistics content -->
+        </div>
+
+        <div id="trace-visualization" class="tab-content">
+            <!-- Provenance trace content -->
+        </div>
+    </div>
 
     <h2>Queued Tasks</h2>
     <div id="queued-tasks" class="task-list"></div>

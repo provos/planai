@@ -332,3 +332,111 @@ a:visited {
 [data-theme="dark"] .abort-button:hover {
     background-color: #992626;
 }
+
+/* Worker execution status */
+
+#worker-status {
+    width: 100%;
+}
+
+.worker-row {
+    display: grid;
+    grid-template-columns: 15% 70% 15%;
+    align-items: center;
+    margin: 5px 0;
+    gap: 10px;
+    width: 100%;
+}
+
+.worker-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-right: 10px;
+}
+
+.status-bars {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 2px;
+    height: 20px;
+    width: 100%;
+    margin: 0;
+    justify-content: flex-start;
+    overflow: hidden;
+    padding: 0 5px;
+}
+
+.status-square {
+    flex: 1 0 0;
+    height: 100%;
+    margin: 1px;
+    min-width: 8px;
+}
+
+.status-square.completed {
+    background: #4caf50;
+}
+
+.status-square.active {
+    background: #2196f3;
+}
+
+.status-square.queued {
+    background: #ff9800;
+}
+
+.status-square.failed {
+    background: #f44336;
+}
+
+.worker-stats {
+    text-align: right;
+    white-space: nowrap;
+    padding-left: 10px;
+    /* Prevent overflow */
+    overflow: hidden;
+    /* Show ellipsis if text overflows */
+    text-overflow: ellipsis;
+}
+
+/* Tabbed Display */
+.tab-container {
+    margin: 20px 0;
+    width: 100%;
+}
+
+.tab-header {
+    display: flex;
+    gap: 2px;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.tab-button {
+    padding: 10px 20px;
+    background: var(--task-list-bg);
+    border: 1px solid var(--border-color);
+    border-bottom: none;
+    cursor: pointer;
+    color: var(--text-color);
+    border-radius: 4px 4px 0 0;
+}
+
+.tab-button.active {
+    background: var(--bg-color);
+    border-bottom: 2px solid var(--bg-color);
+    margin-bottom: -2px;
+    font-weight: bold;
+}
+
+.tab-content {
+    display: none;
+    padding: 20px;
+    border: 1px solid var(--border-color);
+    border-top: none;
+    background: var(--bg-color);
+}
+
+.tab-content.active {
+    display: block;
+}
