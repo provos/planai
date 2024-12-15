@@ -134,3 +134,6 @@ examples/**/*.json
 examples/**/*.txt
 examples/social/config-*.yaml
 .DS_Store
+
+# node
+node_modules/
