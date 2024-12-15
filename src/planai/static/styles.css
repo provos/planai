@@ -341,7 +341,7 @@ a:visited {
 
 .worker-row {
     display: grid;
-    grid-template-columns: 15% 70% 15%;
+    grid-template-columns: 15% 60% 25%;
     align-items: center;
     margin: 5px 0;
     gap: 10px;
@@ -352,7 +352,7 @@ a:visited {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    padding-right: 10px;
+    padding-right: 5px;
 }
 
 .status-bars {
@@ -404,6 +404,8 @@ a:visited {
 .tab-container {
     margin: 20px 0;
     width: 100%;
+    box-sizing: border-box;
+    /* Include padding in width */
 }
 
 .tab-header {
@@ -420,6 +422,8 @@ a:visited {
     cursor: pointer;
     color: var(--text-color);
     border-radius: 4px 4px 0 0;
+    box-sizing: border-box;
+    flex: 1;
 }
 
 .tab-button.active {
