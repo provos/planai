@@ -1,9 +1,13 @@
 import { setupEventSource } from './core.js';
 import { initTaskListeners } from './tasks.js';
+import { initTraceListeners } from './trace.js';
+import { initWorkerStatsListeners } from './workers.js';
 import { initTheme } from './theme.js';
 
 setupEventSource();
 initTaskListeners();
+initTraceListeners();
+initWorkerStatsListeners();
 initTheme();
 
 // Quit button functionality
