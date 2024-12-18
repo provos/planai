@@ -109,7 +109,7 @@ class LLMTaskWorker(TaskWorker):
             ),
             output_schema=self._output_type(),
             system=self.system_prompt,
-            task=processed_task.model_dump_json(indent=2) if processed_task else "",
+            task=processed_task.format() if processed_task else "",
             temperature=self.temperature,
             instructions=task_prompt,
             format_instructions=LLMInterface.get_format_instructions(
@@ -136,7 +136,7 @@ class LLMTaskWorker(TaskWorker):
                 )
             ),
             system=self.system_prompt,
-            task=processed_task.model_dump_json(indent=2) if processed_task else "",
+            task=processed_task.format() if processed_task else "",
             instructions=task_prompt,
             format_instructions=LLMInterface.get_format_instructions(
                 self._output_type()
