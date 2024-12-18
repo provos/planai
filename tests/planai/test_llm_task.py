@@ -1,6 +1,7 @@
 # test_llm_task.py
 
 import unittest
+from typing import Optional
 from unittest.mock import MagicMock, Mock, patch
 
 from planai.llm_interface import LLMInterface
@@ -114,6 +115,40 @@ class TestLLMTaskWorker(unittest.TestCase):
         task = DummyTask(content="Test content")
         full_prompt = self.worker.get_full_prompt(task)
         self.assertIn(self.worker.prompt, full_prompt)
+
+
+class CustomLLMTaskWorker(LLMTaskWorker):
+    def pre_process(self, task: Task) -> Optional[Task]:
+        return None
+
+
+class TestLLMTaskWorkerPromptTemplate(unittest.TestCase):
+    def setUp(self):
+        self.llm = LLMInterface()
+        self.mock_client = Mock()
+        self.llm.client = self.mock_client
+        self.worker = CustomLLMTaskWorker(
+            llm=self.llm, prompt="Test instruction", output_types=[DummyOutputTask]
+        )
+
+    def test_prompt_template_omission(self):
+        # Create input task
+        input_task = DummyTask(content="Test content")
+
+        # Mock LLM's generate_full_prompt method
+        self.llm.generate_full_prompt = Mock(return_value="test prompt")
+
+        # Get the full prompt
+        prompt = self.worker.get_full_prompt(input_task)
+
+        # Verify that generate_full_prompt was called with the correct template
+        self.llm.generate_full_prompt.assert_called_once()
+        template_arg = self.llm.generate_full_prompt.call_args[1]["prompt_template"]
+
+        # Check that PROMPT_TEMPLATE is not used (no {task} parameter)
+        self.assertNotIn("{task}", template_arg)
+        self.assertIn("{instructions}", template_arg)
+        self.assertIn("{format_instructions}", template_arg)
 
 
 if __name__ == "__main__":
