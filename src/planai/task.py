@@ -132,6 +132,18 @@ class Task(BaseModel):
 
     def get_private_state(self, key: str):
         return self._private_state.pop(key, None)
+    
+    def format(self) -> str:
+        """Formats the task to be used as part of an LLM prompt.
+        
+        As Pydantic JSON is sometimes difficult to interpret, this method can be used to provide a more human-readable
+        LLM-friendly representation of the task. Child classes can override this method to provide better
+        formatting.
+
+        Returns:
+            str: The formatted task.
+        """
+        return self.model_dump_json(indent=2)
 
 
 class WorkBufferContext:
