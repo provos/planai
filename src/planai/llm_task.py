@@ -24,7 +24,7 @@ from .cached_task import CachedTaskWorker
 from .llm_interface import LLMInterface
 from .task import Task, TaskWorker
 
-PROMPT_STRUCTURED_OUTPUT = dedent(
+PROMPT_TEMPLATE = dedent(
     """
     Here is your input data:
     {task}
@@ -100,7 +100,7 @@ class LLMTaskWorker(TaskWorker):
 
         response = self.llm.generate_pydantic(
             prompt_template=(
-                PROMPT_STRUCTURED_OUTPUT
+                PROMPT_TEMPLATE if processed_task is not None else "{instructions}"
                 + (
                     PROMPT_FORMAT_INSTRUCTIONS
                     if not self.llm.support_structured_outputs
@@ -109,7 +109,7 @@ class LLMTaskWorker(TaskWorker):
             ),
             output_schema=self._output_type(),
             system=self.system_prompt,
-            task=processed_task.model_dump_json(indent=2),
+            task=processed_task.model_dump_json(indent=2) if processed_task else "",
             temperature=self.temperature,
             instructions=task_prompt,
             format_instructions=LLMInterface.get_format_instructions(
@@ -128,7 +128,7 @@ class LLMTaskWorker(TaskWorker):
 
         return self.llm.generate_full_prompt(
             prompt_template=(
-                PROMPT_STRUCTURED_OUTPUT
+                PROMPT_TEMPLATE if processed_task is not None else "{instructions}"
                 + (
                     PROMPT_FORMAT_INSTRUCTIONS
                     if not self.llm.support_structured_outputs
@@ -136,7 +136,7 @@ class LLMTaskWorker(TaskWorker):
                 )
             ),
             system=self.system_prompt,
-            task=processed_task.model_dump_json(indent=2),
+            task=processed_task.model_dump_json(indent=2) if processed_task else "",
             instructions=task_prompt,
             format_instructions=LLMInterface.get_format_instructions(
                 self._output_type()
@@ -168,7 +168,7 @@ class LLMTaskWorker(TaskWorker):
         """
         return self.prompt
 
-    def pre_process(self, task: Task) -> Task:
+    def pre_process(self, task: Task) -> Optional[Task]:
         """
         Pre-processes the input task before sending it to the LLM. Subclasses can override this method to do additional
         processing or filtering.
@@ -177,7 +177,7 @@ class LLMTaskWorker(TaskWorker):
             task (Task): The input task.
 
         Returns:
-            Task: The pre-processed task.
+            Task: The pre-processed task or None if all data will be provided in the prompt.
         """
         return task
 
