@@ -246,6 +246,7 @@ class Graph(BaseModel):
         initial_tasks: Sequence[Tuple[TaskWorker, Task]],
         run_dashboard: bool = False,
         display_terminal: bool = True,
+        web_interface_port: int = 5000,
     ) -> None:
         """
         Execute the Graph by initiating source tasks and managing the workflow.
@@ -258,6 +259,9 @@ class Graph(BaseModel):
                 a TaskWorker and its corresponding Task to initiate the graph execution.
             run_dashboard (bool, optional): If True, starts a web interface for monitoring the
                 graph execution. Defaults to False.
+            display_terminal (bool, optional): If True, displays a terminal status for the graph
+                execution. Defaults to True.
+            web_interface_port (int, optional): The port number for the web interface. Defaults to 5000.
 
         Raises:
             ValueError: If any of the initial tasks fail validation.
@@ -290,7 +294,7 @@ class Graph(BaseModel):
         self._log_lines = []
 
         # Start the dispatcher
-        dispatcher = Dispatcher(self)
+        dispatcher = Dispatcher(self, web_port=web_interface_port)
         dispatch_thread = Thread(target=dispatcher.dispatch)
         dispatch_thread.start()
         if run_dashboard:
