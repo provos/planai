@@ -80,6 +80,26 @@ class Graph(BaseModel):
             self.add_worker(worker)
         return self
 
+    def get_worker_by_input_type(self, input_type: Type[Task]) -> Optional[TaskWorker]:
+        """Get a worker that consumes a specific input type.
+
+        This method searches through registered workers to find one that processes
+        the specified input task type.
+
+        Args:
+            input_type (Type[Task]): The input task type class to match against workers.
+
+        Returns:
+            Optional[TaskWorker]: The matching worker if found, None otherwise.
+
+        Example:
+            worker = graph.get_worker_by_input_type(ImageTask)
+        """
+        for worker in self.workers:
+            if input_type == worker.get_task_class():
+                return worker
+        return None
+
     def set_dependency(
         self, upstream: TaskWorker, downstream: TaskWorker
     ) -> TaskWorker:
