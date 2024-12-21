@@ -15,4 +15,4 @@
 
 from .search import SerperGoogleSearchTool
 
-__all__ = ["SerperGoogleSearchTool"]
+__all__ = ["SerperGoogleSearchTool", "WebBrowser"]
