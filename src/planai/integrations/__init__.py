@@ -13,6 +13,7 @@
 # limitations under the License.
 # src/planai/__init__.py
 
+from .browse import WebBrowser
 from .search import SerperGoogleSearchTool
 
 __all__ = ["SerperGoogleSearchTool", "WebBrowser"]
