@@ -66,9 +66,6 @@ class TaskWorker3(JoinedTaskWorker):
     _processed_count: int = PrivateAttr(0)
     _processed_items: int = PrivateAttr(0)
 
-    def consume_work(self, task: Task2):
-        super().consume_work(task)
-
     def consume_work_joined(self, tasks: List[Task2]):
         prefixes = set([task.prefix_for_input_task(TaskWorker1) for task in tasks])
         if len(prefixes) != 1:

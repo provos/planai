@@ -493,19 +493,43 @@ class TaskWorker(BaseModel, ABC):
         """
         Get the Task subclass that this worker can consume.
 
-        This method inspects the consume_work method to determine the type of Task it can handle.
+        This method checks first for consume_work_joined method, then falls back to consume_work.
+        For JoinedTaskWorker, it extracts the inner type from List[Type].
 
         Returns:
             Type[Task]: The Task subclass this worker can consume.
 
         Raises:
-            AttributeError: If the consume_work method is not defined.
-            TypeError: If the consume_work method is not properly typed.
+            AttributeError: If neither consume method is defined.
+            TypeError: If the consume method is not properly typed.
         """
+        # First check for consume_work_joined
+        consume_method = getattr(self, "consume_work_joined", None)
+        if consume_method:
+            signature = inspect.signature(consume_method)
+            parameters = signature.parameters
+            if len(parameters) != 1:
+                raise TypeError(
+                    f"Method consume_work_joined in {self.__class__.__name__} must accept one parameter"
+                )
+            type_hints = get_type_hints(consume_method)
+            first_param_type = type_hints.get("task", None) or type_hints.get("tasks", None)
+            if not first_param_type:
+                raise TypeError(
+                    f"consume_work_joined method in {self.__class__.__name__} must have type hints"
+                )
+            # Extract inner type from List[Type]
+            if hasattr(first_param_type, "__origin__") and first_param_type.__origin__ is list:
+                return first_param_type.__args__[0]
+            raise TypeError(
+                f"consume_work_joined parameter must be List[Type] but got {first_param_type}"
+            )
+
+        # Fall back to consume_work
         consume_method = getattr(self, "consume_work", None)
         if not consume_method:
             raise AttributeError(
-                f"{self.__class__.__name__} has no method consume_work"
+                f"{self.__class__.__name__} has no method consume_work or consume_work_joined"
             )
         signature = inspect.signature(consume_method)
         parameters = signature.parameters
