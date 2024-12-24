@@ -139,7 +139,7 @@ class TestLLMTaskWorkerPromptTemplate(unittest.TestCase):
         self.llm.generate_full_prompt = Mock(return_value="test prompt")
 
         # Get the full prompt
-        prompt = self.worker.get_full_prompt(input_task)
+        _ = self.worker.get_full_prompt(input_task)
 
         # Verify that generate_full_prompt was called with the correct template
         self.llm.generate_full_prompt.assert_called_once()

@@ -11,7 +11,9 @@ from playwright.sync_api import Error, Request, Route, sync_playwright
 class WebBrowser:
 
     @staticmethod
-    def get_page_content(url: str, download_path: str = None, print_func: callable = print) -> tuple:
+    def get_page_content(
+        url: str, download_path: str = None, print_func: callable = print
+    ) -> tuple:
         """
         Retrieves the content of a web page specified by the given URL.
 
@@ -41,7 +43,9 @@ class WebBrowser:
             context = browser.new_context()
             page = context.new_page()
 
-            download_path = Path(download_path) if download_path else Path.cwd() / "downloads"
+            download_path = (
+                Path(download_path) if download_path else Path.cwd() / "downloads"
+            )
             download_path.mkdir(parents=True, exist_ok=True)
             page.set_extra_http_headers(
                 {
@@ -170,8 +174,10 @@ def main():
     else:
         print(f"Unsupported mime type: {mime_type}")
         main_content = None
-        
-    print(f"Content extracted from {args.url}: {mime_type} {len(content) if content else 0} bytes")
+
+    print(
+        f"Content extracted from {args.url}: {mime_type} {len(content) if content else 0} bytes"
+    )
     print(f"Markdown content: {len(main_content) if main_content else 0} characters")
 
     if main_content:
