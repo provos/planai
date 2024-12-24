@@ -1,7 +1,7 @@
 # test_llm_task.py
 
 import unittest
-from typing import Optional
+from typing import List, Optional, Type
 from unittest.mock import MagicMock, Mock, patch
 
 from planai.llm_interface import LLMInterface
@@ -149,6 +149,62 @@ class TestLLMTaskWorkerPromptTemplate(unittest.TestCase):
         self.assertNotIn("{task}", template_arg)
         self.assertIn("{instructions}", template_arg)
         self.assertIn("{format_instructions}", template_arg)
+
+
+class InputTask(Task):
+    data: str
+
+
+class OutputTask(Task):
+    result: str
+
+
+class DeclarativeInputWorker(LLMTaskWorker):
+    llm_input_type: Type[Task] = InputTask
+    output_types: List[Type[Task]] = [OutputTask]
+
+
+class ExplicitInputWorker(LLMTaskWorker):
+    output_types: List[Type[Task]] = [OutputTask]
+
+    def consume_work(self, task: InputTask):
+        return super().consume_work(task)
+
+
+class TestLLMTaskWorkerInputType(unittest.TestCase):
+    def setUp(self):
+        self.llm = LLMInterface()
+        self.mock_client = Mock()
+        self.llm.client = self.mock_client
+
+        self.declarative_worker = DeclarativeInputWorker(
+            llm=self.llm, prompt="Test prompt"
+        )
+        self.explicit_worker = ExplicitInputWorker(llm=self.llm, prompt="Test prompt")
+
+    def test_input_type_specification(self):
+        # Both workers should accept InputTask
+        self.assertEqual(self.declarative_worker.get_task_class(), InputTask)
+        self.assertEqual(self.explicit_worker.get_task_class(), InputTask)
+
+        # Test that both workers can process InputTask
+        input_task = InputTask(data="test data")
+        output_task = OutputTask(result="test result")
+        self.llm.generate_pydantic = Mock(return_value=output_task)
+
+        # Test declarative worker
+        with patch("planai.llm_task.LLMTaskWorker.publish_work") as mock_publish:
+            self.declarative_worker._invoke_llm(input_task)
+            mock_publish.assert_called_once_with(
+                task=output_task, input_task=input_task
+            )
+
+        # Test explicit worker
+        with patch("planai.llm_task.LLMTaskWorker.publish_work") as mock_publish:
+            self.explicit_worker._invoke_llm(input_task)
+            mock_publish.assert_called_once_with(
+                task=output_task, input_task=input_task
+            )
 
 
 if __name__ == "__main__":

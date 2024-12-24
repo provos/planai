@@ -43,6 +43,10 @@ class LLMTaskWorker(TaskWorker):
         None,
         description="The output type of the LLM if it differs from the task output type",
     )
+    llm_input_type: Optional[Type[Task]] = Field(
+        None,
+        description="The input type of the LLM can be provided here instead of consume_work",
+    )
 
     llm: LLMInterface = Field(
         ..., title="LLM", description="The LLM to use for the task"
@@ -76,6 +80,18 @@ class LLMTaskWorker(TaskWorker):
     def consume_work(self, task: Task):
         return self._invoke_llm(task)
 
+    def get_task_class(self) -> Type[Task]:
+        """Get the Task class type used for this task.
+
+        This method provides a convenience way to specify the task class via llm_input_type
+        instead of having to override consume_work(). If llm_input_type is not set, it falls
+        back to the parent class implementation.
+
+            Type[Task]: The Task class type to be used for this task. Either the value of
+                        llm_input_type if set, or the parent class's task type.
+        """
+        return self.llm_input_type or super().get_task_class()
+
     def _output_type(self):
         if self.llm_output_type is not None:
             return self.llm_output_type
@@ -100,7 +116,9 @@ class LLMTaskWorker(TaskWorker):
 
         response = self.llm.generate_pydantic(
             prompt_template=(
-                PROMPT_TEMPLATE if processed_task is not None else "{instructions}"
+                PROMPT_TEMPLATE
+                if processed_task is not None
+                else "{instructions}"
                 + (
                     PROMPT_FORMAT_INSTRUCTIONS
                     if not self.llm.support_structured_outputs
@@ -128,7 +146,9 @@ class LLMTaskWorker(TaskWorker):
 
         return self.llm.generate_full_prompt(
             prompt_template=(
-                PROMPT_TEMPLATE if processed_task is not None else "{instructions}"
+                PROMPT_TEMPLATE
+                if processed_task is not None
+                else "{instructions}"
                 + (
                     PROMPT_FORMAT_INSTRUCTIONS
                     if not self.llm.support_structured_outputs

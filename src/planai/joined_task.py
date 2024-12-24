@@ -11,11 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import inspect
 import logging
 import threading
 from abc import abstractmethod
 from operator import attrgetter
-from typing import Dict, List, Set, Type
+from typing import Dict, List, Set, Type, get_type_hints
 
 from pydantic import Field, PrivateAttr
 
@@ -81,6 +82,47 @@ class JoinedTaskWorker(TaskWorker):
                     self.trace(prefix)
                 logging.info("Starting watch for %s in %s", prefix, self.name)
                 self.watch(prefix)
+
+    def get_task_class(self):
+        """
+        Get the Task subclass that this worker can consume.
+
+        This method checks consume_work_joined for the inner type of the List[] parameter.
+
+        Returns:
+            Type[Task]: The Task subclass this worker can consume.
+
+        Raises:
+            AttributeError: If the consume_work_joined method is not defined.
+            TypeError: If the consume_work_joined method is not properly typed.
+        """
+        # First check for consume_work_joined
+        consume_method = getattr(self, "consume_work_joined", None)
+        if not consume_method:
+            raise AttributeError(
+                f"JoinedTaskWorker {self.__class__.__name__} must implement consume_work_joined method"
+            )
+        signature = inspect.signature(consume_method)
+        parameters = signature.parameters
+        if len(parameters) != 1:
+            raise TypeError(
+                f"Method consume_work_joined in {self.__class__.__name__} must accept one parameter"
+            )
+        type_hints = get_type_hints(consume_method)
+        first_param_type = type_hints.get("task", None) or type_hints.get("tasks", None)
+        if not first_param_type:
+            raise TypeError(
+                f"consume_work_joined method in {self.__class__.__name__} must have type hints"
+            )
+        # Extract inner type from List[Type]
+        if (
+            not hasattr(first_param_type, "__origin__")
+            or first_param_type.__origin__ is not list
+        ):
+            raise TypeError(
+                f"consume_work_joined parameter must be List[Type] but got {first_param_type}"
+            )
+        return first_param_type.__args__[0]
 
     def notify(self, prefix: str):
         with self.lock:
