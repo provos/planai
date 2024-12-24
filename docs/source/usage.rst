@@ -64,10 +64,9 @@ PlanAI allows you to easily integrate AI capabilities into your workflow using L
 
     class AIAnalyzer(LLMTaskWorker):
         prompt="Analyze the processed data and provide insights."
+        llm_input_type: Type[Task] = ProcessedData
         output_types = [AnalysisResult]
 
-        def consume_work(self, task: ProcessedData):
-            super().consume_work(task)
 
     # Initialize LLM
     llm = llm_from_config(provider="openai", model_name="gpt-4")
@@ -96,7 +95,7 @@ To enable the dashboard:
 
     graph.run(initial_tasks, run_dashboard=True)
 
-When enabled, the dashboard will be accessible at ``http://localhost:5000`` by default. The application will continue running until manually terminated, allowing for ongoing monitoring of long-running workflows.
+When enabled, the dashboard will be accessible at ``http://localhost:5000`` by default. The application will continue running until manually terminated, allowing for ongoing monitoring of long-running workflows. The default can be changed by setting the ``dashboard_port`` parameter.
 
 Note: Enabling the dashboard will block the main thread, so it's recommended for development and debugging purposes. For production use, consider implementing a separate monitoring solution.
 
