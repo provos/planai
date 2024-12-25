@@ -3,10 +3,10 @@ from datetime import datetime
 from textwrap import dedent
 from typing import List, Optional, Type
 
+import pymupdf4llm
 import requests
 import yaml
 from pydantic import Field
-import pymupdf4llm
 
 from planai import (
     CachedLLMTaskWorker,
@@ -50,6 +50,7 @@ class SocialMediaPost(Task):
     post1: str = Field(description="The first social media post")
     post2: str = Field(description="The second social media post")
     post3: str = Field(description="The third social media post")
+
 
 # Utility function
 def extract_markdown_from_pdf(pdf_path: str, print_func: callable = print) -> str:
@@ -135,9 +136,9 @@ class PageFetcher(CachedTaskWorker):
         # Fetch the HTML content of the page
         try:
             response = WebBrowser.get_markdown_from_page(
-                task.link, 
+                task.link,
                 extract_markdown_from_pdf=extract_markdown_from_pdf,
-                print_func=self.print
+                print_func=self.print,
             )
             if response is None:
                 self.print(f"Failed to fetch page for link: {task.link}")
