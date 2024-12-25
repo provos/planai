@@ -215,13 +215,8 @@ class TaskWorker(BaseModel, ABC):
         Any subclass of TaskWorker must implement consume_work.
     """
 
-    output_types: List[Type[Task]] = Field(
-        default_factory=list,
-        description="The types of work this task can output",
-    )
-    num_retries: int = Field(
-        default=0, description="The number of retries allowed for this task"
-    )
+    output_types: List[Type[Task]] = Field(default_factory=list)
+    num_retries: int = Field(default=0)
 
     _state_lock: threading.RLock = PrivateAttr(default_factory=threading.RLock)
     _id: int = PrivateAttr(default=0)
@@ -590,16 +585,16 @@ class TaskWorker(BaseModel, ABC):
         relevant content programmatically.
 
         Parameters:
-        - task (Task): The current task for which user input is being requested. This object must be part
-          of the initialized graph and dispatcher.
-        - instruction (str): Instructions to the user describing the nature of the requested input.
-          This string should be clear to prompt the expected response.
-        - accepted_mime_types (List[str], optional): A list of acceptable MIME types for the user input.
-          Defaults to ["text/html"]. This parameter specifies the format expectations for input validation.
+            task (Task): The current task for which user input is being requested. This object must be part
+              of the initialized graph and dispatcher.
+            instruction (str): Instructions to the user describing the nature of the requested input.
+              This string should be clear to prompt the expected response.
+            accepted_mime_types (List[str], optional): A list of acceptable MIME types for the user input.
+              Defaults to ["text/html"]. This parameter specifies the format expectations for input validation.
 
         Returns:
-        - Tuple[Any, Optional[str]]: A tuple where the first element is the user's input (data), and the second
-          element (if available) is the MIME type of the provided data.
+            Tuple[Any, Optional[str]]: A tuple where the first element is the user's input (data), and the second
+              element (if available) is the MIME type of the provided data.
 
         Raises:
         - RuntimeError: If the graph or dispatcher is not initialized.
