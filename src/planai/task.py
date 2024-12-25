@@ -27,13 +27,18 @@ from typing import (
     TypeVar,
     get_type_hints,
 )
+from xml.dom.minidom import parseString
 
+import dicttoxml
 from pydantic import BaseModel, Field, PrivateAttr
 
 if TYPE_CHECKING:
     from .graph import Graph
     from .provenance import ProvenanceChain
 
+# Suppress dicttoxml INFO logs at module initialization
+dicttoxml_logger = logging.getLogger("dicttoxml")
+dicttoxml_logger.setLevel(logging.WARNING)
 
 TaskType = TypeVar("TaskType", bound="Task")
 
@@ -144,6 +149,19 @@ class Task(BaseModel):
             str: The formatted task.
         """
         return self.model_dump_json(indent=2)
+
+    def model_dump_xml(self) -> str:
+        """Formats the task as XML."""
+        xml = dicttoxml.dicttoxml(
+            self.model_dump(), custom_root=self.name, attr_type=False
+        )
+        xml_string = parseString(xml).toprettyxml(indent="  ")
+        # Remove the XML declaration efficiently
+        if xml_string.startswith("<?xml"):
+            newline_index = xml_string.find("\n")
+            if newline_index != -1:
+                xml_string = xml_string[newline_index + 1 :]
+        return xml_string
 
 
 class WorkBufferContext:

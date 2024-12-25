@@ -241,6 +241,25 @@ class TestTaskWorker(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.worker.register_consumer(DummyTask, consumer)
 
+    def test_model_dump_xml(self):
+        class XMLTask(Task):
+            some_data: str = "this is a test"
+            list_data: List[str] = ["one", "two", "three"]
+
+        task = XMLTask()
+        xml_output = task.model_dump_xml()
+        expected_lines = [
+            "<XMLTask>",
+            "  <some_data>this is a test</some_data>",
+            "  <list_data>",
+            "    <item>one</item>",
+            "    <item>two</item>",
+            "    <item>three</item>",
+            "  </list_data>",
+            "</XMLTask>",
+        ]
+        self.assertEqual(xml_output.splitlines(), expected_lines)
+
 
 if __name__ == "__main__":
     unittest.main()
