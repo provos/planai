@@ -8,9 +8,7 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.10"
 planai = {path = "../../", develop = true}
-playwright = "^1.47.0"
-beautifulsoup4 = "^4.12.3"
-html2text = "^2024.2.26"
+pymupdf4llm = "^0.0.17"
 
 [build-system]
 requires = ["poetry-core"]

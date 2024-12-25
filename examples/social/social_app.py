@@ -5,8 +5,8 @@ from typing import List, Optional, Type
 
 import requests
 import yaml
-from browse import WebBrowser
 from pydantic import Field
+import pymupdf4llm
 
 from planai import (
     CachedLLMTaskWorker,
@@ -17,7 +17,7 @@ from planai import (
     Task,
     llm_from_config,
 )
-from planai.integrations import SerperGoogleSearchTool
+from planai.integrations import SerperGoogleSearchTool, WebBrowser
 from planai.utils import setup_logging
 
 
@@ -50,6 +50,15 @@ class SocialMediaPost(Task):
     post1: str = Field(description="The first social media post")
     post2: str = Field(description="The second social media post")
     post3: str = Field(description="The third social media post")
+
+# Utility function
+def extract_markdown_from_pdf(pdf_path: str, print_func: callable = print) -> str:
+    try:
+        md_text = pymupdf4llm.to_markdown(pdf_path, show_progress=False)
+        return md_text
+    except Exception as e:
+        print_func(f"Error extracting text from PDF: {e}")
+        return None
 
 
 # Task Workers
@@ -126,7 +135,9 @@ class PageFetcher(CachedTaskWorker):
         # Fetch the HTML content of the page
         try:
             response = WebBrowser.get_markdown_from_page(
-                task.link, print_func=self.print
+                task.link, 
+                extract_markdown_from_pdf=extract_markdown_from_pdf,
+                print_func=self.print
             )
             if response is None:
                 self.print(f"Failed to fetch page for link: {task.link}")
@@ -173,9 +184,6 @@ Adhere to these principles to produce a final document that is streamlined, rele
 class CombineResults(JoinedTaskWorker):
     join_type: Type[Task] = InitialTaskWorker
     output_types: List[Type[Task]] = [SelectedPages]
-
-    def consume_work(self, task: PageResult):
-        super().consume_work(task)
 
     def consume_work_joined(self, tasks: List[PageResult]):
         tasks = [
@@ -288,7 +296,7 @@ def main():
     cleaner_worker = PageCleaner(llm=llm)
     combine_worker = CombineResults()
 
-    llm_reasoning = llm_from_config(provider="openai", model_name="gpt-4o-2024-08-06")
+    llm_reasoning = llm_from_config(provider="openai", model_name="gpt-4o")
     post_worker = CreatePostWorker(
         llm=llm_reasoning, profile_description=profile_description
     )

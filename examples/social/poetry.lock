@@ -1172,6 +1172,37 @@ typing-extensions = "*"
 dev = ["black", "build", "flake8", "flake8-black", "isort", "jupyter-console", "mkdocs", "mkdocs-include-markdown-plugin", "mkdocstrings[python]", "pytest", "pytest-asyncio", "pytest-trio", "sphinx", "toml", "tox", "trio", "trio", "trio-typing", "twine", "twisted", "validate-pyproject[all]"]
 
 [[package]]
+name = "pymupdf"
+version = "1.25.1"
+description = "A high performance Python library for data extraction, analysis, conversion & manipulation of PDF (and other) documents."
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "pymupdf-1.25.1-cp39-abi3-macosx_10_9_x86_64.whl", hash = "sha256:793f9f6d51029e97851c711b3f6d9fe912313d95a306fbe8b1866f301d0e2bd3"},
+    {file = "pymupdf-1.25.1-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:15e6f4013ad0a029a2221920f9d2081f56dc43259dabfdf5cad7fbf1cee4b5a7"},
+    {file = "pymupdf-1.25.1-cp39-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:a39afbd80381f43e30d6eb2ec4613f465f507ac2b76070abdd2da8724f32ef36"},
+    {file = "pymupdf-1.25.1-cp39-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:b63f8e9e65b0bda48f9217efd4d2a8c6d7a739dd28baf460c1ae78439b9af489"},
+    {file = "pymupdf-1.25.1-cp39-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:a687bd387589e30abd810a78a23341f57f43fa16a4d8d8c0b870bb6d89607343"},
+    {file = "pymupdf-1.25.1-cp39-abi3-win32.whl", hash = "sha256:fc7dbc1aa9e298a4c81084e389c9623c26fcaa232c71efaa073af150069e2221"},
+    {file = "pymupdf-1.25.1-cp39-abi3-win_amd64.whl", hash = "sha256:e2b0b73c0aab0f863e5132c93cfa4607e8129feb1afa3d544b2cf7f172c50b5a"},
+    {file = "pymupdf-1.25.1.tar.gz", hash = "sha256:6725bec0f37c2380d926f792c262693c926af7cc1aa5aa2b8207e771867f015a"},
+]
+
+[[package]]
+name = "pymupdf4llm"
+version = "0.0.17"
+description = "PyMuPDF Utilities for LLM/RAG"
+optional = false
+python-versions = "*"
+files = [
+    {file = "pymupdf4llm-0.0.17-py3-none-any.whl", hash = "sha256:26de9996945f15e3ca507908f80dc18a959f5b5214bb2e302c7f7034089665a0"},
+    {file = "pymupdf4llm-0.0.17.tar.gz", hash = "sha256:27287ef9fe0217cf37841a3ef2bcf70da2553c43d95ea39b664a6de6485678c3"},
+]
+
+[package.dependencies]
+pymupdf = ">=1.24.10"
+
+[[package]]
 name = "pynacl"
 version = "1.5.0"
 description = "Python binding to the Networking and Cryptography (NaCl) library"
@@ -1417,4 +1448,4 @@ watchdog = ["watchdog (>=2.3)"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "5044d97013c13369cf2ce8e4ad9a709e82fc30831dc66651e8bf9e777cd8050b"
+content-hash = "4b4b89d81e0db4d4669909d3dc3b3acb97b61610457a92601f4b9c9e1a4c93e0"
