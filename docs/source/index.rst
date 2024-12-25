@@ -12,6 +12,7 @@ Welcome to PlanAI's documentation!
 
    installation
    usage
+   prompts
    cli
    api
 
