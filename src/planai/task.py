@@ -44,6 +44,20 @@ TaskType = TypeVar("TaskType", bound="Task")
 
 
 class Task(BaseModel):
+    """Base class for all tasks in the system.
+
+    A Task represents a unit of work that can be processed by TaskWorkers. Tasks maintain
+    their execution provenance and can carry both public and private state.
+
+    Attributes:
+        _provenance (List[Tuple[str, int]]): List of worker name and ID tuples tracking task history
+        _input_provenance (List[Task]): List of input tasks that led to this task
+        _private_state (Dict[str, Any]): Private state storage
+        _retry_count (int): Number of times this task has been retried
+        _start_time (Optional[float]): When task processing started
+        _end_time (Optional[float]): When task processing completed
+    """
+
     _provenance: List[Tuple[str, int]] = PrivateAttr(default_factory=list)
     _input_provenance: List["Task"] = PrivateAttr(default_factory=list)
     _private_state: Dict[str, Any] = PrivateAttr(default_factory=dict)
@@ -160,7 +174,7 @@ class Task(BaseModel):
         if xml_string.startswith("<?xml"):
             newline_index = xml_string.find("\n")
             if newline_index != -1:
-                xml_string = xml_string[newline_index + 1 :]
+                xml_string = xml_string[(newline_index + 1) :]
         return xml_string
 
 
@@ -199,20 +213,21 @@ class WorkBufferContext:
 
 
 class TaskWorker(BaseModel, ABC):
-    """
-    Base class for all task workers.
+    """Base class for all task workers.
 
-    This class is strongly typed for both input and output types. The type checking
-    is performed during the registration of consumers.
+    TaskWorker implements the core task processing functionality. Workers consume tasks,
+    process them, and can produce new tasks for downstream workers. The system ensures
+    type safety between workers and maintains execution provenance.
 
     Attributes:
-        output_types (List[Type[Task]]): The types of work this task can output.
-        num_retries (int): The number of retries allowed for this task. Defaults to 0.
-        _id (int): A private attribute to track the task's ID.
-        _consumers (Dict[Type["Task"], "TaskWorker"]): A private attribute to store registered consumers.
-
-    Note:
-        Any subclass of TaskWorker must implement consume_work.
+        output_types (List[Type[Task]]): Types of tasks this worker can produce
+        num_retries (int): Number of times to retry failed tasks
+        _id (int): Internal worker ID counter
+        _consumers (Dict[Type[Task], TaskWorker]): Registered downstream consumers
+        _graph (Optional[Graph]): Reference to containing workflow graph
+        _last_input_task (Optional[Task]): Most recently processed input task
+        _instance_id (UUID): Unique worker instance identifier
+        _local (threading.local): Thread-local storage
     """
 
     output_types: List[Type[Task]] = Field(default_factory=list)
