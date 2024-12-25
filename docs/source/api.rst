@@ -8,6 +8,8 @@ API Reference
    :special-members: __init__
    :inherited-members:
 
+.. autoclass:: planai.InitialTaskWorker
+      
 .. automodule:: planai.integrations
    :members:
    :undoc-members:

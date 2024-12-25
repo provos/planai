@@ -50,6 +50,13 @@ undesired_members = [
 def should_skip(app, what, name, obj, skip, options):
     if name in undesired_members:
         return True
+    # Skip consume_work method specifically for InitialTaskWorker
+    if (
+        what == "class"
+        and name == "consume_work"
+        and obj.__qualname__.startswith("InitialTaskWorker")
+    ):
+        return True
     return skip
 
 

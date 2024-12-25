@@ -18,6 +18,44 @@ def llm_from_config(
     log_dir: str = "logs",
     use_cache: bool = True,
 ) -> LLMInterface:
+    """
+    Creates and configures a language model interface based on specified provider and parameters.
+
+    This function initializes a LLMInterface instance with the appropriate wrapper/client
+    based on the selected provider (ollama, remote_ollama, openai, or anthropic).
+
+    Args:
+        provider (Literal["ollama", "remote_ollama", "openai"]): The LLM provider to use.
+            Defaults to "ollama".
+        model_name (str): Name of the model to use. Defaults to "llama3".
+        max_tokens (int): Maximum number of tokens for model responses. Defaults to 4096.
+        host (Optional[str]): Host address for local ollama instance. Only used with "ollama" provider.
+        hostname (Optional[str]): Remote hostname for SSH connection. Required for "remote_ollama".
+        username (Optional[str]): Username for SSH connection. Required for "remote_ollama".
+        log_dir (str): Directory for storing logs. Defaults to "logs".
+        use_cache (bool): Whether to cache model responses. Defaults to True.
+
+    Returns:
+        LLMInterface: Configured interface for interacting with the specified LLM.
+
+    Raises:
+        ValueError: If required API keys are not found in environment variables,
+            or if an invalid provider is specified.
+
+    Examples:
+        >>> # Create an OpenAI interface
+        >>> llm = llm_from_config(provider="openai", model_name="gpt-4")
+
+        >>> # Create a local Ollama interface
+        >>> llm = llm_from_config(provider="ollama", model_name="llama2")
+
+        >>> # Create a remote Ollama interface
+        >>> llm = llm_from_config(
+        ...     provider="remote_ollama",
+        ...     hostname="example.com",
+        ...     username="user"
+        ... )
+    """
     match provider:
         case "openai":
             api_key = os.getenv("OPENAI_API_KEY")
