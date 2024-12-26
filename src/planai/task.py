@@ -27,18 +27,14 @@ from typing import (
     TypeVar,
     get_type_hints,
 )
-from xml.dom.minidom import parseString
 
-import dicttoxml
 from pydantic import BaseModel, Field, PrivateAttr
+
+from planai.utils import dict_dump_xml
 
 if TYPE_CHECKING:
     from .graph import Graph
     from .provenance import ProvenanceChain
-
-# Suppress dicttoxml INFO logs at module initialization
-dicttoxml_logger = logging.getLogger("dicttoxml")
-dicttoxml_logger.setLevel(logging.WARNING)
 
 TaskType = TypeVar("TaskType", bound="Task")
 
@@ -152,30 +148,9 @@ class Task(BaseModel):
     def get_private_state(self, key: str):
         return self._private_state.pop(key, None)
 
-    def format(self) -> str:
-        """Formats the task to be used as part of an LLM prompt.
-
-        As Pydantic JSON is sometimes difficult to interpret, this method can be used to provide a more human-readable
-        LLM-friendly representation of the task. Child classes can override this method to provide better
-        formatting.
-
-        Returns:
-            str: The formatted task.
-        """
-        return self.model_dump_json(indent=2)
-
     def model_dump_xml(self) -> str:
         """Formats the task as XML."""
-        xml = dicttoxml.dicttoxml(
-            self.model_dump(), custom_root=self.name, attr_type=False
-        )
-        xml_string = parseString(xml).toprettyxml(indent="  ")
-        # Remove the XML declaration efficiently
-        if xml_string.startswith("<?xml"):
-            newline_index = xml_string.find("\n")
-            if newline_index != -1:
-                xml_string = xml_string[(newline_index + 1) :]
-        return xml_string
+        return dict_dump_xml(self.model_dump(), root=self.name)
 
 
 class WorkBufferContext:

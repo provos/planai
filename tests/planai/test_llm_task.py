@@ -116,6 +116,31 @@ class TestLLMTaskWorker(unittest.TestCase):
         full_prompt = self.worker.get_full_prompt(task)
         self.assertIn(self.worker.prompt, full_prompt)
 
+    def test_xml_format(self):
+        # Create a worker with XML formatting enabled
+        xml_worker = LLMTaskWorker(
+            llm=self.llm,
+            prompt="Test prompt",
+            output_types=[DummyOutputTask],
+            use_xml=True,
+        )
+
+        # Create a test task
+        test_task = DummyTask(content="Test content")
+
+        # Get the formatted task
+        formatted_task = xml_worker._format_task(test_task)
+
+        # Verify it contains XML tags
+        self.assertIn("<DummyTask>", formatted_task)
+        self.assertIn("<content>Test content</content>", formatted_task)
+        self.assertIn("</DummyTask>", formatted_task)
+
+        # Verify JSON is used when use_xml is False (default worker)
+        json_format = self.worker._format_task(test_task)
+        self.assertIn('"content":', json_format)
+        self.assertIn('"Test content"', json_format)
+
 
 class CustomLLMTaskWorker(LLMTaskWorker):
     def pre_process(self, task: Task) -> Optional[Task]:

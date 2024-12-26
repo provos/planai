@@ -18,8 +18,14 @@ import time
 from contextlib import contextmanager
 from datetime import datetime
 from typing import Any, Dict, Optional
+from xml.dom.minidom import parseString
 
+import dicttoxml
 from pydantic import BaseModel
+
+# Suppress dicttoxml INFO logs at module initialization
+dicttoxml_logger = logging.getLogger("dicttoxml")
+dicttoxml_logger.setLevel(logging.WARNING)
 
 
 def setup_logging(
@@ -71,3 +77,18 @@ class PydanticDictWrapper(BaseModel):
 
     def model_dump_json(self, **kwargs):
         return json.dumps(self.data, **kwargs)
+
+    def model_dump_xml(self, root: str = "root"):
+        return dict_dump_xml(self.data, root=root)
+
+
+def dict_dump_xml(dict: Dict[Any, Any], root: str = "root") -> str:
+    """Formats the task as XML."""
+    xml = dicttoxml.dicttoxml(dict, custom_root=root, attr_type=False)
+    xml_string = parseString(xml).toprettyxml(indent="  ")
+    # Remove the XML declaration efficiently
+    if xml_string.startswith("<?xml"):
+        newline_index = xml_string.find("\n")
+        if newline_index != -1:
+            xml_string = xml_string[(newline_index + 1) :]
+    return xml_string

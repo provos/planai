@@ -69,6 +69,9 @@ class LLMTaskWorker(TaskWorker):
         le=1.0,
         ge=0.0,
     )
+    use_xml: bool = Field(
+        False, description="Whether to use XML format for the data input to the LLM"
+    )
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -97,6 +100,16 @@ class LLMTaskWorker(TaskWorker):
             return self.llm_output_type
         # the convention is that we pick the first output type if llm_output_type is not set
         return list(self.output_types)[0]
+
+    def _format_task(self, task: Task) -> str:
+        if task is None:
+            return ""
+
+        return (
+            task.model_dump_json(indent=2)
+            if not self.use_xml
+            else task.model_dump_xml()
+        )
 
     def _invoke_llm(self, task: Task) -> Task:
         # allow subclasses to customize the prompt based on the input task
@@ -127,7 +140,7 @@ class LLMTaskWorker(TaskWorker):
             ),
             output_schema=self._output_type(),
             system=self.system_prompt,
-            task=processed_task.format() if processed_task else "",
+            task=self._format_task(processed_task),
             temperature=self.temperature,
             instructions=task_prompt,
             format_instructions=LLMInterface.get_format_instructions(
@@ -156,7 +169,7 @@ class LLMTaskWorker(TaskWorker):
                 )
             ),
             system=self.system_prompt,
-            task=processed_task.format() if processed_task else "",
+            task=self._format_task(processed_task),
             instructions=task_prompt,
             format_instructions=LLMInterface.get_format_instructions(
                 self._output_type()
