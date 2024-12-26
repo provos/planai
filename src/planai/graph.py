@@ -602,6 +602,7 @@ def main():
     graph.run(
         initial_work,
         run_dashboard=args.run_dashboard,
+        dashboard_port=8080,
         display_terminal=not args.run_dashboard,
     )
 
