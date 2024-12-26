@@ -97,6 +97,22 @@ There are several ways to customize how prompts are generated:
                Question: {task.question}
                """
 
+4. XML Serialization
+   For tasks containing complex text data (like markdown or text with newlines), 
+   you can enable XML serialization of the input data:
+
+   .. code-block:: python
+
+       worker = LLMTaskWorker(
+           llm=llm,
+           prompt="Analyze this markdown document",
+           use_xml=True,
+           output_types=[AnalysisTask]
+       )
+
+   This will format the input task as XML instead of JSON, which can be easier for the LLM
+   to process when dealing with text that contains newlines or special characters.
+
 System Prompts
 --------------
 You can also customize the system prompt that sets the context for the LLM:
@@ -117,4 +133,3 @@ Best Practices
 3. Consider using pre-processing to simplify complex input data
 4. Test different system prompts to find what works best
 5. Use format_prompt() for dynamic instructions based on input
-
