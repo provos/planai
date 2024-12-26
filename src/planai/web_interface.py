@@ -27,6 +27,7 @@ from flask import (
 
 if TYPE_CHECKING:
     from .dispatcher import Dispatcher
+    from .graph import Graph
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 
@@ -131,6 +132,27 @@ def user_input():
     dispatcher.set_user_input_result(task_id, result, mime_type)
 
     return jsonify({"status": "ok"})
+
+
+@app.route("/graph")
+def get_graph():
+    return jsonify({"graph": render_mermaid_graph(dispatcher.graph)})
+
+
+def render_mermaid_graph(graph: "Graph"):
+    # Start with graph definition
+    mermaid = """graph TD\n"""
+
+    # Add all edges from dependencies
+    for upstream, downstream_list in graph.dependencies.items():
+        for downstream in downstream_list:
+            # Create an edge for each dependency using worker names
+            # Sanitize names by replacing spaces with underscores
+            src = upstream.name.replace(" ", "_")
+            dst = downstream.name.replace(" ", "_")
+            mermaid += f"    {src}-->{dst}\n"
+
+    return mermaid
 
 
 def run_web_interface(disp: "Dispatcher", port=5000):
