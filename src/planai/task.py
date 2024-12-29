@@ -597,30 +597,3 @@ class TaskWorker(BaseModel, ABC):
             task_id, instruction, accepted_mime_types
         )
         return result, mime_type
-
-
-def main():
-    class MagicTaskWork(Task):
-        magic: Any = Field(..., title="Magic", description="Magic value")
-
-    class SpecificTask(TaskWorker):
-        output_types: List[Type[Task]] = [MagicTaskWork]
-
-        def consume_work(self, task: MagicTaskWork):
-            print(
-                f"SpecificTask {self.name} consuming work item with provenance: {task._provenance}: {task.magic}"
-            )
-
-    # Example usage
-    task_a = SpecificTask(name="TaskA")
-    work_item = MagicTaskWork(magic="something")
-
-    # Register a consumer (for demo purposes, registering itself)
-    task_a.register_consumer(MagicTaskWork, task_a)
-
-    # Publish work
-    task_a.publish_work(work_item, input_task=None)
-
-
-if __name__ == "__main__":
-    main()

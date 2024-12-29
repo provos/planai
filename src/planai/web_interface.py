@@ -36,6 +36,7 @@ app = Flask(__name__, template_folder="templates", static_folder="static")
 dispatcher: "Dispatcher" = None
 quit_event = threading.Event()
 
+
 class MemoryStats:
     def __init__(self, window_size: int = 1500):
         """Initialize memory tracking with a given window size (5 minutes at 0.2s intervals)."""
@@ -54,11 +55,15 @@ class MemoryStats:
         """Get current memory statistics."""
         return {
             "current": round(self.current_memory, 1),
-            "average": round(sum(self.samples) / len(self.samples), 1) if self.samples else 0,
+            "average": (
+                round(sum(self.samples) / len(self.samples), 1) if self.samples else 0
+            ),
             "peak": round(self.peak_memory, 1),
         }
 
+
 memory_stats = MemoryStats()
+
 
 @app.route("/")
 def index():
