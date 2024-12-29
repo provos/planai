@@ -58,32 +58,6 @@
     <div id="completed-tasks" class="task-list"></div>
 
     <script type="module" src="/static/js/index.js"></script>
-    <script>
-        // Initialize mermaid
-        mermaid.initialize({ startOnLoad: false });
-
-        async function updateGraph() {
-            const element = document.getElementById('mermaid-graph');
-
-            // Check if the element has already been rendered by mermaid
-            if (element && element.querySelector('svg')) {
-                // If it has, we don't need to re-render it - can be removed if the graph changes during execution
-                return;
-            }
-
-            const response = await fetch('/graph');
-            const data = await response.json();
-
-            // Set a unique ID to the div
-            element.removeAttribute("data-processed");
-            element.innerHTML = data.graph;
-
-            mermaid.init(undefined, element);
-        }
-
-        // Update graph when worker-graph tab is shown
-        document.querySelector('[data-target="#worker-graph"]').addEventListener('click', updateGraph);
-    </script>
 </body>
 
 </html>

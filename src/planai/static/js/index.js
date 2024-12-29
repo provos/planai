@@ -5,6 +5,7 @@ import { initWorkerStatsListeners } from './workers.js';
 import { initStatusListeners } from './status.js';
 import { initTheme } from './theme.js';
 import { initTabs } from './utils.js';
+import { initMermaid } from './mermaid.js';
 
 setupEventSource();
 initTaskListeners();
@@ -13,6 +14,7 @@ initWorkerStatsListeners();
 initStatusListeners();
 initTheme();
 initTabs();
+initMermaid();
 
 // Quit button functionality
 document.getElementById('quit-button').addEventListener('click', function () {
