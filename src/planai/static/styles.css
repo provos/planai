@@ -30,6 +30,45 @@
     --link-visited-color: #a25dbb;
 }
 
+.navbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background-color: var(--bg-color);
+    border-bottom: 1px solid var(--border-color);
+    padding: 0.5rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 1000;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.navbar h1 {
+    margin: 0;
+    font-size: 1.5rem;
+}
+
+.navbar-buttons {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.navbar button {
+    padding: 0.5rem 1rem;
+    background-color: var(--header-color);
+    color: var(--bg-color);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.navbar button:hover {
+    opacity: 0.9;
+}
 
 body {
     font-family: Arial, sans-serif;
@@ -40,6 +79,7 @@ body {
     margin: 0 auto;
     padding: 20px;
     transition: background-color 0.3s ease, color 0.3s ease;
+    padding-top: 80px;
 }
 
 h1,
@@ -82,17 +122,6 @@ a:visited {
     margin-bottom: 0;
 }
 
-#theme-toggle {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    padding: 10px;
-    background-color: var(--header-color);
-    color: var(--bg-color);
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-}
 
 .task-item {
     cursor: pointer;
