@@ -14,8 +14,10 @@
 import json
 import threading
 import time
-from typing import TYPE_CHECKING
+from collections import deque
+from typing import TYPE_CHECKING, Dict
 
+import psutil
 from flask import (
     Flask,
     Response,
@@ -33,6 +35,29 @@ app = Flask(__name__, template_folder="templates", static_folder="static")
 
 dispatcher: "Dispatcher" = None
 quit_event = threading.Event()
+
+memory_samples = deque(maxlen=1500)  # 5 minutes worth of samples at 0.2s intervals
+current_memory = 0
+peak_memory = 0
+
+
+def update_memory_stats() -> None:
+    global memory_samples, peak_memory, current_memory
+    process = psutil.Process()
+    current_memory = process.memory_info().rss / (1024 * 1024)  # Convert to MB
+    memory_samples.append(current_memory)
+    peak_memory = max(peak_memory, current_memory)
+
+
+def get_memory_stats() -> Dict[str, float]:
+    global memory_samples, peak_memory, current_memory
+    return {
+        "current": round(current_memory, 1),
+        "average": (
+            round(sum(memory_samples) / len(memory_samples), 1) if memory_samples else 0
+        ),
+        "peak": round(peak_memory, 1),
+    }
 
 
 @app.route("/")
@@ -55,6 +80,7 @@ def stream():
             current_data = get_current_data()
             current_trace = get_current_trace()
             current_requests = dispatcher.get_user_input_requests()
+            update_memory_stats()
 
             if (
                 current_data != last_data
@@ -66,6 +92,7 @@ def stream():
                     "trace": current_trace,
                     "stats": dispatcher.get_execution_statistics(),
                     "user_requests": current_requests,
+                    "memory": get_memory_stats(),
                 }
                 yield f"data: {json.dumps(combined_data)}\n\n"
 

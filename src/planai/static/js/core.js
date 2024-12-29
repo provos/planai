@@ -14,6 +14,7 @@ function handleServerMessage(event) {
     window.dispatchEvent(new CustomEvent('traceUpdated', { detail: data.trace }));
     window.dispatchEvent(new CustomEvent('statsUpdated', { detail: data.stats }));
     window.dispatchEvent(new CustomEvent('userRequestsUpdated', { detail: data.user_requests }));
+    window.dispatchEvent(new CustomEvent('memoryUpdated', { detail: data.memory }));
     reconnectAttempt = 0;
 }
 
