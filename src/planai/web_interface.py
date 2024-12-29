@@ -36,29 +36,29 @@ app = Flask(__name__, template_folder="templates", static_folder="static")
 dispatcher: "Dispatcher" = None
 quit_event = threading.Event()
 
-memory_samples = deque(maxlen=1500)  # 5 minutes worth of samples at 0.2s intervals
-current_memory = 0
-peak_memory = 0
+class MemoryStats:
+    def __init__(self, window_size: int = 1500):
+        """Initialize memory tracking with a given window size (5 minutes at 0.2s intervals)."""
+        self.samples = deque(maxlen=window_size)
+        self.current_memory = 0
+        self.peak_memory = 0
+        self.process = psutil.Process()
 
+    def update(self) -> None:
+        """Update memory statistics."""
+        self.current_memory = self.process.memory_info().rss / (1024 * 1024)  # MB
+        self.samples.append(self.current_memory)
+        self.peak_memory = max(self.peak_memory, self.current_memory)
 
-def update_memory_stats() -> None:
-    global memory_samples, peak_memory, current_memory
-    process = psutil.Process()
-    current_memory = process.memory_info().rss / (1024 * 1024)  # Convert to MB
-    memory_samples.append(current_memory)
-    peak_memory = max(peak_memory, current_memory)
+    def get_stats(self) -> Dict[str, float]:
+        """Get current memory statistics."""
+        return {
+            "current": round(self.current_memory, 1),
+            "average": round(sum(self.samples) / len(self.samples), 1) if self.samples else 0,
+            "peak": round(self.peak_memory, 1),
+        }
 
-
-def get_memory_stats() -> Dict[str, float]:
-    global memory_samples, peak_memory, current_memory
-    return {
-        "current": round(current_memory, 1),
-        "average": (
-            round(sum(memory_samples) / len(memory_samples), 1) if memory_samples else 0
-        ),
-        "peak": round(peak_memory, 1),
-    }
-
+memory_stats = MemoryStats()
 
 @app.route("/")
 def index():
@@ -80,7 +80,7 @@ def stream():
             current_data = get_current_data()
             current_trace = get_current_trace()
             current_requests = dispatcher.get_user_input_requests()
-            update_memory_stats()
+            memory_stats.update()
 
             if (
                 current_data != last_data
@@ -92,7 +92,7 @@ def stream():
                     "trace": current_trace,
                     "stats": dispatcher.get_execution_statistics(),
                     "user_requests": current_requests,
-                    "memory": get_memory_stats(),
+                    "memory": memory_stats.get_stats(),
                 }
                 yield f"data: {json.dumps(combined_data)}\n\n"
 
