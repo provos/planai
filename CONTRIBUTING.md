@@ -2,6 +2,16 @@
 
 First off, thank you for considering contributing to PlanAI! It's people like you that make PlanAI such a great tool.
 
+## ⚠️ Important First Step: Install Pre-commit Hook
+
+Before you start contributing, please install the pre-commit hook by running:
+```sh
+pre-commit install
+```
+This is **required** to ensure code quality and maintain consistent formatting across all contributions.
+
+---
+
 ## Code of Conduct
 
 By participating in this project, you are expected to uphold our [Code of Conduct](CODE_OF_CONDUCT.md).
