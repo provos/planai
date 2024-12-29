@@ -35,6 +35,7 @@ playwright = "^1.49.1"
 beautifulsoup4 = "^4.12.3"
 html2text = "^2024.2.26"
 dicttoxml = "^1.7.16"
+psutil = "^6.1.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^8.3.2"
