@@ -80,6 +80,15 @@ function updateStatus(workerStats) {
     });
 }
 
+function escapeHtml(unsafe) {
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
 function updateLogs(logs) {
     const console = document.getElementById('log-console');
     if (!console) return;
@@ -96,7 +105,8 @@ function updateLogs(logs) {
 
         const message = document.createElement('span');
         message.className = 'log-message';
-        message.innerHTML = linkifyText(log.message);
+        const escapedMessage = escapeHtml(log.message);
+        message.innerHTML = linkifyText(escapedMessage);
 
         entry.appendChild(timestamp);
         entry.appendChild(message);
