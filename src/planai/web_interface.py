@@ -14,7 +14,6 @@
 import json
 import threading
 import time
-from collections import deque
 from typing import TYPE_CHECKING, Dict
 
 import psutil
@@ -40,7 +39,9 @@ quit_event = threading.Event()
 class MemoryStats:
     def __init__(self, window_size: int = 1500):
         """Initialize memory tracking with a given window size (5 minutes at 0.2s intervals)."""
-        self.samples = deque(maxlen=window_size)
+        self.samples = []
+        self.window_size = window_size
+        self.running_sum = 0.0
         self.current_memory = 0
         self.peak_memory = 0
         self.process = psutil.Process()
@@ -49,6 +50,11 @@ class MemoryStats:
         """Update memory statistics."""
         self.current_memory = self.process.memory_info().rss / (1024 * 1024)  # MB
         self.samples.append(self.current_memory)
+        self.running_sum += self.current_memory
+
+        if len(self.samples) > self.window_size:
+            self.running_sum -= self.samples.pop(0)
+
         self.peak_memory = max(self.peak_memory, self.current_memory)
 
     def get_stats(self) -> Dict[str, float]:
@@ -56,7 +62,7 @@ class MemoryStats:
         return {
             "current": round(self.current_memory, 1),
             "average": (
-                round(sum(self.samples) / len(self.samples), 1) if self.samples else 0
+                round(self.running_sum / len(self.samples), 1) if self.samples else 0
             ),
             "peak": round(self.peak_memory, 1),
         }
