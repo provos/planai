@@ -89,6 +89,8 @@ function escapeHtml(unsafe) {
         .replace(/'/g, "&#039;");
 }
 
+const MAX_LOG_LINES = 100;
+
 function updateLogs(logs) {
     const console = document.getElementById('log-console');
     if (!console) return;
@@ -111,6 +113,11 @@ function updateLogs(logs) {
         entry.appendChild(timestamp);
         entry.appendChild(message);
         console.appendChild(entry);
+
+        // Remove oldest entries if exceeding maximum
+        while (console.children.length > MAX_LOG_LINES) {
+            console.removeChild(console.firstChild);
+        }
     });
 
     if (wasScrolledToBottom) {
