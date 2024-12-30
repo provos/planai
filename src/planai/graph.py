@@ -49,6 +49,7 @@ class Graph(BaseModel):
 
     _worker_distances: Dict[str, Dict[str, int]] = PrivateAttr(default_factory=dict)
     _has_terminal: bool = PrivateAttr(default=False)
+    _has_dashboard: bool = PrivateAttr(default=False)
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -299,6 +300,7 @@ class Graph(BaseModel):
         dispatch_thread.start()
         if run_dashboard:
             dispatcher.start_web_interface()
+            self._has_dashboard = True
         self._dispatcher = dispatcher
 
         if display_terminal:
@@ -313,7 +315,7 @@ class Graph(BaseModel):
         for worker_class, max_parallel_tasks in self._max_parallel_tasks.items():
             dispatcher.set_max_parallel_tasks(worker_class, max_parallel_tasks)
 
-        # let the workers now that we are about to start
+        # let the workers know that we are about to start
         self.init_workers()
 
         for worker, task in initial_tasks:
@@ -502,6 +504,8 @@ class Graph(BaseModel):
     def print(self, *args):
         message = " ".join(str(arg) for arg in args)
         logging.info("Application: %s", message)
+        if self._dispatcher is not None and self._has_dashboard:
+            self._dispatcher.add_log(message)
         if self._has_terminal:
             self._log_lines.append(message)
         else:

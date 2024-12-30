@@ -92,11 +92,13 @@ def stream():
             current_trace = get_current_trace()
             current_requests = dispatcher.get_user_input_requests()
             memory_stats.update()
+            logs = dispatcher.get_logs()
 
             if (
                 current_data != last_data
                 or current_trace != last_trace
                 or current_requests != last_requests
+                or logs  # Always send if there are new logs
             ):
                 combined_data = {
                     "tasks": current_data,
@@ -104,6 +106,7 @@ def stream():
                     "stats": dispatcher.get_execution_statistics(),
                     "user_requests": current_requests,
                     "memory": memory_stats.get_stats(),
+                    "logs": logs,
                 }
                 yield f"data: {json.dumps(combined_data)}\n\n"
 

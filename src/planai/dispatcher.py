@@ -132,6 +132,10 @@ class Dispatcher:
         self.user_input_requests = Queue()
         self.user_pending_requests: Dict[str, UserInputRequest] = {}
 
+        # Add new log management
+        self._log_queue = deque(maxlen=1000)  # Keep last 1000 log messages
+        self._log_lock = Lock()
+
     @property
     def active_tasks(self):
         with self.task_lock:
@@ -532,3 +536,15 @@ class Dispatcher:
         )
         self.user_input_requests.put(request)
         return request._response_queue.get()  # Block until result is available
+
+    def add_log(self, message: str) -> None:
+        """Add a log message to the queue."""
+        with self._log_lock:
+            self._log_queue.append({"timestamp": time.time(), "message": message})
+
+    def get_logs(self) -> List[Dict]:
+        """Get all logs and clear the queue."""
+        with self._log_lock:
+            logs = list(self._log_queue)
+            self._log_queue.clear()
+            return logs
