@@ -488,3 +488,55 @@ a:visited {
 .memory-stats span {
     cursor: help;
 }
+
+/* Log Console Styles */
+.worker-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 10px;
+}
+
+.log-console {
+    background-color: var(--task-list-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 10px;
+    height: 300px;
+    overflow-y: auto;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.9em;
+    margin-top: 20px;
+}
+
+.log-entry {
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    gap: 10px;
+}
+
+.log-entry:last-child {
+    border-bottom: none;
+}
+
+.log-timestamp {
+    color: var(--header-color);
+    white-space: nowrap;
+    font-size: 0.85em;
+    min-width: 80px;
+}
+
+.log-message {
+    flex-grow: 1;
+    word-break: break-word;
+}
+
+.log-message a {
+    color: var(--link-color);
+    text-decoration: underline;
+}
+
+.log-message a:hover {
+    color: var(--link-hover-color);
+}

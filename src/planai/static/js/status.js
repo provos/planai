@@ -1,5 +1,7 @@
 export function initStatusListeners() {
+    createStatusInterface();
     window.addEventListener('statsUpdated', (e) => updateStatus(e.detail));
+    window.addEventListener('logsUpdated', (e) => { updateLogs(e.detail) });
 }
 
 function createStatusBar(count, type) {
@@ -14,12 +16,34 @@ function createStatusBar(count, type) {
     return bar;
 }
 
-function updateStatus(workerStats) {
+function createStatusInterface() {
     const container = document.getElementById('worker-status');
-    container.innerHTML = ''; // Clear previous state
 
+    const workerContainer = document.createElement('div');
+    workerContainer.className = 'worker-container';
+
+    // Create stats section
+    const statsSection = document.createElement('div');
+    statsSection.className = 'stats-section';
+    statsSection.id = 'stats-section';
+
+    // Create log console
+    const logConsole = document.createElement('div');
+    logConsole.className = 'log-console';
+    logConsole.id = 'log-console';
+
+    // Add both sections to container
+    workerContainer.appendChild(statsSection);
+    workerContainer.appendChild(logConsole);
+    container.appendChild(workerContainer);
+}
+
+function updateStatus(workerStats) {
+    const statsSection = document.getElementById('stats-section');
+    statsSection.innerHTML = ''; // Clear previous state
+
+    // Add worker rows to stats section
     const maxWidth = 50; // Maximum number of squares to show
-
     Object.entries(workerStats).forEach(([worker, stats]) => {
         const row = document.createElement('div');
         row.className = 'worker-row';
@@ -52,6 +76,44 @@ function updateStatus(workerStats) {
         stats_div.textContent = `C:${stats.completed} A:${stats.active} Q:${stats.queued} F:${stats.failed}`;
         row.appendChild(stats_div);
 
-        container.appendChild(row);
+        statsSection.appendChild(row);
     });
+}
+
+function updateLogs(logs) {
+    const console = document.getElementById('log-console');
+    if (!console) return;
+
+    const wasScrolledToBottom = isScrolledToBottom(console);
+
+    logs.forEach(log => {
+        const entry = document.createElement('div');
+        entry.className = 'log-entry';
+
+        const timestamp = document.createElement('span');
+        timestamp.className = 'log-timestamp';
+        timestamp.textContent = new Date(log.timestamp * 1000).toLocaleTimeString();
+
+        const message = document.createElement('span');
+        message.className = 'log-message';
+        message.innerHTML = linkifyText(log.message);
+
+        entry.appendChild(timestamp);
+        entry.appendChild(message);
+        console.appendChild(entry);
+    });
+
+    if (wasScrolledToBottom) {
+        console.scrollTop = console.scrollHeight;
+    }
+}
+
+function isScrolledToBottom(element) {
+    const threshold = 1;
+    return Math.abs(element.scrollHeight - element.clientHeight - element.scrollTop) < threshold;
+}
+
+function linkifyText(text) {
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    return text.replace(urlRegex, url => `<a href="${url}" target="_blank">${url}</a>`);
 }
