@@ -1,0 +1,14 @@
+[tool.poetry]
+name = "textbook"
+version = "0.1.0"
+description = "An example to use PlanAI to do deep research on the web."
+authors = ["Niels Provos"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+planai = {path = "../../", develop = true}
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

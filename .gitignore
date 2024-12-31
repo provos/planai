@@ -14,8 +14,6 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
 parts/
 sdist/
 var/
@@ -130,7 +128,8 @@ cache/
 .response_cache/
 output/
 debug/
-examples/**/*.json
+examples/textbook/*.json
+examples/social/*.json
 examples/**/*.txt
 examples/social/config-*.yaml
 .DS_Store
