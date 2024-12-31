@@ -1,4 +1,5 @@
 # TODO List for PlanAI
+ - support ollama structured outputs
  - optionally display fine-grained memory usage in the dashboard
  - optimize provenance memory management
  - create a new task type, MediaTask, that supports image processing
