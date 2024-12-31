@@ -43,6 +43,23 @@ def handle_search(query):
         socketio.emit("search_error", str(e))
 
 
+@socketio.on("chat_message")
+def handle_message(message):
+    print(f'Received message: "{message}"')
+    if llm is None:
+        socketio.emit("error", "LLM not initialized")
+        return
+
+    try:
+        # Use the LLM to generate a response
+        response = "Here is a placeholder response"
+        print(f"Sending response: {response}")
+        socketio.emit("chat_response", {"message": response})
+    except Exception as e:
+        print(f"Error processing message: {e}")
+        socketio.emit("error", str(e))
+
+
 def main():
     import argparse
 
