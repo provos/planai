@@ -9,6 +9,7 @@
     let error = $state(null);
     let socket = $state(null);
     let thinkingUpdate = $state('**Processing** your request...');
+    let sessionId = $state(null);
 
     function initializeSocket() {
         socket = io('http://localhost:5050', {
@@ -24,6 +25,11 @@
         socket.on('connect_error', (err) => {
             console.error('Connection error:', err);
             error = 'Failed to connect to server';
+        });
+
+        socket.on('session_id', (data) => {
+            sessionId = data.id;
+            console.log('Received session ID:', sessionId);
         });
         
         socket.on('chat_response', (response) => {
@@ -59,6 +65,10 @@
     });
 
     function handleSend() {
+        if (!sessionId) {
+            console.error('Session ID not available');
+            return;
+        }
         if (socket && messageInput.trim()) {
             isLoading = true;
             error = null;
@@ -70,7 +80,10 @@
             };
             
             messages = [...messages, userMessage];
-            socket.emit('chat_message', messageInput);
+            socket.emit('chat_message', {
+                session_id: sessionId,
+                message: messageInput
+            });
             messageInput = '';
         }
     }
