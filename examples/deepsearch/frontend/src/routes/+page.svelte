@@ -2,13 +2,13 @@
     import { onMount, onDestroy } from 'svelte';
     import { io } from 'socket.io-client';
     
-    let messageInput = '';
-    let messages = [];
-    let socket;
-    let isLoading = false;
-    let error = null;
+    let messageInput = $state('');
+    let messages = $state([]);
+    let isLoading = $state(false);
+    let error = $state(null);
+    let socket = $state(null);
 
-    onMount(() => {
+    function initializeSocket() {
         socket = io('http://localhost:5050', {
             transports: ['websocket'],
             reconnection: true
@@ -39,13 +39,17 @@
             isLoading = false;
             error = err;
         });
+    }
+
+    onMount(() => {
+        initializeSocket();
     });
 
     onDestroy(() => {
         if (socket) socket.disconnect();
     });
 
-    async function handleSend() {
+    function handleSend() {
         if (socket && messageInput.trim()) {
             isLoading = true;
             error = null;
@@ -101,10 +105,10 @@
                         bind:value={messageInput}
                         placeholder="Type your message..."
                         class="flex-1 rounded-md border-0 px-4 py-3 text-gray-900 ring-1 ring-gray-200 focus:ring-2 focus:ring-blue-500"
-                        on:keydown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+                        onkeydown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
                     />
                     <button 
-                        on:click={handleSend}
+                        onclick={handleSend}
                         class="rounded-md bg-blue-600 px-6 py-3 font-medium text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                     >
                         Send
