@@ -114,7 +114,7 @@
 
             <div class="input-area">
                 {#if error}
-                    <div class="mb-2 text-sm text-red-600">{error}</div>
+                    <div class="error-message">{error}</div>
                 {/if}
                 <div class="flex gap-2">
                     <input

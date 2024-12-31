@@ -4,7 +4,7 @@
 
 @layer components {
     .chat-container {
-        @apply min-h-screen bg-gray-50 flex flex-col;
+        @apply min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col;
     }
 
     .chat-wrapper {
@@ -12,11 +12,11 @@
     }
 
     .chat-title {
-        @apply mb-8 text-center text-4xl font-bold text-gray-900;
+        @apply mb-8 text-center text-4xl font-bold text-gray-900 dark:text-white;
     }
 
     .chat-box {
-        @apply bg-white rounded-lg shadow-lg h-[600px] flex flex-col;
+        @apply bg-white dark:bg-gray-800 rounded-lg shadow-lg dark:shadow-gray-900/50 h-[600px] flex flex-col;
     }
 
     .messages-area {
@@ -24,15 +24,15 @@
     }
 
     .message-bubble {
-        @apply max-w-[70%] rounded-lg p-3;
+        @apply max-w-[70%] rounded-lg p-3 transition-colors duration-200;
     }
 
     .message-bubble-user {
-        @apply bg-blue-600 text-white;
+        @apply bg-blue-600 text-white dark:bg-blue-500;
     }
 
     .message-bubble-assistant {
-        @apply bg-gray-100;
+        @apply bg-gray-100 text-gray-900 dark:bg-gray-700 dark:text-white;
     }
 
     .message-text {
@@ -40,46 +40,77 @@
     }
 
     .message-timestamp {
-        @apply text-xs mt-1 opacity-70;
+        @apply text-xs mt-1 opacity-70 dark:opacity-50;
     }
 
     .input-area {
-        @apply border-t p-4;
+        @apply border-t border-gray-100 dark:border-gray-700 p-4;
     }
 
     .input-field {
-        @apply flex-1 rounded-md border-0 px-4 py-3 text-gray-900 ring-1 ring-gray-200 focus:ring-2 focus:ring-blue-500;
+        @apply flex-1 rounded-md border-0 px-4 py-3 
+               text-gray-900 dark:text-white
+               bg-white dark:bg-gray-700
+               ring-1 ring-gray-200 dark:ring-gray-600
+               focus:ring-2 focus:ring-blue-500
+               placeholder:text-gray-400 dark:placeholder:text-gray-500
+               disabled:bg-gray-50 dark:disabled:bg-gray-800
+               disabled:text-gray-500 dark:disabled:text-gray-400;
     }
 
     .send-button {
-        @apply rounded-md px-6 py-3 font-medium text-white focus:ring-2 focus:ring-blue-500 focus:ring-offset-2;
+        @apply rounded-md px-6 py-3 font-medium text-white 
+               focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+               dark:focus:ring-offset-gray-800
+               transition-colors duration-200;
     }
 
     .send-button-enabled {
-        @apply bg-blue-600 hover:bg-blue-700;
+        @apply bg-blue-600 hover:bg-blue-700 
+               dark:bg-blue-500 dark:hover:bg-blue-600;
     }
 
     .send-button-disabled {
-        @apply bg-blue-400 cursor-not-allowed;
+        @apply bg-blue-400 dark:bg-blue-400 cursor-not-allowed;
     }
 
     .message-bubble-thinking {
-        @apply bg-gray-50 text-gray-600;
+        @apply bg-gray-50 text-gray-900 dark:bg-gray-700 dark:text-white;
     }
 
     .thinking {
         @apply animate-pulse;
     }
 
+    .prose {
+        @apply text-gray-900 dark:text-white transition-colors duration-200;
+    }
+
+    .prose strong {
+        @apply font-semibold text-gray-900 dark:text-white;
+    }
+
+    .prose em {
+        @apply text-gray-800 dark:text-gray-200;
+    }
+
     .prose :where(p):not(:where([class~="not-prose"] *)) {
-        @apply my-1;
+        @apply my-1 text-gray-900 dark:text-white;
     }
 
     .prose :where(code):not(:where([class~="not-prose"] *)) {
-        @apply bg-gray-100 px-1 rounded text-sm;
+        @apply bg-gray-100 dark:bg-gray-700 
+               text-gray-900 dark:text-white
+               px-1.5 py-0.5 rounded text-sm;
     }
 
     .prose :where(pre):not(:where([class~="not-prose"] *)) {
-        @apply bg-gray-800 text-white p-2 rounded-md my-2 overflow-x-auto;
+        @apply bg-gray-800 text-gray-100 
+               dark:bg-black dark:text-white
+               p-3 rounded-md my-2 overflow-x-auto;
+    }
+
+    .error-message {
+        @apply mb-2 text-sm text-red-600 dark:text-red-400;
     }
 }
