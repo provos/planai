@@ -32,6 +32,7 @@
 	},
 	"dependencies": {
 		"@tailwindcss/typography": "^0.5.15",
+		"marked": "^15.0.4",
 		"socket.io-client": "^4.8.1"
 	}
 }

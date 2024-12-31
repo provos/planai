@@ -1,12 +1,14 @@
 <script>
     import { onMount, onDestroy } from 'svelte';
     import { io } from 'socket.io-client';
+    import { marked } from 'marked';
     
     let messageInput = $state('');
     let messages = $state([]);
     let isLoading = $state(false);
     let error = $state(null);
     let socket = $state(null);
+    let thinkingUpdate = $state('**Processing** your request...');
 
     function initializeSocket() {
         socket = io('http://localhost:5050', {
@@ -27,11 +29,18 @@
         socket.on('chat_response', (response) => {
             console.log('Received response:', response);
             isLoading = false;
+            thinkingUpdate = '**Processing** your request...';
             messages = [...messages, {
                 role: 'assistant',
                 content: response.message,
-                timestamp: new Date()
+                timestamp: new Date(),
+                isMarkdown: true
             }];
+        });
+
+        socket.on('thinking_update', (update) => {
+            console.log('Thinking update:', update);
+            thinkingUpdate = update.message;
         });
 
         socket.on('error', (err) => {
@@ -75,8 +84,16 @@
             <div class="messages-area">
                 {#each messages as message}
                     <div class="flex {message.role === 'user' ? 'justify-end' : 'justify-start'}">
-                        <div class="message-bubble {message.role === 'user' ? 'message-bubble-user' : 'message-bubble-assistant'}">
-                            <p class="message-text">{message.content}</p>
+                        <div class="message-bubble {message.role === 'user' ? 
+                            'message-bubble-user' : 
+                            'message-bubble-assistant'}">
+                            {#if message.isMarkdown}
+                                <div class="message-text prose prose-sm dark:prose-invert">
+                                    {@html marked(message.content)}
+                                </div>
+                            {:else}
+                                <p class="message-text">{message.content}</p>
+                            {/if}
                             <p class="message-timestamp">
                                 {message.timestamp.toLocaleTimeString()}
                             </p>
@@ -86,8 +103,10 @@
                 
                 {#if isLoading}
                     <div class="flex justify-start">
-                        <div class="message-bubble message-bubble-assistant">
-                            <p class="message-text">Thinking...</p>
+                        <div class="message-bubble message-bubble-thinking">
+                            <div class="message-text prose prose-sm dark:prose-invert thinking">
+                                {@html marked(thinkingUpdate)}
+                            </div>
                         </div>
                     </div>
                 {/if}

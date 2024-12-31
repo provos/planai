@@ -1,3 +1,5 @@
+import time
+
 from flask import Flask
 from flask_socketio import SocketIO
 
@@ -31,8 +33,19 @@ def handle_message(message):
         return
 
     try:
-        # Use the LLM to generate a response
-        response = "Here is a placeholder response"
+        # Simulate a multi-step thinking process
+        steps = [
+            "**Processing** your request...",
+            "1. *Analyzing* input\n2. *Retrieving* relevant context",
+            "3. *Generating* response\n4. *Evaluating* response",
+            "**Finalizing** response...",
+        ]
+
+        for step in steps:
+            socketio.emit("thinking_update", {"message": step})
+            time.sleep(1)  # Simulate processing time
+
+        response = "Here is the final response with some `code` and *formatting*"
         print(f"Sending response: {response}")
         socketio.emit("chat_response", {"message": response})
     except Exception as e:

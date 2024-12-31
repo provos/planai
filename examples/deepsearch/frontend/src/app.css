@@ -62,4 +62,24 @@
     .send-button-disabled {
         @apply bg-blue-400 cursor-not-allowed;
     }
+
+    .message-bubble-thinking {
+        @apply bg-gray-50 text-gray-600;
+    }
+
+    .thinking {
+        @apply animate-pulse;
+    }
+
+    .prose :where(p):not(:where([class~="not-prose"] *)) {
+        @apply my-1;
+    }
+
+    .prose :where(code):not(:where([class~="not-prose"] *)) {
+        @apply bg-gray-100 px-1 rounded text-sm;
+    }
+
+    .prose :where(pre):not(:where([class~="not-prose"] *)) {
+        @apply bg-gray-800 text-white p-2 rounded-md my-2 overflow-x-auto;
+    }
 }
