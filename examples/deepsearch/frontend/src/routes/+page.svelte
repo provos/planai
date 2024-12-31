@@ -10,16 +10,53 @@
     let socket = $state(null);
     let thinkingUpdate = $state('**Processing** your request...');
     let sessionId = $state(null);
+    let connectionStatus = $state('disconnected');
+
+    function loadStoredSession() {
+        const storedId = localStorage.getItem('chatSessionId');
+        if (storedId) {
+            console.log('Restored session ID from storage:', storedId);
+            return storedId;
+        }
+        return null;
+    }
+
+    function saveSessionId(id) {
+        localStorage.setItem('chatSessionId', id);
+        sessionId = id;
+    }
 
     function initializeSocket() {
+        const storedSessionId = loadStoredSession();
+        
         socket = io('http://localhost:5050', {
             transports: ['websocket'],
-            reconnection: true
+            reconnection: true,
+            reconnectionAttempts: 5,
+            reconnectionDelay: 1000,
+            query: storedSessionId ? { session_id: storedSessionId } : {}
         });
         
         socket.on('connect', () => {
             console.log('Connected to chat server');
+            connectionStatus = 'connected';
             error = null;
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Disconnected from server');
+            connectionStatus = 'disconnected';
+            error = 'Connection lost. Attempting to reconnect...';
+        });
+
+        socket.on('reconnecting', (attemptNumber) => {
+            connectionStatus = 'reconnecting';
+            error = `Reconnecting... Attempt ${attemptNumber}`;
+        });
+
+        socket.on('reconnect_failed', () => {
+            connectionStatus = 'failed';
+            error = 'Failed to reconnect. Please refresh the page.';
         });
 
         socket.on('connect_error', (err) => {
@@ -28,8 +65,8 @@
         });
 
         socket.on('session_id', (data) => {
-            sessionId = data.id;
-            console.log('Received session ID:', sessionId);
+            saveSessionId(data.id);
+            console.log('Received session ID:', data.id);
         });
         
         socket.on('chat_response', (response) => {
@@ -61,12 +98,14 @@
     });
 
     onDestroy(() => {
-        if (socket) socket.disconnect();
+        if (socket) {
+            socket.disconnect();
+        }
     });
 
     function handleSend() {
-        if (!sessionId) {
-            console.error('Session ID not available');
+        if (!sessionId || connectionStatus !== 'connected') {
+            error = 'Cannot send message while disconnected';
             return;
         }
         if (socket && messageInput.trim()) {
@@ -92,6 +131,14 @@
 <main class="chat-container">
     <div class="chat-wrapper">
         <h1 class="chat-title">Chat Interface</h1>
+        
+        {#if connectionStatus !== 'connected'}
+            <div class="connection-status {connectionStatus}">
+                {connectionStatus === 'reconnecting' ? 'Reconnecting...' : 
+                 connectionStatus === 'failed' ? 'Connection failed' :
+                 'Disconnected'}
+            </div>
+        {/if}
         
         <div class="chat-box">
             <div class="messages-area">
@@ -136,12 +183,13 @@
                         placeholder="Type your message..."
                         class="input-field"
                         onkeydown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-                        disabled={isLoading}
+                        disabled={isLoading || connectionStatus !== 'connected'}
                     />
                     <button 
                         onclick={handleSend}
-                        disabled={isLoading}
-                        class="send-button {isLoading ? 'send-button-disabled' : 'send-button-enabled'}"
+                        disabled={isLoading || connectionStatus !== 'connected'}
+                        class="send-button {(isLoading || connectionStatus !== 'connected') ? 
+                            'send-button-disabled' : 'send-button-enabled'}"
                     >
                         {isLoading ? 'Sending...' : 'Send'}
                     </button>

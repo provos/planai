@@ -113,4 +113,24 @@
     .error-message {
         @apply mb-2 text-sm text-red-600 dark:text-red-400;
     }
+
+    .connection-status {
+        @apply p-2 text-center mb-4 rounded-md text-sm font-medium transition-colors duration-200;
+    }
+    
+    .connection-status.disconnected {
+        @apply bg-red-50 dark:bg-red-900/20
+               text-red-600 dark:text-red-400;
+    }
+    
+    .connection-status.reconnecting {
+        @apply bg-yellow-50 dark:bg-yellow-900/20
+               text-yellow-600 dark:text-yellow-400;
+    }
+    
+    .connection-status.failed {
+        @apply bg-red-50 dark:bg-red-900/20
+               text-red-600 dark:text-red-400
+               font-semibold;
+    }
 }
