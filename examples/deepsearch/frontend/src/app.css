@@ -1,3 +1,65 @@
 @import 'tailwindcss/base';
 @import 'tailwindcss/components';
 @import 'tailwindcss/utilities';
+
+@layer components {
+    .chat-container {
+        @apply min-h-screen bg-gray-50 flex flex-col;
+    }
+
+    .chat-wrapper {
+        @apply flex-1 mx-auto w-full max-w-4xl p-4;
+    }
+
+    .chat-title {
+        @apply mb-8 text-center text-4xl font-bold text-gray-900;
+    }
+
+    .chat-box {
+        @apply bg-white rounded-lg shadow-lg h-[600px] flex flex-col;
+    }
+
+    .messages-area {
+        @apply flex-1 p-4 overflow-y-auto space-y-4;
+    }
+
+    .message-bubble {
+        @apply max-w-[70%] rounded-lg p-3;
+    }
+
+    .message-bubble-user {
+        @apply bg-blue-600 text-white;
+    }
+
+    .message-bubble-assistant {
+        @apply bg-gray-100;
+    }
+
+    .message-text {
+        @apply text-sm;
+    }
+
+    .message-timestamp {
+        @apply text-xs mt-1 opacity-70;
+    }
+
+    .input-area {
+        @apply border-t p-4;
+    }
+
+    .input-field {
+        @apply flex-1 rounded-md border-0 px-4 py-3 text-gray-900 ring-1 ring-gray-200 focus:ring-2 focus:ring-blue-500;
+    }
+
+    .send-button {
+        @apply rounded-md px-6 py-3 font-medium text-white focus:ring-2 focus:ring-blue-500 focus:ring-offset-2;
+    }
+
+    .send-button-enabled {
+        @apply bg-blue-600 hover:bg-blue-700;
+    }
+
+    .send-button-disabled {
+        @apply bg-blue-400 cursor-not-allowed;
+    }
+}

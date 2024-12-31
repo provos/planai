@@ -67,18 +67,17 @@
     }
 </script>
 
-<main class="min-h-screen bg-gray-50 flex flex-col">
-    <div class="flex-1 mx-auto w-full max-w-4xl p-4">
-        <h1 class="mb-8 text-center text-4xl font-bold text-gray-900">Chat Interface</h1>
+<main class="chat-container">
+    <div class="chat-wrapper">
+        <h1 class="chat-title">Chat Interface</h1>
         
-        <div class="bg-white rounded-lg shadow-lg h-[600px] flex flex-col">
-            <!-- Messages Area -->
-            <div class="flex-1 p-4 overflow-y-auto space-y-4">
+        <div class="chat-box">
+            <div class="messages-area">
                 {#each messages as message}
                     <div class="flex {message.role === 'user' ? 'justify-end' : 'justify-start'}">
-                        <div class="max-w-[70%] {message.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-100'} rounded-lg p-3">
-                            <p class="text-sm">{message.content}</p>
-                            <p class="text-xs mt-1 opacity-70">
+                        <div class="message-bubble {message.role === 'user' ? 'message-bubble-user' : 'message-bubble-assistant'}">
+                            <p class="message-text">{message.content}</p>
+                            <p class="message-timestamp">
                                 {message.timestamp.toLocaleTimeString()}
                             </p>
                         </div>
@@ -87,15 +86,14 @@
                 
                 {#if isLoading}
                     <div class="flex justify-start">
-                        <div class="bg-gray-100 rounded-lg p-3">
-                            <p class="text-sm">Thinking...</p>
+                        <div class="message-bubble message-bubble-assistant">
+                            <p class="message-text">Thinking...</p>
                         </div>
                     </div>
                 {/if}
             </div>
 
-            <!-- Input Area -->
-            <div class="border-t p-4">
+            <div class="input-area">
                 {#if error}
                     <div class="mb-2 text-sm text-red-600">{error}</div>
                 {/if}
@@ -104,16 +102,14 @@
                         type="text"
                         bind:value={messageInput}
                         placeholder="Type your message..."
-                        class="flex-1 rounded-md border-0 px-4 py-3 text-gray-900 ring-1 ring-gray-200 focus:ring-2 focus:ring-blue-500"
+                        class="input-field"
                         onkeydown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
                         disabled={isLoading}
                     />
                     <button 
                         onclick={handleSend}
                         disabled={isLoading}
-                        class="rounded-md px-6 py-3 font-medium text-white focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 {isLoading 
-                            ? 'bg-blue-400 cursor-not-allowed' 
-                            : 'bg-blue-600 hover:bg-blue-700'}"
+                        class="send-button {isLoading ? 'send-button-disabled' : 'send-button-enabled'}"
                     >
                         {isLoading ? 'Sending...' : 'Send'}
                     </button>
