@@ -1,15 +1,61 @@
 <script>
+    import { onMount, onDestroy } from 'svelte';
+    import { io } from 'socket.io-client';
+    
     let searchQuery = '';
     let searchResults = [];
+    let socket;
+    let isLoading = false;
+    let error = null;
+
+    onMount(() => {
+        socket = io('http://localhost:5050', {
+            transports: ['websocket'],
+            reconnection: true
+        });
+        
+        socket.on('connect', () => {
+            console.log('Connected to WebSocket server');
+            error = null;
+        });
+
+        socket.on('connect_error', (err) => {
+            console.error('Connection error:', err);
+            error = 'Failed to connect to server';
+        });
+        
+        socket.on('search_results', (results) => {
+            console.log('Received search results:', results);
+            isLoading = false;
+            if (results.error) {
+                error = results.error;
+                return;
+            }
+            searchResults = results;
+            error = null;
+        });
+
+        socket.on('search_error', (err) => {
+            console.error('Search error:', err);
+            isLoading = false;
+            error = err;
+        });
+    });
+
+    onDestroy(() => {
+        if (socket) {
+            socket.disconnect();
+        }
+    });
 
     async function handleSearch() {
-        // For this example, we'll just create dummy results
-        // In a real app, you would make an API call here
-        searchResults = [
-            { title: `Result 1 for "${searchQuery}"`, url: '#' },
-            { title: `Result 2 for "${searchQuery}"`, url: '#' },
-            { title: `Result 3 for "${searchQuery}"`, url: '#' }
-        ];
+        if (socket && searchQuery.trim()) {
+            isLoading = true;
+            error = null;
+            searchResults = [];
+            console.log('Emitting search:', searchQuery);
+            socket.emit('search', searchQuery);
+        }
     }
 </script>
 
@@ -32,6 +78,18 @@
                 Search
             </button>
         </div>
+
+        {#if error}
+            <div class="mt-4 rounded-lg bg-red-100 p-4 text-red-700">
+                {error}
+            </div>
+        {/if}
+
+        {#if isLoading}
+            <div class="mt-8 text-center text-gray-600">
+                Searching...
+            </div>
+        {/if}
 
         {#if searchResults.length > 0}
             <div class="mt-8 space-y-4">

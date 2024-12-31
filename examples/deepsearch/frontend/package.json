@@ -31,6 +31,7 @@
 		"vitest": "^2.0.4"
 	},
 	"dependencies": {
-		"@tailwindcss/typography": "^0.5.15"
+		"@tailwindcss/typography": "^0.5.15",
+		"socket.io-client": "^4.8.1"
 	}
 }
