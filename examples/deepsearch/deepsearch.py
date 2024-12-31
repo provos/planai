@@ -23,26 +23,6 @@ def setup_graph(provider: str, model: str):
     llm = llm_from_config(provider, model)
 
 
-@socketio.on("search")
-def handle_search(query):
-    print(f'Searching for "{query}"')
-    if llm is None:
-        socketio.emit("search_results", {"error": "LLM not initialized"})
-        return
-
-    try:
-        # This is a placeholder response
-        results = [
-            {"title": f'Deep search result 1 for "{query}"', "url": "#"},
-            {"title": f'Deep search result 2 for "{query}"', "url": "#"},
-        ]
-        print(f"Sending results: {results}")
-        socketio.emit("search_results", results)
-    except Exception as e:
-        print(f"Error processing search: {e}")
-        socketio.emit("search_error", str(e))
-
-
 @socketio.on("chat_message")
 def handle_message(message):
     print(f'Received message: "{message}"')
