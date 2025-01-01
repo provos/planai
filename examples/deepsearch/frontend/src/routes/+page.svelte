@@ -51,6 +51,7 @@
 				// Session restoration failed, clear stored session
 				console.log('Session restoration failed, got new session:', newSessionId);
 				messages = [];
+                isLoading = false;
 			}
 			saveSessionId(newSessionId);
 			console.log('Active session ID:', newSessionId);
