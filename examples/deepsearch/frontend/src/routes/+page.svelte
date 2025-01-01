@@ -29,6 +29,7 @@
     function initializeSocket() {
         const storedSessionId = loadStoredSession();
         
+        // Create connection with session ID if available
         socket = io('http://localhost:5050', {
             transports: ['websocket'],
             reconnection: true,
@@ -36,11 +37,22 @@
             reconnectionDelay: 1000,
             query: storedSessionId ? { session_id: storedSessionId } : {}
         });
-        
+
         socket.on('connect', () => {
             console.log('Connected to chat server');
             connectionStatus = 'connected';
             error = null;
+        });
+
+        socket.on('session_id', (data) => {
+            const newSessionId = data.id;
+            if (sessionId && sessionId !== newSessionId) {
+                // Session restoration failed, clear stored session
+                console.log('Session restoration failed, got new session:', newSessionId);
+                messages = [];
+            }
+            saveSessionId(newSessionId);
+            console.log('Active session ID:', newSessionId);
         });
 
         socket.on('disconnect', () => {
@@ -64,11 +76,6 @@
             error = 'Failed to connect to server';
         });
 
-        socket.on('session_id', (data) => {
-            saveSessionId(data.id);
-            console.log('Received session ID:', data.id);
-        });
-        
         socket.on('chat_response', (response) => {
             console.log('Received response:', response);
             isLoading = false;
@@ -90,6 +97,13 @@
             console.error('Chat error:', err);
             isLoading = false;
             error = err;
+            
+            // Clear invalid session
+            if (err === 'Invalid session ID') {
+                localStorage.removeItem('chatSessionId');
+                sessionId = null;
+                messages = [];
+            }
         });
     }
 

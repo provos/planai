@@ -186,11 +186,19 @@ def setup_graph(provider: str, model: str):
 
 @socketio.on("connect")
 def handle_connect():
-    session_id = session_manager.create_session()
-    print(f"New connection: {session_id} with SID: {request.sid}")
+    # Check if client is attempting to restore a session
+    session_id = request.args.get("session_id")
 
-    # Store the mapping between SID and session_id in the SessionManager
-    session_manager.register_sid(request.sid, session_id)
+    if session_id and session_id in session_manager._sessions:
+        # Restore existing session
+        print(f"Restoring session: {session_id} for SID: {request.sid}")
+        session_manager.register_sid(request.sid, session_id)
+        session_manager.update_session_timestamp(session_id)
+    else:
+        # Create new session
+        session_id = session_manager.create_session()
+        print(f"New connection: {session_id} with SID: {request.sid}")
+        session_manager.register_sid(request.sid, session_id)
 
     emit("session_id", {"id": session_id})
 
