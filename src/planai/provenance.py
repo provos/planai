@@ -70,16 +70,18 @@ class ProvenanceTracker:
         self.notifiers_lock = Lock()
 
     def add_metadata(self, provenance: ProvenanceChain, metadata: Dict):
-        print("Adding metadata for provenance", provenance)
-        print(type(provenance))
+        logging.info("Adding metadata for %s: %s", provenance, metadata)
         with self.provenance_lock:
             self.metadata[provenance] = metadata
 
     def get_metadata(self, provenance: ProvenanceChain) -> Dict:
         with self.provenance_lock:
-            return self.metadata.get(provenance, {})
+            data = self.metadata.get(provenance, {})
+        logging.info("Getting metadata for %s: %s", provenance, data)
+        return data
 
     def remove_metadata(self, prefix: ProvenanceChain):
+        logging.debug("Removing metadata for %s", prefix)
         with self.provenance_lock:
             if prefix in self.metadata:
                 del self.metadata[prefix]

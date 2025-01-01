@@ -19,6 +19,7 @@ from abc import ABC, abstractmethod
 from typing import (
     TYPE_CHECKING,
     Any,
+    Callable,
     Dict,
     List,
     Optional,
@@ -282,7 +283,11 @@ class TaskWorker(BaseModel, ABC):
         self._graph.set_dependency(self, downstream)
         return downstream
 
-    def sink(self, output_type: TaskType):
+    def sink(
+        self,
+        output_type: TaskType,
+        notify: Callable[[Dict[str, Any], TaskType], None] = None,
+    ):
         """
         Designates the current task worker as a sink in the associated graph.
 
@@ -291,6 +296,8 @@ class TaskWorker(BaseModel, ABC):
 
         Parameters:
             output_type (Task): The output type of the task to send to the sink.
+            notify: Optional callback function to be called when the sink is executed. It will receive
+              any metadata associated with the task and the task itself.
 
         Raises:
             ValueError: If the task worker is not associated with a graph.
@@ -310,7 +317,7 @@ class TaskWorker(BaseModel, ABC):
             raise ValueError(
                 "Task must be added to a Graph before setting a sink dependency"
             )
-        self._graph.set_sink(self, output_type)
+        self._graph.set_sink(self, output_type, notify)
 
     def trace(self, prefix: "ProvenanceChain"):
         """
@@ -393,6 +400,20 @@ class TaskWorker(BaseModel, ABC):
         with self.lock:
             self._id += 1
             return tuple((self.name, self._id))
+
+    def get_metadata(self, task: Task) -> Dict[str, Any]:
+        """
+        Get metadata for the task.
+
+        Returns:
+            Dict[str, Any]: Metadata for the worker.
+
+        Raises:
+            RuntimeError: If the graph or ProvenanceTracker is not initialized.
+        """
+        if self._graph is None or self._graph._provenance_tracker is None:
+            raise RuntimeError("Graph or ProvenanceTracker is not initialized.")
+        return self._graph._provenance_tracker.get_metadata((task._provenance[0],))
 
     def _pre_consume_work(self, task: Task):
         with self._state_lock:

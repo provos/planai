@@ -16,7 +16,7 @@ import shutil
 import time
 from collections import deque
 from threading import Event, Thread
-from typing import Dict, List, Optional, Sequence, Set, Tuple, Type
+from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Type
 
 from colorama import Fore, Style, init
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
@@ -127,7 +127,12 @@ class Graph(BaseModel):
 
         return downstream
 
-    def set_sink(self, worker: TaskWorker, output_type: Type[Task]) -> None:
+    def set_sink(
+        self,
+        worker: TaskWorker,
+        output_type: Type[Task],
+        notify: Callable[[Dict[str, Any], None], Task] = None,
+    ) -> None:
         """
         Sets a worker as a data sink in the task graph.
 
@@ -167,8 +172,12 @@ class Graph(BaseModel):
             def __init__(self, graph: "Graph", **data):
                 super().__init__(**data)
                 self._graph = graph
+                self._notify = notify
 
             def consume_work(self, task: output_type):
+                if self._notify:
+                    metadata = self.get_metadata(task)
+                    self._notify(metadata, task)
                 with self.lock:
                     self._graph._sink_tasks.append(task)
 

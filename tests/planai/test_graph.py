@@ -143,6 +143,49 @@ class TestGraph(unittest.TestCase):
         # Verify metadata was cleaned up
         self.assertNotIn(provenance, self.graph._provenance_tracker.metadata)
 
+    def test_graph_run_with_sink_notify(self):
+        worker = DummyWorker()
+        self.graph.add_worker(worker)
+        initial_task = DummyTask(data="initial")
+
+        class TestWorker(TaskWorker):
+            output_types: list = [DummyTask]
+
+            def consume_work(self, task: DummyTask):
+                task.data += " processed"
+                self.publish_work(task.model_copy(), input_task=task)
+
+        # Register a test worker and set up graph
+        test_worker = TestWorker()
+        self.graph.add_worker(test_worker)
+
+        # Create a callback to receive notifications
+        received_metadata = {}
+        received_task = None
+
+        def notify_callback(metadata, task):
+            nonlocal received_metadata, received_task
+            received_metadata = metadata
+            received_task = task
+
+        # Set up sink with notification callback
+        self.graph.set_dependency(worker, test_worker)
+        self.graph.set_sink(test_worker, DummyTask, notify=notify_callback)
+
+        self.graph.prepare(display_terminal=False)
+        self.graph.set_entry(worker)
+
+        # Add metadata to be tracked with the task
+        metadata = {"test_key": "test_value"}
+        self.graph.add_work(worker, initial_task, metadata=metadata)
+
+        # Run graph with empty initial tasks list
+        self.graph.execute([])
+
+        # Verify that the callback received the correct metadata and task
+        self.assertEqual(received_metadata["test_key"], "test_value")
+        self.assertEqual(received_task.data, "initial processed")
+
 
 if __name__ == "__main__":
     unittest.main()
