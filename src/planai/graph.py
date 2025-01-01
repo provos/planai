@@ -56,6 +56,7 @@ class Graph(BaseModel):
     def __init__(self, **data):
         super().__init__(**data)
         self._initial_worker = InitialTaskWorker()
+        self.add_worker(self._initial_worker)
 
     def trace(self, prefix: ProvenanceChain):
         self._provenance_tracker.trace(prefix)
@@ -276,9 +277,6 @@ class Graph(BaseModel):
             graph.prepare(run_dashboard=True, dashboard_port=8080)
             ```
         """
-        # Inject InitialTaskWorker into the graph and set up the entry points
-        self._inject_initial_task_worker()
-
         # Empty the sink tasks
         if self._sink_worker:
             self._sink_tasks = []
@@ -460,17 +458,6 @@ class Graph(BaseModel):
         for worker in workers:
             self._set_dependency(self._initial_worker, worker, register=False)
         return self
-
-    def _inject_initial_task_worker(self):
-        """
-        Injects an initial task worker.
-
-        This method ass the `InitialTaskWorker` instance to the worker list.
-
-        Returns:
-            None
-        """
-        self.add_worker(self._initial_worker)
 
     def compute_worker_distances(self):
         for worker in self.workers:
