@@ -32,9 +32,10 @@
         // Create connection with session ID if available
         socket = io('http://localhost:5050', {
             transports: ['websocket'],
-            reconnection: true,
-            reconnectionAttempts: 5,
-            reconnectionDelay: 1000,
+            reconnectionAttempts: Infinity,
+            reconnectionDelay: 1000, // Initial delay
+            reconnectionDelayMax: 30000, // Maximum delay: 30 seconds
+            randomizationFactor: 0.5, // 0.5 means +/- 50% jitter
             query: storedSessionId ? { session_id: storedSessionId } : {}
         });
 
