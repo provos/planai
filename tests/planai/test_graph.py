@@ -126,8 +126,7 @@ class TestGraph(unittest.TestCase):
         self.graph.add_worker(test_worker)
         self.graph.set_dependency(worker, test_worker).sink(DummyTask)
 
-        # XXX: the injection of the initial task worker may need to be done differently
-        self.graph._inject_initial_task_worker()
+        self.graph.prepare(display_terminal=False)
         self.graph.set_entry(worker)
 
         # Add metadata to be tracked with the task
@@ -135,7 +134,7 @@ class TestGraph(unittest.TestCase):
         provenance = self.graph.add_work(worker, initial_task, metadata=metadata)
 
         # Run graph with empty initial tasks list
-        self.graph.run([], display_terminal=False)
+        self.graph.execute([])
 
         # Verify output
         output = self.graph.get_output_tasks()

@@ -38,6 +38,8 @@ class Graph(BaseModel):
     dependencies: Dict[TaskWorker, List[TaskWorker]] = Field(default_factory=dict)
 
     _dispatcher: Optional[Dispatcher] = PrivateAttr(default=None)
+    _dispatch_thread: Optional[Thread] = PrivateAttr(default=None)
+    _terminal_thread: Optional[Thread] = PrivateAttr(default=None)
     _provenance_tracker: ProvenanceTracker = PrivateAttr(
         default_factory=ProvenanceTracker
     )
@@ -242,6 +244,65 @@ class Graph(BaseModel):
     def finalize(self):
         self.compute_worker_distances()
 
+    def prepare(
+        self,
+        run_dashboard: bool = False,
+        display_terminal: bool = True,
+        dashboard_port: int = 5000,
+    ) -> None:
+        """
+        Prepare the Graph for execution by setting up necessary components and interfaces.
+
+        This method initializes the graph execution environment by setting up the dispatcher,
+        optional monitoring interfaces, and worker configurations. It's a prerequisite step
+        before actual execution of tasks.
+
+            - This method sets up the execution environment but does not start task processing
+            - If run_dashboard is True, a web interface will be available at the specified port
+            - Terminal display provides real-time execution status in the console
+            - The method configures maximum parallel tasks for workers as previously defined
+
+            ```
+            # Configure the graph...
+            graph.prepare(run_dashboard=True, dashboard_port=8080)
+            ```
+        """
+        # Inject InitialTaskWorker into the graph and set up the entry points
+        self._inject_initial_task_worker()
+
+        # Empty the sink tasks
+        if self._sink_worker:
+            self._sink_tasks = []
+            if run_dashboard:
+                logging.warning(
+                    "The dashboard will make the graph wait for manual termination. "
+                    "This is usually not desired when using a sink worker."
+                )
+
+        # Allow workers to log messages
+        self._log_lines = []
+
+        # Start the dispatcher
+        dispatcher = Dispatcher(self, web_port=dashboard_port)
+        self._dispatch_thread = Thread(target=dispatcher.dispatch)
+        self._dispatch_thread.start()
+        if run_dashboard:
+            dispatcher.start_web_interface()
+            self._has_dashboard = True
+        self._dispatcher = dispatcher
+
+        if display_terminal:
+            self._has_terminal = True
+            self._start_terminal_display()
+            self._terminal_thread = Thread(target=self._terminal_display_thread)
+            self._terminal_thread.start()
+        else:
+            self._has_terminal = False
+
+        # Apply the max parallel tasks settings
+        for worker_class, max_parallel_tasks in self._max_parallel_tasks.items():
+            dispatcher.set_max_parallel_tasks(worker_class, max_parallel_tasks)
+
     def run(
         self,
         initial_tasks: Sequence[Tuple[TaskWorker, Task]],
@@ -278,43 +339,40 @@ class Graph(BaseModel):
             initial_work = [(task1, Task1WorkItem(data="Start"))]
             graph.run(initial_work, run_dashboard=True)
         """
-        # Inject InitialTaskWorker into the graph and set up the entry points
-        self._inject_initial_task_worker()
+        self.prepare(
+            run_dashboard=run_dashboard,
+            display_terminal=display_terminal,
+            dashboard_port=dashboard_port,
+        )
+        self.execute(initial_tasks)
+
+    def execute(self, initial_tasks: Sequence[Tuple[TaskWorker, Task]]) -> None:
+        """
+        Execute the Graph by initiating source tasks and managing the workflow.
+
+        This method executes the graph by initializing and managing source tasks through workers.
+        It performs the following steps:
+        1. Sets entry points using initial tasks
+        2. Finalizes the graph computation
+        3. Initializes workers
+        4. Validates and adds initial tasks to workers
+        5. Waits for all tasks to complete
+        6. Stops the dispatcher and terminal display
+        7. Marks workers as completed
+
+        Args:
+            initial_tasks (Sequence[Tuple[TaskWorker, Task]]): A sequence of tuples containing
+                TaskWorker and Task pairs to initialize the graph execution.
+
+        Raises:
+            Exception: If task validation fails for any worker-task pair.
+
+        Returns:
+            None
+        """
         self.set_entry(*[x[0] for x in initial_tasks])
         # Finalize the graph (compute distances)
         self.finalize()
-
-        # Empty the sink tasks
-        if self._sink_worker:
-            self._sink_tasks = []
-            if run_dashboard:
-                logging.warning(
-                    "The dashboard will make the graph wait for manual termination. This is usually not desired when using a sink worker."
-                )
-
-        # Allow workers to log messages
-        self._log_lines = []
-
-        # Start the dispatcher
-        dispatcher = Dispatcher(self, web_port=dashboard_port)
-        dispatch_thread = Thread(target=dispatcher.dispatch)
-        dispatch_thread.start()
-        if run_dashboard:
-            dispatcher.start_web_interface()
-            self._has_dashboard = True
-        self._dispatcher = dispatcher
-
-        if display_terminal:
-            self._has_terminal = True
-            self._start_terminal_display()
-            terminal_thread = Thread(target=self._terminal_display_thread)
-            terminal_thread.start()
-        else:
-            self._has_terminal = False
-
-        # Apply the max parallel tasks settings
-        for worker_class, max_parallel_tasks in self._max_parallel_tasks.items():
-            dispatcher.set_max_parallel_tasks(worker_class, max_parallel_tasks)
 
         # let the workers know that we are about to start
         self.init_workers()
@@ -327,16 +385,16 @@ class Graph(BaseModel):
             self._add_work(worker, task)
 
         # Wait for all tasks to complete
-        logging.info(f"Graph {self.name} started - waiting for completion")
-        dispatcher.wait_for_completion(wait_for_quit=run_dashboard)
-        logging.info(f"Graph {self.name} completed")
-        dispatcher.stop()
-        dispatch_thread.join()
+        logging.info("Graph %s started - waiting for completion", self.name)
+        self._dispatcher.wait_for_completion(wait_for_quit=self._has_dashboard)
+        logging.info("Graph %s completed", self.name)
+        self._dispatcher.stop()
+        self._dispatch_thread.join()
         logging.info("Dispatcher stopped")
 
-        if display_terminal:
+        if self._has_terminal:
             self._stop_terminal_display_event.set()
-            terminal_thread.join()
+            self._terminal_thread.join()
             logging.info("Terminal display stopped")
 
         for worker in self.workers:
@@ -352,7 +410,7 @@ class Graph(BaseModel):
         assert self._dispatcher is not None
         self._dispatcher.add_work(worker, task)
 
-        return task._provenance
+        return tuple(task._provenance)
 
     def add_work(
         self, worker: TaskWorker, task: Task, metadata: Optional[Dict] = None

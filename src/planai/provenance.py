@@ -69,13 +69,15 @@ class ProvenanceTracker:
         self.provenance_lock = RLock()
         self.notifiers_lock = Lock()
 
-    def add_metadata(self, task: Task, metadata: Dict):
+    def add_metadata(self, provenance: ProvenanceChain, metadata: Dict):
+        print("Adding metadata for provenance", provenance)
+        print(type(provenance))
         with self.provenance_lock:
-            self.metadata[task._provenance] = metadata
+            self.metadata[provenance] = metadata
 
-    def get_metadata(self, task: Task) -> Dict:
+    def get_metadata(self, provenance: ProvenanceChain) -> Dict:
         with self.provenance_lock:
-            return self.metadata.get(task._provenance, {})
+            return self.metadata.get(provenance, {})
 
     def remove_metadata(self, prefix: ProvenanceChain):
         with self.provenance_lock:
@@ -159,9 +161,9 @@ class ProvenanceTracker:
                 notifiers = self._get_notifiers_for_prefix(p)
                 if not notifiers:
                     no_notify.append(p)
-                else:
-                    for notifier in notifiers:
-                        final_notify.append((notifier, p))
+                    continue
+                for notifier in notifiers:
+                    final_notify.append((notifier, p))
 
             if final_notify:
                 logging.info(
@@ -172,7 +174,8 @@ class ProvenanceTracker:
                 self._notify_task_completion(final_notify, worker, task)
             if no_notify:
                 # delete metadata for all the prefixes that are no longer in use
-                self.remove_metadata(p)
+                for p in no_notify:
+                    self.remove_metadata(p)
 
     def _get_notifiers_for_prefix(self, prefix: ProvenanceChain) -> List[TaskWorker]:
         with self.notifiers_lock:
