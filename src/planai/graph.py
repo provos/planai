@@ -405,7 +405,8 @@ class Graph(BaseModel):
             worker.init()
 
     def _add_work(self, worker: TaskWorker, task: Task) -> ProvenanceChain:
-        task._provenance = [(self._initial_worker.name, 1)] + task._provenance
+        provenance = self._initial_worker.get_next_provenance()
+        task._provenance = [provenance] + task._provenance
 
         assert self._dispatcher is not None
         self._dispatcher.add_work(worker, task)

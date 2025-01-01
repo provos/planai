@@ -123,9 +123,8 @@ class Task(BaseModel):
         return None
 
     def _add_worker_provenance(self, worker: "TaskWorker") -> "Task":
-        with worker._state_lock:
-            worker._id += 1
-            self._provenance.append((worker.name, worker._id))
+        provenance = worker.get_next_provenance()
+        self._provenance.append(provenance)
         return self
 
     def _add_input_provenance(self, input_task: Optional["Task"]) -> "Task":
@@ -383,6 +382,17 @@ class TaskWorker(BaseModel, ABC):
             *args: The message to print.
         """
         self._graph.print(*args)
+
+    def get_next_provenance(self) -> Tuple[str, int]:
+        """
+        Gets the next provenance tuple for this worker.
+
+        Returns:
+            Tuple[str, int]: The next provenance tuple.
+        """
+        with self.lock:
+            self._id += 1
+            return tuple((self.name, self._id))
 
     def _pre_consume_work(self, task: Task):
         with self._state_lock:

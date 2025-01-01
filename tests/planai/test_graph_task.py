@@ -49,7 +49,9 @@ class FinalWorker(TaskWorker):
         # Simulate final processing in the main graph
         time.sleep(0.1)
         assert task.intermediate, "Task should have been processed by subgraph"
-        assert len(task._provenance) == 3, "Provenance length should be 3"
+        assert (
+            len(task._provenance) == 3
+        ), f"Provenance length should be 3 but got {task._provenance}"
         # The subgraph's provenance should not appear here
         expected_provenance = [
             ("InitialTaskWorker", 1),
