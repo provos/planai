@@ -109,6 +109,41 @@ class TestGraph(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.graph.set_max_parallel_tasks(worker_class, 0)
 
+    def test_graph_run_with_add_work(self):
+        worker = DummyWorker()
+        self.graph.add_worker(worker)
+        initial_task = DummyTask(data="initial")
+
+        class TestWorker(TaskWorker):
+            output_types: list = [DummyTask]
+
+            def consume_work(self, task: DummyTask):
+                task.data += " processed"
+                self.publish_work(task.model_copy(), input_task=task)
+
+        # Register a test worker and set up graph
+        test_worker = TestWorker()
+        self.graph.add_worker(test_worker)
+        self.graph.set_dependency(worker, test_worker).sink(DummyTask)
+
+        # XXX: the injection of the initial task worker may need to be done differently
+        self.graph._inject_initial_task_worker()
+        self.graph.set_entry(worker)
+
+        # Add metadata to be tracked with the task
+        metadata = {"test_key": "test_value"}
+        provenance = self.graph.add_work(worker, initial_task, metadata=metadata)
+
+        # Run graph with empty initial tasks list
+        self.graph.run([], display_terminal=False)
+
+        # Verify output
+        output = self.graph.get_output_tasks()
+        self.assertEqual(output[0].data, "initial processed")
+
+        # Verify metadata was cleaned up
+        self.assertNotIn(provenance, self.graph._provenance_tracker.metadata)
+
 
 if __name__ == "__main__":
     unittest.main()

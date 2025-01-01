@@ -278,8 +278,9 @@ class Graph(BaseModel):
             initial_work = [(task1, Task1WorkItem(data="Start"))]
             graph.run(initial_work, run_dashboard=True)
         """
-        # Inject InitialTaskWorker into the graph
-        self.inject_initial_task_worker(initial_tasks)
+        # Inject InitialTaskWorker into the graph and set up the entry points
+        self._inject_initial_task_worker()
+        self.set_entry(*[x[0] for x in initial_tasks])
         # Finalize the graph (compute distances)
         self.finalize()
 
@@ -345,31 +346,63 @@ class Graph(BaseModel):
         for worker in self.workers:
             worker.init()
 
-    def _add_work(self, worker: TaskWorker, task: Task):
+    def _add_work(self, worker: TaskWorker, task: Task) -> ProvenanceChain:
         task._provenance = [(self._initial_worker.name, 1)] + task._provenance
 
         assert self._dispatcher is not None
         self._dispatcher.add_work(worker, task)
 
-    def inject_initial_task_worker(self, initial_tasks: List[Tuple[TaskWorker, Task]]):
-        """
-        Injects an initial task worker and sets up dependencies for the given initial tasks.
+        return task._provenance
 
-        This method creates an `InitialTaskWorker` instance and adds it to the worker list.
-        It then sets up dependencies between the initial task worker and each worker in the
-        provided `initial_tasks` list without performing any checks.
+    def add_work(
+        self, worker: TaskWorker, task: Task, metadata: Optional[Dict] = None
+    ) -> ProvenanceChain:
+        """Does something"""
+        if worker not in self.dependencies[self._initial_worker]:
+            raise ValueError(
+                f"Worker {worker.name} is not an entry point to the Graph."
+            )
+
+        provenance = self._add_work(worker, task)
+        if metadata:
+            self._provenance_tracker.add_metadata(provenance, metadata)
+        return provenance
+
+    def set_entry(self, *workers: TaskWorker) -> "Graph":
+        """Set the workers that are entry points to the Graph.
+
+        This method establishes connections from the initial (root) worker to the specified
+        workers, marking them as entry points in the execution graph.
 
         Args:
-            initial_tasks (List[Tuple[TaskWorker, Task]]): A list of tuples where each tuple
-            contains a `TaskWorker` and a `Task`.
+            *workers (TaskWorker): Variable number of TaskWorker instances to be set as
+                entry points.
+
+        Returns:
+            Graph: The Graph instance itself for method chaining.
+
+        Example:
+            ```
+            graph = Graph()
+            worker1 = TaskWorker()
+            worker2 = TaskWorker()
+            graph.set_entry(worker1, worker2)
+            ```
+        """
+        for worker in workers:
+            self._set_dependency(self._initial_worker, worker, register=False)
+        return self
+
+    def _inject_initial_task_worker(self):
+        """
+        Injects an initial task worker.
+
+        This method ass the `InitialTaskWorker` instance to the worker list.
 
         Returns:
             None
         """
         self.add_worker(self._initial_worker)
-        for worker, _ in initial_tasks:
-            # we just fake the dependency and don't do any checks
-            self._set_dependency(self._initial_worker, worker, register=False)
 
     def compute_worker_distances(self):
         for worker in self.workers:

@@ -55,6 +55,25 @@ class TestProvenanceTracker(unittest.TestCase):
         self.assertTrue(result)
         self.assertNotIn((DummyTask.__name__, 1), self.provenance_tracker.notifiers)
 
+    def test_remove_metadata_on_empty_provenance(self):
+        task = DummyTask(data="test")
+        worker = DummyTaskWorkerSimple()
+        task._provenance = [("Task1", 1)]
+
+        # Add metadata for the provenance
+        self.provenance_tracker.metadata[(("Task1", 1),)] = {"some": "metadata"}
+        self.provenance_tracker._add_provenance(task)
+
+        # Verify metadata exists
+        self.assertIn((("Task1", 1),), self.provenance_tracker.metadata)
+
+        # Remove provenance
+        self.provenance_tracker._remove_provenance(task, worker)
+
+        # Verify metadata is removed
+        self.assertNotIn((("Task1", 1),), self.provenance_tracker.metadata)
+        self.assertEqual(self.provenance_tracker.provenance, {})
+
 
 if __name__ == "__main__":
     unittest.main()

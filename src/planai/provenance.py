@@ -61,12 +61,26 @@ ProvenanceChain = Tuple[Tuple[TaskName, TaskID], ...]
 class ProvenanceTracker:
     def __init__(self):
         self.provenance: DefaultDict[ProvenanceChain, int] = defaultdict(int)
-        self.provenance_trace: Dict[ProvenanceChain, list] = {}
+        self.provenance_trace: Dict[ProvenanceChain, list] = {}  # TODO: rename to trace
+        self.metadata: Dict[ProvenanceChain, Dict] = {}
         self.notifiers: DefaultDict[ProvenanceChain, List[TaskWorker]] = defaultdict(
             list
         )
         self.provenance_lock = RLock()
         self.notifiers_lock = Lock()
+
+    def add_metadata(self, task: Task, metadata: Dict):
+        with self.provenance_lock:
+            self.metadata[task._provenance] = metadata
+
+    def get_metadata(self, task: Task) -> Dict:
+        with self.provenance_lock:
+            return self.metadata.get(task._provenance, {})
+
+    def remove_metadata(self, prefix: ProvenanceChain):
+        with self.provenance_lock:
+            if prefix in self.metadata:
+                del self.metadata[prefix]
 
     def _generate_prefixes(self, task: Task) -> Generator[Tuple, None, None]:
         provenance = task._provenance
@@ -140,9 +154,14 @@ class ProvenanceTracker:
 
         if to_notify:
             final_notify = []
+            no_notify = []
             for p in to_notify:
-                for notifier in self._get_notifiers_for_prefix(p):
-                    final_notify.append((notifier, p))
+                notifiers = self._get_notifiers_for_prefix(p)
+                if not notifiers:
+                    no_notify.append(p)
+                else:
+                    for notifier in notifiers:
+                        final_notify.append((notifier, p))
 
             if final_notify:
                 logging.info(
@@ -151,6 +170,9 @@ class ProvenanceTracker:
                 )
                 self._add_provenance(task)
                 self._notify_task_completion(final_notify, worker, task)
+            if no_notify:
+                # delete metadata for all the prefixes that are no longer in use
+                self.remove_metadata(p)
 
     def _get_notifiers_for_prefix(self, prefix: ProvenanceChain) -> List[TaskWorker]:
         with self.notifiers_lock:

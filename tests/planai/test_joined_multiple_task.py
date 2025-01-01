@@ -145,7 +145,8 @@ class TestComplexJoinedTaskWorker(unittest.TestCase):
             initial_work.append((self.repeat_worker, initial_task))
 
         # the graph run method would usually do this for us
-        self.graph.inject_initial_task_worker(initial_work)
+        self.graph._inject_initial_task_worker()
+        self.graph.set_entry(*[x[0] for x in initial_work])
         self.graph.finalize()
 
         # Start the dispatcher
