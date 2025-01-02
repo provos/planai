@@ -411,14 +411,19 @@ class Graph(BaseModel):
         for worker in self.workers:
             worker.init()
 
-    def _add_work(self, worker: TaskWorker, task: Task) -> ProvenanceChain:
+    def _add_work(
+        self, worker: TaskWorker, task: Task, metadata: Optional[Dict] = None
+    ) -> ProvenanceChain:
         provenance = self._initial_worker.get_next_provenance()
         task._provenance = [provenance] + task._provenance
-
+        # to avoid race conditions we need to add the metadata before we add the work
+        if metadata:
+            provenance = tuple(task._provenance)
+            self._provenance_tracker.add_metadata(provenance, metadata)
         assert self._dispatcher is not None
         self._dispatcher.add_work(worker, task)
 
-        return tuple(task._provenance)
+        return
 
     def add_work(
         self, worker: TaskWorker, task: Task, metadata: Optional[Dict] = None
@@ -428,11 +433,7 @@ class Graph(BaseModel):
             raise ValueError(
                 f"Worker {worker.name} is not an entry point to the Graph."
             )
-
-        provenance = self._add_work(worker, task)
-        if metadata:
-            self._provenance_tracker.add_metadata(provenance, metadata)
-        return provenance
+        return self._add_work(worker, task, metadata)
 
     def set_entry(self, *workers: TaskWorker) -> "Graph":
         """Set the workers that are entry points to the Graph.

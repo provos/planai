@@ -415,6 +415,13 @@ class TaskWorker(BaseModel, ABC):
             raise RuntimeError("Graph or ProvenanceTracker is not initialized.")
         return self._graph._provenance_tracker.get_metadata((task._provenance[0],))
 
+    def add_work(
+        self, task: Task, metadata: Optional[Dict] = None
+    ) -> "ProvenanceChain":
+        if self._graph is None:
+            raise RuntimeError("Graph is not initialized.")
+        return self._graph.add_work(self, task, metadata)
+
     def _pre_consume_work(self, task: Task):
         with self._state_lock:
             self._last_input_task = task
