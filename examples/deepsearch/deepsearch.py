@@ -3,7 +3,7 @@ import threading
 
 from flask import Flask, request
 from flask_socketio import SocketIO, emit
-from graph import Plan, Request, setup_graph
+from graph import Request, Response, setup_graph
 from session import SessionManager
 
 from planai.utils import setup_logging
@@ -44,8 +44,12 @@ def start_worker_thread():
                 try:
                     print(f"Sending response: {message} to session: {session_id}")
                     socketio.emit(
-                        "chat_response",
-                        {"message": message},
+                        (
+                            "chat_response"
+                            if message.response_type == "final"
+                            else "thinking_update"
+                        ),
+                        message.model_dump(),
                         namespace="/",
                         to=sid,
                         callback=handle_emit_error,
@@ -75,12 +79,11 @@ def start_graph_thread(provider: str = "ollama", model: str = "llama3.3:latest")
     """Create and start a new worker thread."""
     global graph_thread, graph, entry_worker, task_queue
 
-    def notify(metadata, task: Plan):
+    def notify(metadata, message: Response):
         """Callback to receive notifications from the graph."""
         session_id = metadata.get("session_id")
         sid = metadata.get("sid")
-        message = task.response
-        print(f"Received response: {message} for session: {session_id}")
+        print(f"Received response: {str(message)[:100]} for session: {session_id}")
         task_queue.put((sid, session_id, message))
 
     graph, entry_worker = setup_graph(provider=provider, model=model, notify=notify)
