@@ -181,9 +181,7 @@ def handle_message(data):
     # Add the task to the graph
     global graph, entry_worker  # TODO: allow add_work on entry_worker
     user_request = Request(user_input=message)
-    graph.add_work(
-        entry_worker, user_request, metadata={"session_id": session_id, "sid": sid}
-    )
+    entry_worker.add_work(user_request, metadata={"session_id": session_id, "sid": sid})
 
 
 def main():
