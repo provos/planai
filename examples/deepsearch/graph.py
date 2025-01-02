@@ -4,6 +4,7 @@ from typing import Any, Callable, Dict, List, Tuple, Type
 from pydantic import Field
 
 from planai import CachedLLMTaskWorker, Graph, Task, TaskWorker, llm_from_config
+from planai.utils import setup_logging
 
 
 class Request(Task):
@@ -32,6 +33,8 @@ def setup_graph(
     model: str = "llama3.3:latest",
     notify: Callable[Dict[str, Any], None] = None,
 ) -> Tuple[Graph, TaskWorker]:
+    setup_logging()
+
     llm = llm_from_config(provider=provider, model_name=model, use_cache=False)
 
     graph = Graph(name="Plan Graph")
