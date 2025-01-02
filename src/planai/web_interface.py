@@ -199,7 +199,7 @@ def render_mermaid_graph(graph: "Graph"):
 def run_web_interface(disp: "Dispatcher", port=5000):
     global dispatcher
     dispatcher = disp
-    app.run(debug=False, port=port)
+    app.run(debug=False, use_reloader=False, port=port)
 
 
 def is_quit_requested():
