@@ -6,6 +6,8 @@ from flask_socketio import SocketIO, emit
 from graph import Plan, Request, setup_graph
 from session import SessionManager
 
+from planai.utils import setup_logging
+
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "just_a_toy_example"
 socketio = SocketIO(app, cors_allowed_origins="*")
@@ -115,7 +117,7 @@ def setup_web_interface(port=5050):
     start_worker_thread()
 
     try:
-        socketio.run(app, port=port, debug=True)
+        socketio.run(app, port=port, debug=False, use_reloader=False)
     except (KeyboardInterrupt, SystemExit):
         stop_worker_thread()
     finally:
@@ -192,6 +194,8 @@ def main():
     parser.add_argument("--provider", type=str, default="ollama")
     parser.add_argument("--model", type=str, default="llama3.3:latest")
     args = parser.parse_args()
+
+    setup_logging()
 
     start_graph_thread(args.provider, args.model)
     setup_web_interface(port=args.port)
