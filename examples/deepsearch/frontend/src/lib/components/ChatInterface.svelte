@@ -1,6 +1,7 @@
 <script>
     import { marked } from 'marked';
     import { sessionState } from '../stores/sessionStore.svelte.js';
+    import { messageBus } from '../stores/messageBus.svelte.js';
 
     let { 
         messages,
@@ -11,6 +12,45 @@
 
     let messageInput = $state('');
 
+    // Subscribe to message bus events
+    $effect(() => {
+        const unsubscribe = messageBus.subscribe(({ type, payload }) => {
+            if (!type) return;
+
+            switch (type) {
+                case 'chatResponse':
+                    console.log('Received response:', payload);
+                    isLoading.set(false);
+                    thinkingUpdate.set('**Processing** your request...');
+                    messages.update(msgs => [...msgs, {
+                        role: 'assistant',
+                        content: payload.message,
+                        timestamp: new Date(),
+                        isMarkdown: true
+                    }]);
+                    break;
+                case 'thinkingUpdate':
+                    thinkingUpdate.set(payload.message);
+                    break;
+                case 'error':
+                    error.set(payload);
+                    break;
+                case 'resetMessages':
+                    messages.set([]);
+                    isLoading.set(false);
+                    break;
+                case 'cleanup':
+                    if (sessionState.socket) {
+                        sessionState.socket.disconnect();
+                    }
+                    break;
+            }
+        });
+
+        return () => unsubscribe();
+    });
+
+    // Existing functions
     function handleSendMessage(message) {
         if (!sessionState.sessionId || sessionState.connectionStatus !== 'connected') return;
         
@@ -51,6 +91,8 @@
         }
     }
 </script>
+
+<!-- Remove svelte:window events -->
 
 <div class="chat-wrapper">
     <h1 class="chat-title">Chat Interface</h1>
