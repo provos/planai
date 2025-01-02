@@ -85,7 +85,7 @@ def start_graph_thread(provider: str = "ollama", model: str = "llama3.3:latest")
 
     def worker():
         """Worker thread to process tasks from the queue."""
-        graph.prepare(display_terminal=False, run_dashboard=False)
+        graph.prepare(display_terminal=False, run_dashboard=True, dashboard_port=8080)
         graph.execute([])
 
     graph_thread = threading.Thread(target=worker)
@@ -179,7 +179,7 @@ def handle_message(data):
     session_manager.update_session_timestamp(session_id)
 
     # Add the task to the graph
-    global graph, entry_worker  # TODO: allow add_work on entry_worker
+    global graph, entry_worker
     user_request = Request(user_input=message)
     entry_worker.add_work(user_request, metadata={"session_id": session_id, "sid": sid})
 
