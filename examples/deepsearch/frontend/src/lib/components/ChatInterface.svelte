@@ -1,23 +1,53 @@
 <script>
     import { marked } from 'marked';
+    import { sessionState } from '../stores/sessionStore.svelte.js';
 
-    export let messages = [];
-    export let isLoading = false;
-    export let error = null;
-    export let connectionStatus = 'disconnected';
-    export let thinkingUpdate = '**Processing** your request...';
-    export let onSendMessage;
+    let { 
+        messages,
+        isLoading,
+        error,
+        thinkingUpdate
+    } = $props();
 
-    let messageInput = '';
+    let messageInput = $state('');
+
+    function handleSendMessage(message) {
+        if (!sessionState.sessionId || sessionState.connectionStatus !== 'connected') return;
+        
+        isLoading.set(true);
+        error.set(null);
+
+        const userMessage = {
+            role: 'user',
+            content: message,
+            timestamp: new Date()
+        };
+
+        messages.update(msgs => [...msgs, userMessage]);
+        sessionState.socket?.emit('chat_message', {
+            session_id: sessionState.sessionId,
+            message: message
+        });
+    }
+
+    $effect(() => {
+        console.log('ChatInterface connection status:', sessionState.connectionStatus);
+    });
 
     function handleSend() {
-        if (connectionStatus !== 'connected') {
-            error = 'Cannot send message while disconnected';
+        if (sessionState.connectionStatus !== 'connected') {
+            error.set('Cannot send message while disconnected');
             return;
         }
         if (messageInput.trim()) {
-            onSendMessage(messageInput);
+            handleSendMessage(messageInput);
             messageInput = '';
+        }
+    }
+
+    function handleKeyDown(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            handleSend();
         }
     }
 </script>
@@ -25,11 +55,11 @@
 <div class="chat-wrapper">
     <h1 class="chat-title">Chat Interface</h1>
 
-    {#if connectionStatus !== 'connected'}
-        <div class="connection-status {connectionStatus}">
-            {connectionStatus === 'reconnecting'
+    {#if sessionState.connectionStatus !== 'connected'}
+        <div class="connection-status {sessionState.connectionStatus}">
+            {sessionState.connectionStatus === 'reconnecting'
                 ? 'Reconnecting...'
-                : connectionStatus === 'failed'
+                : sessionState.connectionStatus === 'failed'
                     ? 'Connection failed'
                     : 'Disconnected'}
         </div>
@@ -37,7 +67,7 @@
 
     <div class="chat-box">
         <div class="messages-area">
-            {#each messages as message}
+            {#each $messages as message}
                 <div class="flex {message.role === 'user' ? 'justify-end' : 'justify-start'}">
                     <div
                         class="message-bubble {message.role === 'user'
@@ -58,11 +88,11 @@
                 </div>
             {/each}
 
-            {#if isLoading}
+            {#if $isLoading}
                 <div class="flex justify-start">
                     <div class="message-bubble message-bubble-thinking">
                         <div class="message-text prose prose-sm dark:prose-invert thinking">
-                            {@html marked(thinkingUpdate)}
+                            {@html marked($thinkingUpdate)}
                         </div>
                     </div>
                 </div>
@@ -70,8 +100,8 @@
         </div>
 
         <div class="input-area">
-            {#if error}
-                <div class="error-message">{error}</div>
+            {#if $error}
+                <div class="error-message">{$error}</div>
             {/if}
             <div class="flex gap-2">
                 <input
@@ -79,17 +109,17 @@
                     bind:value={messageInput}
                     placeholder="Type your message..."
                     class="input-field"
-                    on:keydown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-                    disabled={isLoading || connectionStatus !== 'connected'}
+                    onkeydown={handleKeyDown}
+                    disabled={$isLoading || sessionState.connectionStatus !== 'connected'}
                 />
                 <button
-                    on:click={handleSend}
-                    disabled={isLoading || connectionStatus !== 'connected'}
-                    class="send-button {isLoading || connectionStatus !== 'connected'
+                    onclick={handleSend}
+                    disabled={$isLoading || sessionState.connectionStatus !== 'connected'}
+                    class="send-button {$isLoading || sessionState.connectionStatus !== 'connected'
                         ? 'send-button-disabled'
                         : 'send-button-enabled'}"
                 >
-                    {isLoading ? 'Sending...' : 'Send'}
+                    {$isLoading ? 'Sending...' : 'Send'}
                 </button>
             </div>
         </div>

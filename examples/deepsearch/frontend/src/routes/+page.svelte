@@ -1,79 +1,53 @@
 <script>
+    import { writable } from 'svelte/store';
     import SessionManager from '$lib/components/SessionManager.svelte';
     import ChatInterface from '$lib/components/ChatInterface.svelte';
+    import { sessionState } from '$lib/stores/sessionStore.svelte.js';
 
-    let messages = $state([]);
-    let isLoading = $state(false);
-    let error = $state(null);
-    let socket = $state(null);
-    let thinkingUpdate = $state('**Processing** your request...');
-    let sessionId = $state(null);
-    let connectionStatus = $state('disconnected');
+    const messages = writable([]);
+    const isLoading = writable(false);
+    const error = writable(null);
+    const thinkingUpdate = writable('**Processing** your request...');
 
-    function handleSocketReady(event) {
-        socket = event.detail;
-    }
+    $effect(() => {
+        console.log('Connection status changed:', sessionState.connectionStatus);
+    });
 
     function handleChatResponse(event) {
         console.log('Received response:', event.detail);
-        isLoading = false;
-        thinkingUpdate = '**Processing** your request...';
-        messages = [
-            ...messages,
-            {
-                role: 'assistant',
-                content: event.detail.message,
-                timestamp: new Date(),
-                isMarkdown: true
-            }
-        ];
+        isLoading.set(false);
+        thinkingUpdate.set('**Processing** your request...');
+        messages.update(msgs => [...msgs, {
+            role: 'assistant',
+            content: event.detail.message,
+            timestamp: new Date(),
+            isMarkdown: true
+        }]);
     }
 
     function handleThinkingUpdate(event) {
         console.log('Thinking update:', event.detail);
-        thinkingUpdate = event.detail.message;
+        thinkingUpdate.set(event.detail.message);
     }
 
     function handleError(event) {
-        error = event.detail;
+        error.set(event.detail);
     }
 
     function handleResetMessages() {
-        messages = [];
-        isLoading = false;
+        messages.set([]);
+        isLoading.set(false);
     }
 
     function handleCleanup() {
-        if (socket) {
-            socket.disconnect();
+        if (sessionState.socket) {
+            sessionState.socket.disconnect();
         }
-    }
-
-    function handleSendMessage(message) {
-        if (!sessionId || connectionStatus !== 'connected') return;
-        
-        isLoading = true;
-        error = null;
-
-        const userMessage = {
-            role: 'user',
-            content: message,
-            timestamp: new Date()
-        };
-
-        messages = [...messages, userMessage];
-        socket.emit('chat_message', {
-            session_id: sessionId,
-            message: message
-        });
     }
 </script>
 
 <main class="chat-container">
     <SessionManager
-        bind:sessionId
-        bind:connectionStatus
-        on:socketReady={handleSocketReady}
         on:chatResponse={handleChatResponse}
         on:thinkingUpdate={handleThinkingUpdate}
         on:error={handleError}
@@ -82,11 +56,9 @@
     />
     
     <ChatInterface
-        {messages}
-        {isLoading}
-        {error}
-        {connectionStatus}
-        {thinkingUpdate}
-        onSendMessage={handleSendMessage}
+        messages={messages}
+        isLoading={isLoading}
+        error={error}
+        thinkingUpdate={thinkingUpdate}
     />
 </main>

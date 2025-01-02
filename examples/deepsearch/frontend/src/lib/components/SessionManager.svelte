@@ -1,11 +1,9 @@
 <script>
     import { onMount, onDestroy, createEventDispatcher } from 'svelte';
     import { io } from 'socket.io-client';
+    import { sessionState } from '../stores/sessionStore.svelte.js';
 
     const dispatch = createEventDispatcher();
-    
-    export let sessionId = null;
-    export let connectionStatus = 'disconnected';
 
     function loadStoredSession() {
         const storedId = localStorage.getItem('chatSessionId');
@@ -18,11 +16,14 @@
 
     function saveSessionId(id) {
         localStorage.setItem('chatSessionId', id);
-        sessionId = id;
+        sessionState.sessionId = id;
     }
 
     function initializeSocket() {
         const storedSessionId = loadStoredSession();
+        if (storedSessionId) {
+            sessionState.sessionId = storedSessionId;
+        }
 
         const socket = io('http://localhost:5050', {
             transports: ['websocket'],
@@ -35,13 +36,13 @@
 
         socket.on('connect', () => {
             console.log('Connected to chat server');
-            connectionStatus = 'connected';
+            sessionState.connectionStatus = 'connected';
             dispatch('error', null);
         });
 
         socket.on('session_id', (data) => {
             const newSessionId = data.id;
-            if (sessionId && sessionId !== newSessionId) {
+            if (sessionState.sessionId && sessionState.sessionId !== newSessionId) {
                 console.log('Session restoration failed, got new session:', newSessionId);
                 dispatch('resetMessages');
             }
@@ -51,17 +52,17 @@
 
         socket.on('disconnect', () => {
             console.log('Disconnected from server');
-            connectionStatus = 'disconnected';
+            sessionState.connectionStatus = 'disconnected';
             dispatch('error', 'Connection lost. Attempting to reconnect...');
         });
 
         socket.on('reconnecting', (attemptNumber) => {
-            connectionStatus = 'reconnecting';
+            sessionState.connectionStatus = 'reconnecting';
             dispatch('error', `Reconnecting... Attempt ${attemptNumber}`);
         });
 
         socket.on('reconnect_failed', () => {
-            connectionStatus = 'failed';
+            sessionState.connectionStatus = 'failed';
             dispatch('error', 'Failed to reconnect. Please refresh the page.');
         });
 
@@ -84,20 +85,23 @@
 
             if (err === 'Invalid session ID') {
                 localStorage.removeItem('chatSessionId');
-                sessionId = null;
+                sessionState.sessionId = null;
                 dispatch('resetMessages');
             }
         });
 
+        sessionState.socket = socket;
         return socket;
     }
 
     onMount(() => {
-        const socket = initializeSocket();
-        dispatch('socketReady', socket);
+        console.log('SessionManager mounted');
+        initializeSocket();
     });
 
     onDestroy(() => {
-        dispatch('cleanup');
+        if (sessionState.socket) {
+            sessionState.socket.disconnect();
+        }
     });
 </script>
