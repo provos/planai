@@ -32,7 +32,7 @@ def setup_graph(
     model: str = "llama3.3:latest",
     notify: Callable[Dict[str, Any], None] = None,
 ) -> Tuple[Graph, TaskWorker]:
-    llm = llm_from_config(provider=provider, model_name=model)
+    llm = llm_from_config(provider=provider, model_name=model, use_cache=False)
 
     graph = Graph(name="Plan Graph")
     plan_worker = PlanWorker(llm=llm)
