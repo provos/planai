@@ -178,6 +178,7 @@ class Graph(BaseModel):
             def consume_work(self, task: output_type):
                 if self._notify:
                     metadata = self.get_metadata(task)
+                    logging.info("SinkWorker is notifying on task %s", task.name)
                     self._notify(metadata, task)
                 with self.lock:
                     self._graph._sink_tasks.append(task)

@@ -136,6 +136,10 @@ class Dispatcher:
         self._log_queue = deque(maxlen=1000)  # Keep last 1000 log messages
         self._log_lock = Lock()
 
+        logging.info(
+            "Dispatcher initialized with %d threads", self._thread_pool._max_workers
+        )
+
     @property
     def active_tasks(self):
         with self.task_lock:
