@@ -502,6 +502,12 @@ class TaskWorker(BaseModel, ABC):
         # Verify if there is a consumer for the given task class
         consumer = self._consumers.get(task.__class__)
         if consumer is None:
+            logging.error(
+                "%s: No consumer registered for %s, available consumers: %s",
+                self.name,
+                task.__class__.__name__,
+                [c.name for c in self._consumers.values()],
+            )
             raise ValueError(f"No consumer registered for {task.__class__.__name__}")
         return consumer
 
