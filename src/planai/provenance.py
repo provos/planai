@@ -47,7 +47,7 @@ from collections import defaultdict
 from threading import Lock, RLock
 from typing import TYPE_CHECKING, DefaultDict, Dict, Generator, List, Optional, Tuple
 
-from .task import Task, TaskWorker
+from .task import Task, TaskStatusCallback, TaskWorker
 
 if TYPE_CHECKING:
     from .dispatcher import Dispatcher
@@ -62,29 +62,47 @@ class ProvenanceTracker:
     def __init__(self):
         self.provenance: DefaultDict[ProvenanceChain, int] = defaultdict(int)
         self.provenance_trace: Dict[ProvenanceChain, list] = {}  # TODO: rename to trace
-        self.metadata: Dict[ProvenanceChain, Dict] = {}
+        self.task_state: Dict[ProvenanceChain, Dict] = {}
         self.notifiers: DefaultDict[ProvenanceChain, List[TaskWorker]] = defaultdict(
             list
         )
         self.provenance_lock = RLock()
         self.notifiers_lock = Lock()
 
-    def add_metadata(self, provenance: ProvenanceChain, metadata: Dict):
-        logging.info("Adding metadata for %s: %s", provenance, metadata)
+    def add_state(
+        self,
+        provenance: ProvenanceChain,
+        metadata: Dict = None,
+        callback: TaskStatusCallback = None,
+    ):
+        """Add metadata and optional callback for a task's provenance."""
+        logging.info("Adding state for %s: (%s, %s)", provenance, metadata, callback)
         with self.provenance_lock:
-            self.metadata[provenance] = metadata
+            self.task_state[provenance] = {
+                "metadata": metadata or {},
+                "callback": callback,
+            }
 
-    def get_metadata(self, provenance: ProvenanceChain) -> Dict:
+    def get_state(self, provenance: ProvenanceChain) -> Dict:
+        """Get task state including metadata and callback."""
         with self.provenance_lock:
-            data = self.metadata.get(provenance, {})
-        logging.info("Getting metadata for %s: %s", provenance, data)
-        return data
+            result = self.task_state.get(provenance, {"metadata": {}, "callback": None})
+        logging.info("Getting state for %s: %s", provenance, result)
+        return result
 
-    def remove_metadata(self, prefix: ProvenanceChain):
-        logging.debug("Removing metadata for %s", prefix)
+    def notify_status(
+        self, worker: TaskWorker, task: Task, message: Optional[str] = None
+    ):
+        """Execute callback if registered for this task's initial provenance."""
+        state = self.get_state((task._provenance[0],))
+        if state["callback"]:
+            state["callback"](state["metadata"], worker, task, message)
+
+    def remove_state(self, prefix: ProvenanceChain):
+        logging.debug("Removing state for %s", prefix)
         with self.provenance_lock:
-            if prefix in self.metadata:
-                del self.metadata[prefix]
+            if prefix in self.task_state:
+                del self.task_state[prefix]
 
     def _generate_prefixes(self, task: Task) -> Generator[Tuple, None, None]:
         provenance = task._provenance
@@ -177,7 +195,7 @@ class ProvenanceTracker:
             if no_notify:
                 # delete metadata for all the prefixes that are no longer in use
                 for p in no_notify:
-                    self.remove_metadata(p)
+                    self.remove_state(p)
 
     def _get_notifiers_for_prefix(self, prefix: ProvenanceChain) -> List[TaskWorker]:
         with self.notifiers_lock:

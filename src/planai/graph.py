@@ -25,6 +25,7 @@ from .dispatcher import Dispatcher
 from .joined_task import InitialTaskWorker
 from .provenance import ProvenanceChain, ProvenanceTracker
 from .task import Task, TaskType, TaskWorker
+from .task import TaskStatusCallback
 
 # Initialize colorama for Windows compatibility
 init(autoreset=True)
@@ -413,28 +414,37 @@ class Graph(BaseModel):
             worker.init()
 
     def _add_work(
-        self, worker: TaskWorker, task: Task, metadata: Optional[Dict] = None
+        self,
+        worker: TaskWorker,
+        task: Task,
+        metadata: Optional[Dict] = None,
+        status_callback: Optional[TaskStatusCallback] = None,
     ) -> ProvenanceChain:
         provenance = self._initial_worker.get_next_provenance()
         task._provenance = [provenance] + task._provenance
-        # to avoid race conditions we need to add the metadata before we add the work
-        if metadata:
-            provenance = tuple(task._provenance)
-            self._provenance_tracker.add_metadata(provenance, metadata)
+
+        prov_chain = (task._provenance[0],)
+
+        # Register state before adding work
+        if metadata or status_callback:
+            self._provenance_tracker.add_state(prov_chain, metadata, status_callback)
+
         assert self._dispatcher is not None
         self._dispatcher.add_work(worker, task)
-
-        return
+        return prov_chain
 
     def add_work(
-        self, worker: TaskWorker, task: Task, metadata: Optional[Dict] = None
+        self,
+        worker: TaskWorker,
+        task: Task,
+        metadata: Optional[Dict] = None,
+        status_callback: Optional[TaskStatusCallback] = None,
     ) -> ProvenanceChain:
-        """Does something"""
         if worker not in self.dependencies[self._initial_worker]:
             raise ValueError(
                 f"Worker {worker.name} is not an entry point to the Graph."
             )
-        return self._add_work(worker, task, metadata)
+        return self._add_work(worker, task, metadata, status_callback)
 
     def set_entry(self, *workers: TaskWorker) -> "Graph":
         """Set the workers that are entry points to the Graph.

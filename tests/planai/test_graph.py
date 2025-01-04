@@ -1,5 +1,5 @@
 import unittest
-from typing import List, Type
+from typing import Dict, List, Optional, Type
 
 from planai.graph import Graph
 from planai.task import Task, TaskWorker
@@ -141,7 +141,7 @@ class TestGraph(unittest.TestCase):
         self.assertEqual(output[0].data, "initial processed")
 
         # Verify metadata was cleaned up
-        self.assertNotIn(provenance, self.graph._provenance_tracker.metadata)
+        self.assertNotIn(provenance, self.graph._provenance_tracker.task_state)
 
     def test_graph_run_with_sink_notify(self):
         worker = DummyWorker()
@@ -185,6 +185,69 @@ class TestGraph(unittest.TestCase):
         # Verify that the callback received the correct metadata and task
         self.assertEqual(received_metadata["test_key"], "test_value")
         self.assertEqual(received_task.data, "initial processed")
+
+    def test_graph_run_with_status_callback(self):
+        # Track calls to our callback
+        callback_data = []
+
+        def status_callback(
+            metadata: Dict, worker: TaskWorker, task: Task, message: Optional[str]
+        ):
+            callback_data.append(
+                {
+                    "metadata": metadata,
+                    "worker_name": worker.name,
+                    "task_data": task.data if hasattr(task, "data") else None,
+                    "message": message,
+                }
+            )
+
+        # Set up workers
+        worker = DummyWorker()
+        self.graph.add_worker(worker)
+        initial_task = DummyTask(data="initial")
+
+        class StatusTestWorker(TaskWorker):
+            output_types: list = [DummyTask]
+
+            def consume_work(self, task: DummyTask):
+                # Send some status updates
+                self.notify_status(self, task, "Starting work")
+                task.data += " processed"
+                self.notify_status(self, task, "Work completed")
+                self.publish_work(task.model_copy(), input_task=task)
+
+        # Register test worker and set up graph
+        test_worker = StatusTestWorker()
+        self.graph.add_worker(test_worker)
+        self.graph.set_dependency(worker, test_worker).sink(DummyTask)
+
+        self.graph.prepare(display_terminal=False)
+        self.graph.set_entry(worker)
+
+        # Add work with metadata and status callback
+        metadata = {"test_key": "test_value"}
+        self.graph.add_work(
+            worker, initial_task, metadata=metadata, status_callback=status_callback
+        )
+
+        # Run graph
+        self.graph.execute([])
+
+        # Verify callback data
+        self.assertEqual(len(callback_data), 2)  # Should have two status updates
+
+        # Check first status update
+        self.assertEqual(callback_data[0]["metadata"]["test_key"], "test_value")
+        self.assertEqual(callback_data[0]["worker_name"], "StatusTestWorker")
+        self.assertEqual(callback_data[0]["task_data"], "initial")
+        self.assertEqual(callback_data[0]["message"], "Starting work")
+
+        # Check second status update
+        self.assertEqual(callback_data[1]["metadata"]["test_key"], "test_value")
+        self.assertEqual(callback_data[1]["worker_name"], "StatusTestWorker")
+        self.assertEqual(callback_data[1]["task_data"], "initial processed")
+        self.assertEqual(callback_data[1]["message"], "Work completed")
 
 
 if __name__ == "__main__":

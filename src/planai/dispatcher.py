@@ -137,7 +137,8 @@ class Dispatcher:
         self._log_lock = Lock()
 
         logging.info(
-            "Dispatcher initialized with %d threads", self._thread_pool._max_workers
+            "Dispatcher initialized with %d threads",
+            self._thread_pool._max_workers if self._thread_pool else 0,
         )
 
     @property

@@ -40,6 +40,9 @@ if TYPE_CHECKING:
 TaskType = TypeVar("TaskType", bound="Task")
 
 
+TaskStatusCallback = Callable[[Dict, "TaskWorker", "Task", Optional[str]], None]
+
+
 class Task(BaseModel):
     """Base class for all tasks in the system.
 
@@ -413,7 +416,8 @@ class TaskWorker(BaseModel, ABC):
         """
         if self._graph is None or self._graph._provenance_tracker is None:
             raise RuntimeError("Graph or ProvenanceTracker is not initialized.")
-        return self._graph._provenance_tracker.get_metadata((task._provenance[0],))
+        result = self._graph._provenance_tracker.get_state((task._provenance[0],))
+        return result["metadata"]
 
     def add_work(
         self, task: Task, metadata: Optional[Dict] = None
@@ -421,6 +425,14 @@ class TaskWorker(BaseModel, ABC):
         if self._graph is None:
             raise RuntimeError("Graph is not initialized.")
         return self._graph.add_work(self, task, metadata)
+
+    def notify_status(
+        self, worker: "TaskWorker", task: Task, message: Optional[str] = None
+    ):
+        """Notify registered callback about task status updates."""
+        if self._graph is None:
+            return
+        self._graph._provenance_tracker.notify_status(worker, task, message)
 
     def _pre_consume_work(self, task: Task):
         with self._state_lock:

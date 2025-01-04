@@ -1,7 +1,8 @@
 import unittest
 from unittest.mock import Mock, patch
-from planai.task import Task, TaskWorker
+
 from planai.provenance import ProvenanceTracker
+from planai.task import Task, TaskWorker
 
 
 class DummyTask(Task):
@@ -61,18 +62,24 @@ class TestProvenanceTracker(unittest.TestCase):
         task._provenance = [("Task1", 1)]
 
         # Add metadata for the provenance
-        self.provenance_tracker.metadata[(("Task1", 1),)] = {"some": "metadata"}
+        self.provenance_tracker.add_state((("Task1", 1),), {"some": "metadata"})
         self.provenance_tracker._add_provenance(task)
 
         # Verify metadata exists
-        self.assertIn((("Task1", 1),), self.provenance_tracker.metadata)
+        self.assertEqual(
+            self.provenance_tracker.get_state((("Task1", 1),))["metadata"],
+            {"some": "metadata"},
+        )
 
         # Remove provenance
         self.provenance_tracker._remove_provenance(task, worker)
 
         # Verify metadata is removed
-        self.assertNotIn((("Task1", 1),), self.provenance_tracker.metadata)
-        self.assertEqual(self.provenance_tracker.provenance, {})
+        self.assertEqual(
+            self.provenance_tracker.get_state((("Task1", 1),))["metadata"],
+            {},
+        )
+        self.assertEqual(self.provenance_tracker.task_state, {})
 
 
 if __name__ == "__main__":
