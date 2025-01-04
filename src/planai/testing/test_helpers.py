@@ -1,6 +1,35 @@
-from typing import List, Optional, Type
+import logging
+from collections import defaultdict
+from typing import Dict, List, Optional, Type
 
+from planai.graph import Graph
 from planai.task import Task, TaskWorker
+from planai.graph_task import SubGraphWorkerInternal
+
+
+# Mock Cache
+class MockCache:
+    def __init__(self, dont_store=False):
+        self.store = {}
+        self._dont_store = dont_store
+        self.set_stats: Dict[str, int] = defaultdict(int)
+        self.get_stats: Dict[str, int] = defaultdict(int)
+
+    def get(self, key, default=None):
+        logging.debug("Getting key: %s", key)
+        self.get_stats[key] += 1
+        return self.store.get(key, default)
+
+    def set(self, key, value):
+        if self._dont_store:
+            return
+        logging.debug("Setting key: %s", key)
+        self.store[key] = value
+        self.set_stats[key] += 1
+
+    def clear_stats(self):
+        self.set_stats.clear()
+        self.get_stats.clear()
 
 
 class TestTaskContext:
@@ -97,3 +126,12 @@ class InvokeTaskWorker:
 def add_input_provenance(input_task: Task, provenance: Task) -> Task:
     input_task._input_provenance.append(provenance)
     return input_task
+
+
+def inject_mock_cache(graph: Graph, mock_cache: MockCache):
+    for worker in graph.workers:
+        if hasattr(worker, "_cache"):
+            logging.info("Injecting mock cache to %s", worker.name)
+            worker._cache = mock_cache
+        elif isinstance(worker, SubGraphWorkerInternal):
+            inject_mock_cache(worker.graph, mock_cache)

@@ -422,8 +422,8 @@ class TestDispatcherThreading(unittest.TestCase):
 
         # Check the content of the logged exceptions
         for call in mock_logging_exception.call_args_list:
-            self.assertIn("Task DummyTask", call[0][0])
-            self.assertIn("failed with exception: Test exception", call[0][0])
+            self.assertIn("DummyTask", call[0][2])
+            self.assertIn("Test exception", call[0][3])
 
         # TODO: whether we should also check the number of completed tasks
 

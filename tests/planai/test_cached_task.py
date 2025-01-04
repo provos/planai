@@ -11,36 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import logging
 import unittest
-from collections import defaultdict
-from typing import Dict, List, Type
+from typing import List, Type
 from unittest.mock import patch
 
 from planai.cached_task import CachedTaskWorker, TaskWorker
 from planai.task import Task
-
-
-# Mock Cache
-class MockCache:
-    def __init__(self):
-        self.store = {}
-        self.set_stats: Dict[str, int] = defaultdict(int)
-        self.get_stats: Dict[str, int] = defaultdict(int)
-
-    def get(self, key, default=None):
-        logging.debug("Getting key: %s", key)
-        self.get_stats[key] += 1
-        return self.store.get(key, default)
-
-    def set(self, key, value):
-        logging.debug("Setting key: %s", key)
-        self.store[key] = value
-        self.set_stats[key] += 1
-
-    def clear_stats(self):
-        self.set_stats.clear()
-        self.get_stats.clear()
+from planai.testing import MockCache
 
 
 # Dummy Task classes
