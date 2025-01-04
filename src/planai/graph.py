@@ -191,6 +191,11 @@ class Graph(BaseModel):
 
         # Set this as the sink worker for the graph
         self._sink_worker = instance
+        logging.info(
+            "Sink on worker %s set for output type %s",
+            worker.name,
+            output_type.__name__,
+        )
 
     def get_output_tasks(self) -> List[TaskType]:
         """
