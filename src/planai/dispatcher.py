@@ -431,7 +431,12 @@ class Dispatcher:
             # Handle task failure
             error_message = str(e)
             if task:
-                logging.exception(f"Task {task.name} failed with exception: {str(e)}")
+                logging.exception(
+                    "Worker %s on Task %s failed with exception: %s",
+                    worker.name,
+                    task.name,
+                    str(e),
+                )
             else:
                 logging.exception(
                     f"Notification for worker {worker.name} failed with exception: {str(e)}"
