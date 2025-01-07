@@ -1,5 +1,5 @@
 from textwrap import dedent
-from typing import Any, Callable, Dict, List, Literal, Tuple, Type
+from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Type
 
 from pydantic import Field
 
@@ -42,6 +42,7 @@ class Response(Task):
         ..., description="The type of response"
     )
     message: str = Field(..., description="The response to the user")
+    phase: Optional[str] = Field(None, description="The phase of the plan")
 
 
 class PhaseAnalysisInterim(Task):

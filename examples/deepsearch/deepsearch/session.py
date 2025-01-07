@@ -11,13 +11,17 @@ CLEANUP_INTERVAL = 5 * 60  # Check for stale sessions every 5 minutes
 class ThreadSafeDict:
     """A thread-safe dictionary wrapper that can be used directly."""
 
-    def __init__(self, lock, initial_dict):
-        self._dict = initial_dict
+    def __init__(self, lock, initial_dict=None):
+        self._dict = initial_dict if initial_dict is not None else {}
         self._lock = lock
 
     def __getitem__(self, key):
         with self._lock:
             return self._dict[key]
+
+    def __contains__(self, key):
+        with self._lock:
+            return key in self._dict
 
     def __setitem__(self, key, value):
         with self._lock:
