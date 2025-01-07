@@ -4,7 +4,7 @@ from typing import Any, Dict, Tuple
 
 from flask import Flask, request
 from flask_socketio import SocketIO, emit
-from graph import Request, Response, setup_graph
+from graph import Request, Response, setup_graph, SearchQueries, Plan
 from session import SessionManager
 
 from planai import Task, TaskWorker
@@ -192,9 +192,24 @@ def handle_message(data):
         """Callback to receive notifications from the graph."""
         session_id = metadata.get("session_id")
         sid = metadata.get("sid")
+
+        # get the metadata for this session
+        session_metadata = session_manager.metadata(session_id)
+        # try to determine which phase of the plan we are in
+        phase = "unknown"
+        if isinstance(task, Plan):
+            phase = "plan"
+        if isinstance(task, SearchQueries):
+            phase = "search"
+            session_metadata["queries"] = [q.query for q in task.queries]
+
         print(f"Received response: {str(message)[:100]} for session: {session_id}")
         task_queue.put(
-            (sid, session_id, Response(response_type="thinking", message=message))
+            (
+                sid,
+                session_id,
+                Response(response_type="thinking", phase=phase, message=message),
+            )
         )
 
     # Add the task to the graph
