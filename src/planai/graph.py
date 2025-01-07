@@ -24,8 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 from .dispatcher import Dispatcher
 from .joined_task import InitialTaskWorker
 from .provenance import ProvenanceChain, ProvenanceTracker
-from .task import Task, TaskType, TaskWorker
-from .task import TaskStatusCallback
+from .task import Task, TaskStatusCallback, TaskType, TaskWorker
 
 # Initialize colorama for Windows compatibility
 init(autoreset=True)
@@ -183,6 +182,8 @@ class Graph(BaseModel):
                     self._notify(metadata, task)
                 with self.lock:
                     self._graph._sink_tasks.append(task)
+                # remove any metadata and callbacks
+                self.remove_state(task)
 
         # Create a new class with the specific output type
         instance = SinkWorker(self)

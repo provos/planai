@@ -404,6 +404,15 @@ class TaskWorker(BaseModel, ABC):
             self._id += 1
             return tuple((self.name, self._id))
 
+    def remove_state(self, task: Task):
+        """
+        Remove the state for a task.
+
+        Args:
+            task (Task): The task to remove the state for.
+        """
+        self._graph._provenance_tracker.remove_state((task._provenance[0],))
+
     def get_state(self, task: Task) -> Dict[str, Any]:
         """
         Get the state of a task.

@@ -99,10 +99,26 @@ class ProvenanceTracker:
         if state["callback"]:
             state["callback"](state["metadata"], worker, task, message)
 
-    def remove_state(self, prefix: ProvenanceChain):
+    def remove_state(self, prefix: ProvenanceChain, execute_callback: bool = False):
+        """Remove metadata and callback for a task's provenance.
+
+        Removes the state information stored for a given task prefix from the internal task_state dictionary.
+
+        Args:
+            prefix (ProvenanceChain): The provenance chain prefix identifying the task
+            execute_callback (bool, optional): Flag indicating whether to execute callbacks. Defaults to False.
+
+        Note:
+            This method is thread-safe as it uses the provenance_lock.
+        """
         logging.debug("Removing state for %s", prefix)
         with self.provenance_lock:
             if prefix in self.task_state:
+                if execute_callback:
+                    # this can be an indication to the user that the task may have failed
+                    self.task_state[prefix]["callback"](
+                        self.task_state[prefix]["metadata"], None, None, "Task removed"
+                    )
                 del self.task_state[prefix]
 
     def _generate_prefixes(self, task: Task) -> Generator[Tuple, None, None]:

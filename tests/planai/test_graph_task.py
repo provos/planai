@@ -1,6 +1,7 @@
 import time
 import unittest
 from typing import List, Type
+from unittest.mock import Mock
 
 from planai.graph import Graph
 from planai.graph_task import SubGraphWorker
@@ -222,6 +223,87 @@ class TestGraphTask(unittest.TestCase):
 
         # Optionally, you can verify that the joined data is correct
         # But since FinalWorker does not output anything, and we didn't sink any tasks, we can't retrieve outputs here
+
+
+class StatusNotifyingWorker(TaskWorker):
+    output_types: List[Type[Task]] = [FinalTask]
+
+    def consume_work(self, task: InputTask):
+        # Notify about processing status
+        self.notify_status(task, "Processing started")
+
+        # Simulate some work
+        output = FinalTask(result=f"Processed: {task.data}")
+
+        self.notify_status(task, "Processing complete")
+        self.publish_work(output, input_task=task)
+
+
+class TestSubGraphMetadataAndCallbacks(unittest.TestCase):
+    def setUp(self):
+        # Create the subgraph
+        self.subgraph = Graph(name="TestSubGraph")
+        self.sub_worker = StatusNotifyingWorker()
+        self.subgraph.add_workers(self.sub_worker)
+
+        # Create the main graph with SubGraphWorker
+        self.main_graph = Graph(name="MainGraph")
+        self.graph_task = SubGraphWorker(
+            graph=self.subgraph,
+            entry_worker=self.sub_worker,
+            exit_worker=self.sub_worker,
+        )
+
+        # Create a consumer for the SubGraphWorker output
+        class FinalWorker(TaskWorker):
+            output_types: List[Type[Task]] = []
+
+            def consume_work(self, task: FinalTask):
+                pass
+
+        self.final_worker = FinalWorker()
+        self.main_graph.add_workers(self.graph_task, self.final_worker)
+        self.main_graph.set_dependency(self.graph_task, self.final_worker)
+
+    def test_metadata_and_callback_handling(self):
+        # Create a mock callback
+        mock_callback = Mock()
+        test_metadata = {"test_key": "test_value"}
+
+        # Create initial task
+        task = InputTask(data="test_data")
+
+        # Add task with metadata and callback
+        self.main_graph.prepare(display_terminal=False)
+        self.main_graph.set_entry(self.graph_task)
+
+        self.graph_task.add_work(
+            task, metadata=test_metadata, status_callback=mock_callback
+        )
+
+        # Run the graph
+        self.main_graph.execute([])
+
+        # Verify callback was called with correct arguments
+        # Should be called twice: "Processing started" and "Processing complete"
+        self.assertEqual(mock_callback.call_count, 2)
+
+        # Verify first call
+        first_call = mock_callback.call_args_list[0]
+        self.assertEqual(first_call.args[0], test_metadata)  # metadata
+        self.assertIsInstance(first_call.args[1], StatusNotifyingWorker)  # worker
+        self.assertIsInstance(first_call.args[2], InputTask)  # task
+        self.assertEqual(first_call.args[3], "Processing started")  # message
+
+        # Verify second call
+        second_call = mock_callback.call_args_list[1]
+        self.assertEqual(second_call.args[0], test_metadata)  # metadata
+        self.assertIsInstance(second_call.args[1], StatusNotifyingWorker)  # worker
+        self.assertEqual(second_call.args[3], "Processing complete")  # message
+
+        # Verify cleanup: callback should be removed after task completion
+        self.assertEqual(len(self.main_graph._provenance_tracker.task_state), 0)
+        self.assertEqual(len(self.subgraph._provenance_tracker.task_state), 0)
 
 
 if __name__ == "__main__":

@@ -59,6 +59,9 @@ class SubGraphWorkerInternal(TaskWorker):
                 consumer = graph_task._get_consumer(task)
                 graph_task.exit_worker._graph._dispatcher.add_work(consumer, task)
 
+                # finally remove any metadata and callbacks
+                self.remove_state(task)
+
         instance = AdapterSinkWorker()
         self.graph.add_workers(instance)
         self.graph.set_dependency(self.exit_worker, instance)

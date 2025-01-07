@@ -81,6 +81,26 @@ class TestProvenanceTracker(unittest.TestCase):
         )
         self.assertEqual(self.provenance_tracker.task_state, {})
 
+    def test_callback_execution_on_provenance_removal(self):
+        task = DummyTask(data="test")
+        task._provenance = [("Task1", 1)]
+
+        # Create a mock callback
+        mock_callback = Mock()
+        mock_metadata = {"test": "data"}
+
+        # Add metadata and callback for the provenance
+        self.provenance_tracker.add_state(
+            (("Task1", 1),), metadata=mock_metadata, callback=mock_callback
+        )
+        self.provenance_tracker._add_provenance(task)
+
+        # Remove provenance with execute_callback=True
+        self.provenance_tracker.remove_state((("Task1", 1),), execute_callback=True)
+
+        # Verify callback was called with correct arguments
+        mock_callback.assert_called_once_with(mock_metadata, None, None, "Task removed")
+
 
 if __name__ == "__main__":
     unittest.main()
