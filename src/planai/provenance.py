@@ -94,6 +94,7 @@ class ProvenanceTracker:
         self, worker: TaskWorker, task: Task, message: Optional[str] = None
     ):
         """Execute callback if registered for this task's initial provenance."""
+        logging.info("Notifying status for %s", task.name)
         state = self.get_state((task._provenance[0],))
         if state["callback"]:
             state["callback"](state["metadata"], worker, task, message)

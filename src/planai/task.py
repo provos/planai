@@ -404,6 +404,18 @@ class TaskWorker(BaseModel, ABC):
             self._id += 1
             return tuple((self.name, self._id))
 
+    def get_state(self, task: Task) -> Dict[str, Any]:
+        """
+        Get the state of a task.
+
+        Parameters:
+            task (Task): The task to get the state for.
+
+        Returns:
+            Dict[str, Any]: The state of the task.
+        """
+        return self._graph._provenance_tracker.get_state((task._provenance[0],))
+
     def get_metadata(self, task: Task) -> Dict[str, Any]:
         """
         Get metadata for the task.
@@ -416,23 +428,22 @@ class TaskWorker(BaseModel, ABC):
         """
         if self._graph is None or self._graph._provenance_tracker is None:
             raise RuntimeError("Graph or ProvenanceTracker is not initialized.")
-        result = self._graph._provenance_tracker.get_state((task._provenance[0],))
+        result = self.get_state(task)
         return result["metadata"]
 
     def add_work(
-        self, task: Task, metadata: Optional[Dict] = None
+        self,
+        task: Task,
+        metadata: Optional[Dict] = None,
+        status_callback: Optional[TaskStatusCallback] = None,
     ) -> "ProvenanceChain":
         if self._graph is None:
             raise RuntimeError("Graph is not initialized.")
-        return self._graph.add_work(self, task, metadata)
+        return self._graph.add_work(self, task, metadata, status_callback)
 
-    def notify_status(
-        self, worker: "TaskWorker", task: Task, message: Optional[str] = None
-    ):
+    def notify_status(self, task: Task, message: Optional[str] = None):
         """Notify registered callback about task status updates."""
-        if self._graph is None:
-            return
-        self._graph._provenance_tracker.notify_status(worker, task, message)
+        self._graph._provenance_tracker.notify_status(self, task, message)
 
     def _pre_consume_work(self, task: Task):
         with self._state_lock:

@@ -212,9 +212,9 @@ class TestGraph(unittest.TestCase):
 
             def consume_work(self, task: DummyTask):
                 # Send some status updates
-                self.notify_status(self, task, "Starting work")
+                self.notify_status(task, "Starting work")
                 task.data += " processed"
-                self.notify_status(self, task, "Work completed")
+                self.notify_status(task, "Work completed")
                 self.publish_work(task.model_copy(), input_task=task)
 
         # Register test worker and set up graph

@@ -17,6 +17,9 @@ from ..task import Task, TaskWorker
 
 class SearchQuery(Task):
     query: str = Field(..., description="The search query to execute")
+    metadata: Optional[str] = Field(
+        None, description="Metadata to pass along with the query", example="phase1"
+    )
 
 
 class SearchResult(Task):
@@ -52,6 +55,7 @@ class SearchExecutor(CachedTaskWorker):
 
     def consume_work(self, task: SearchQuery):
         self.print(f"Executing search for: {task.query}")
+        self.notify_status(task, f"Searching for: {task.query}")
         results = SerperGoogleSearchTool.search_internet(
             task.query, num_results=self.max_results, print_func=self.print
         )
@@ -85,6 +89,7 @@ class PageFetcher(CachedTaskWorker):
 
     def consume_work(self, task: SearchResult):
         self.print(f"Fetching content from: {task.link}")
+        self.notify_status(task, f"Fetching content from: {task.link}")
         content = WebBrowser.get_markdown_from_page(
             task.link,
             extract_markdown_from_pdf=self.extract_pdf_func,
@@ -132,6 +137,10 @@ class PageRelevanceFilter(CachedLLMTaskWorker):
         - Content should offer substantive information
         """
     ).strip()
+
+    def pre_process(self, task):
+        self.notify_status(task, f"Analyzing relevance of: {task.url}")
+        return task
 
     def post_process(self, response: PageAnalysis, input_task: PageResult):
         if response.is_relevant:

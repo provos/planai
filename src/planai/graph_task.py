@@ -80,8 +80,15 @@ class SubGraphWorkerInternal(TaskWorker):
         new_task._input_provenance = []
         new_task.add_private_state(PRIVATE_STATE_KEY, task)
 
+        # get any associated state and re-inject it
+        state = self.get_state(task)
+        metadata = state["metadata"]
+        callback = state["callback"]
+
         # and dispatch it to the sub-graph. this also sets the task provenance to InitialTaskWorker
-        self.graph._add_work(self.entry_worker, new_task)
+        self.graph._add_work(
+            self.entry_worker, new_task, metadata=metadata, status_callback=callback
+        )
 
 
 def SubGraphWorker(
