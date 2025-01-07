@@ -1,11 +1,13 @@
 import queue
 import threading
+from typing import Any, Dict, Tuple
 
 from flask import Flask, request
 from flask_socketio import SocketIO, emit
 from graph import Request, Response, setup_graph
 from session import SessionManager
 
+from planai import Task, TaskWorker
 from planai.utils import setup_logging
 
 app = Flask(__name__)
@@ -16,7 +18,7 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 session_manager = SessionManager()
 
 # Create a queue to hold tasks
-task_queue = queue.Queue()
+task_queue: queue.Queue[Tuple[str, str, Response]] = queue.Queue()
 
 # Globals for worker thread
 worker_thread = None
@@ -35,6 +37,7 @@ def start_worker_thread():
         """Worker thread to process tasks from the queue."""
         while not should_stop:
             try:
+                # message is a Response object
                 sid, session_id, message = task_queue.get(
                     timeout=1.0
                 )  # Get a task with timeout
@@ -183,10 +186,25 @@ def handle_message(data):
     # Update session timestamp on activity
     session_manager.update_session_timestamp(session_id)
 
+    def notify_planai(
+        metadata: Dict[str, Any], worker: TaskWorker, task: Task, message: str
+    ):
+        """Callback to receive notifications from the graph."""
+        session_id = metadata.get("session_id")
+        sid = metadata.get("sid")
+        print(f"Received response: {str(message)[:100]} for session: {session_id}")
+        task_queue.put(
+            (sid, session_id, Response(response_type="thinking", message=message))
+        )
+
     # Add the task to the graph
     global graph, entry_worker
     user_request = Request(user_input=message)
-    entry_worker.add_work(user_request, metadata={"session_id": session_id, "sid": sid})
+    entry_worker.add_work(
+        user_request,
+        metadata={"session_id": session_id, "sid": sid},
+        status_callback=notify_planai,
+    )
 
 
 def main():
