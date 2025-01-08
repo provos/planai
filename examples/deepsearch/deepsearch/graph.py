@@ -243,12 +243,11 @@ class FinalNarrativeWorker(CachedLLMTaskWorker):
     llm_output_type: Type[Task] = FinalWriteup
     use_xml: bool = True
     system_prompt: str = dedent(
-        """You are a master storyteller, skilled in weaving together disparate pieces of information into a compelling and comprehensive narrative. 
-        You will be presented with a user's original query and a series of research extractions, each representing a different facet of the investigation. 
-        Your task is to synthesize these extractions into a single, cohesive narrative that directly and thoroughly answers the user's query. 
-        The narrative should be engaging, informative, and presented in a clear, logical flow, as if telling a story to an intelligent but uninformed audience.
-        Avoid simply restating the extractions; instead, integrate their insights into a unified whole. 
-        The final response should stand alone as a complete and satisfying answer to the user's query, demonstrating a deep understanding of the topic derived from the research."""
+        """You are a master science communicator, adept at explaining complex scientific concepts to a curious and intelligent audience. 
+        You will be provided with a user's original query and a series of detailed research extractions related to that query.
+        Your task is to synthesize these extractions into a single, comprehensive, and engaging narrative that directly and thoroughly answers the user's query.
+        Maintain scientific accuracy while presenting the information in a narrative style, as if guiding the reader through a fascinating scientific journey. 
+        Use Markdown formatting to enhance the readability and presentation of your narrative."""
     ).strip()
     prompt: str = dedent(
         """
@@ -262,19 +261,28 @@ class FinalNarrativeWorker(CachedLLMTaskWorker):
         {plan}
         </plan>
 
-        Your task is to synthesize the provided research extractions into a single, cohesive narrative that directly addresses the user's original query. 
+        Your task is to synthesize the provided research extractions into a single, cohesive, and detailed narrative that directly addresses the user's original query.
 
-        Think of yourself as telling a story that builds upon each extraction, creating a comprehensive and engaging response. 
+        **Depth and Detail:** Go beyond a basic overview. Provide a more in-depth explanation of the core concepts, findings, and their implications. Incorporate relevant scientific terminology and concepts where appropriate, defining them clearly for a non-expert audience. Use specific examples where appropriate.
 
-        **Do not simply summarize or repeat the extractions.** Instead, integrate their core insights and findings into a flowing narrative that builds a complete understanding of the topic.
+        **Narrative Structure:** Structure your response as a continuous narrative, not as a collection of separate summaries. Build upon each extraction to create a comprehensive and engaging story of discovery and understanding. Connect the concepts in a logical flow, building upon previous ideas to create a cohesive understanding.
 
-        **Maintain a narrative style throughout.** Avoid breaking the flow with section headers or labels.
+        **Markdown for Clarity:** Use Markdown formatting to enhance clarity and presentation:
 
-        **Ensure the narrative directly and completely answers the user's query.**
+        *   Use **bold** and *italics* to emphasize key terms and concepts.
+        *   Employ bullet points or numbered lists to break down complex information into digestible parts.
+        *   If relevant, use `code blocks` to present equations or formulas in a clear format, but keep it simple and explain them thoroughly.
+        *   You can use links, but only if you think they will greatly enhance the answer. Keep it minimal.
 
-        The final narrative should be a well-written, informative, and engaging piece of text that stands alone as a satisfying answer to the user's original question.
+        **Integrate, Don't Repeat:** Do not simply restate the extractions. Instead, distill their essence and weave them into a unified narrative that provides a deeper understanding of the topic.
 
-        Present your final narrative in markdown format.
+        **Audience Awareness:** Assume your audience is intelligent and eager to learn but may not have a strong background in the specific scientific field. Explain complex ideas clearly and accessibly, defining jargon and providing context where needed.
+
+        **Address the Query Completely:** Ensure that your narrative directly and completely answers the user's original query, leaving no major aspects unaddressed.
+
+        **Maintain Accuracy:** While maintaining a narrative style, prioritize scientific accuracy. Ensure your explanations are consistent with the provided research.
+
+        The final narrative should be a well-written, informative, accurate, and engaging piece of scientific writing that stands alone as a satisfying answer to the user's original question.
         """
     ).strip()
 
@@ -342,4 +350,5 @@ def setup_graph(
 
     # limit the amount of LLM calls we will do in parallel
     graph.set_max_parallel_tasks(LLMTaskWorker, 2 if provider == "ollama" else 6)
+    graph.set_max_parallel_tasks(TaskWorker, 1)  # for debugging
     return graph, plan_worker

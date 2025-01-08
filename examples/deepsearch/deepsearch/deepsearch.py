@@ -202,6 +202,17 @@ def handle_message(data):
         session_id = metadata.get("session_id")
         sid = metadata.get("sid")
 
+        # we failed the task
+        if worker is None:
+            task_queue.put(
+                (
+                    sid,
+                    session_id,
+                    Response(response_type="final", message=message),
+                )
+            )
+            return
+
         logging.info(
             "Got notification from %s and task: %s with message: %s",
             worker.name,
@@ -256,7 +267,7 @@ def main():
     parser.add_argument("--model", type=str, default="llama3.3:latest")
     args = parser.parse_args()
 
-    setup_logging()
+    setup_logging(level=logging.DEBUG)
 
     start_graph_thread(args.provider, args.model)
     setup_web_interface(port=args.port)
