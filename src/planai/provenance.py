@@ -111,10 +111,14 @@ class ProvenanceTracker:
         Note:
             This method is thread-safe as it uses the provenance_lock.
         """
-        logging.debug("Removing state for %s", prefix)
+        logging.info("Removing state for %s", prefix)
         with self.provenance_lock:
             if prefix in self.task_state:
                 if execute_callback:
+                    logging.info(
+                        "Executing callback for %s to indicate provenance removal",
+                        prefix,
+                    )
                     # this can be an indication to the user that the task may have failed
                     self.task_state[prefix]["callback"](
                         self.task_state[prefix]["metadata"], None, None, "Task removed"
@@ -212,7 +216,7 @@ class ProvenanceTracker:
             if no_notify:
                 # delete metadata for all the prefixes that are no longer in use
                 for p in no_notify:
-                    self.remove_state(p)
+                    self.remove_state(p, execute_callback=True)
 
     def _get_notifiers_for_prefix(self, prefix: ProvenanceChain) -> List[TaskWorker]:
         with self.notifiers_lock:
