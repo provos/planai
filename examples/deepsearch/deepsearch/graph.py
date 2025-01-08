@@ -78,7 +78,8 @@ class PlanWorker(CachedLLMTaskWorker):
     def post_process(self, response: Plan, input_task: Request):
         self.publish_work(task=response, input_task=input_task)
         self.publish_work(
-            Response(response_type="thinking", message=response.response), input_task
+            Response(response_type="thinking", phase="plan", message=response.response),
+            input_task,
         )
 
 
