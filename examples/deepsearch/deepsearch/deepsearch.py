@@ -5,7 +5,15 @@ from typing import Any, Dict, Tuple
 
 from flask import Flask, request
 from flask_socketio import SocketIO, emit
-from graph import Plan, Request, Response, SearchQueries, SearchQuery, setup_graph
+from graph import (
+    PhaseAnalyses,
+    Plan,
+    Request,
+    Response,
+    SearchQueries,
+    SearchQuery,
+    setup_graph,
+)
 from session import SessionManager
 
 from planai import Task, TaskWorker
@@ -213,6 +221,8 @@ def handle_message(data):
             session_metadata["queries"] = [q.query for q in task.queries]
         elif isinstance(task, SearchQuery):
             phase = task.metadata
+        elif isinstance(task, PhaseAnalyses):
+            phase = "plan"
         else:
             search_query: SearchQuery = task.find_input_task(SearchQuery)
             if search_query:
