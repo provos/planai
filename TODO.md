@@ -7,4 +7,5 @@
  - improve multi-threaded statement management in TaskWorker
 
 # Done
+ - support ollama structured outputs
  - display coarse-grained memory usage in the dashboard
