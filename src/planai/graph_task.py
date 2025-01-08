@@ -66,7 +66,9 @@ class SubGraphWorkerInternal(TaskWorker):
                 consumer = graph_task._get_consumer(task)
                 graph_task.exit_worker._graph._dispatcher.add_work(consumer, task)
 
-                # this only works if the graph outputs a single task XXX
+                # we need to make sure that we remove the extra provenance only once
+                # so we associated a refcount with the new task that was injected into
+                # the sub-graph and then get a reference back to it here
                 new_task = state["new_task"]
                 new_task_state = new_task.get_private_state(PRIVATE_STATE_KEY)
                 remove_provenance = False
