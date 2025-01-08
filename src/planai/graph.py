@@ -182,8 +182,8 @@ class Graph(BaseModel):
                     self._notify(metadata, task)
                 with self.lock:
                     self._graph._sink_tasks.append(task)
-                # remove any metadata and callbacks
-                self.remove_state(task)
+                # we should not remove metadata or callbacks here as we don't know
+                # that all provenance has been removed
 
         # Create a new class with the specific output type
         instance = SinkWorker(self)
