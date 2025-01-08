@@ -94,7 +94,7 @@ class ProvenanceTracker:
         self, worker: TaskWorker, task: Task, message: Optional[str] = None
     ):
         """Execute callback if registered for this task's initial provenance."""
-        logging.info("Notifying status for %s", task.name)
+        logging.info("Notifying status %s on %s", worker.name, task.name)
         state = self.get_state((task._provenance[0],))
         if state["callback"]:
             state["callback"](state["metadata"], worker, task, message)
@@ -111,10 +111,14 @@ class ProvenanceTracker:
         Note:
             This method is thread-safe as it uses the provenance_lock.
         """
-        logging.info("Removing state for %s", prefix)
         with self.provenance_lock:
             if prefix in self.task_state:
-                if execute_callback:
+                logging.info(
+                    "Removing state for %s and %sexecuting callbacks",
+                    prefix,
+                    "not " if not execute_callback else "",
+                )
+                if execute_callback and self.task_state[prefix]["callback"]:
                     logging.info(
                         "Executing callback for %s to indicate provenance removal",
                         prefix,
@@ -197,13 +201,8 @@ class ProvenanceTracker:
 
         if to_notify:
             final_notify = []
-            no_notify = []
             for p in to_notify:
-                notifiers = self._get_notifiers_for_prefix(p)
-                if not notifiers:
-                    no_notify.append(p)
-                    continue
-                for notifier in notifiers:
+                for notifier in self._get_notifiers_for_prefix(p):
                     final_notify.append((notifier, p))
 
             if final_notify:
@@ -213,9 +212,9 @@ class ProvenanceTracker:
                 )
                 self._add_provenance(task)
                 self._notify_task_completion(final_notify, worker, task)
-            if no_notify:
+            else:
                 # delete metadata for all the prefixes that are no longer in use
-                for p in no_notify:
+                for p in to_notify:
                     self.remove_state(p, execute_callback=True)
 
     def _get_notifiers_for_prefix(self, prefix: ProvenanceChain) -> List[TaskWorker]:

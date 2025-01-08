@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
 from typing import Any, List, Type
 
 from pydantic import Field
@@ -50,6 +51,10 @@ class SubGraphWorkerInternal(TaskWorker):
                         f"No task provenance found for {PRIVATE_STATE_KEY}"
                     )
                 assert isinstance(task, Task)
+
+                # remove any metadata and callbacks before changing the provenance
+                self.remove_state(task)
+
                 task._add_input_provenance(old_task)
                 task._add_worker_provenance(graph_task)
 
@@ -59,8 +64,10 @@ class SubGraphWorkerInternal(TaskWorker):
                 consumer = graph_task._get_consumer(task)
                 graph_task.exit_worker._graph._dispatcher.add_work(consumer, task)
 
-                # finally remove any metadata and callbacks
-                self.remove_state(task)
+                # this only works if the graph outputs a single task XXX
+                graph_task._graph._provenance_tracker._remove_provenance(
+                    old_task, consumer
+                )
 
         instance = AdapterSinkWorker()
         self.graph.add_workers(instance)
@@ -82,6 +89,10 @@ class SubGraphWorkerInternal(TaskWorker):
         new_task._provenance = []
         new_task._input_provenance = []
         new_task.add_private_state(PRIVATE_STATE_KEY, task)
+
+        # artificially increase the provenance
+        logging.debug("Adding additional provenance for %s", task._provenance)
+        self._graph._provenance_tracker._add_provenance(task)
 
         # get any associated state and re-inject it
         state = self.get_state(task)

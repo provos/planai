@@ -286,7 +286,7 @@ class TestSubGraphMetadataAndCallbacks(unittest.TestCase):
 
         # Verify callback was called with correct arguments
         # Should be called twice: "Processing started" and "Processing complete"
-        self.assertEqual(mock_callback.call_count, 2)
+        self.assertEqual(mock_callback.call_count, 3)
 
         # Verify first call
         first_call = mock_callback.call_args_list[0]
@@ -300,6 +300,12 @@ class TestSubGraphMetadataAndCallbacks(unittest.TestCase):
         self.assertEqual(second_call.args[0], test_metadata)  # metadata
         self.assertIsInstance(second_call.args[1], StatusNotifyingWorker)  # worker
         self.assertEqual(second_call.args[3], "Processing complete")  # message
+
+        # Verify third call
+        third_call = mock_callback.call_args_list[2]
+        self.assertEqual(third_call.args[0], test_metadata)
+        self.assertIsNone(third_call.args[1])
+        self.assertIsNone(third_call.args[2])
 
         # Verify cleanup: callback should be removed after task completion
         self.assertEqual(len(self.main_graph._provenance_tracker.task_state), 0)

@@ -196,7 +196,7 @@ class TestGraph(unittest.TestCase):
             callback_data.append(
                 {
                     "metadata": metadata,
-                    "worker_name": worker.name,
+                    "worker_name": worker.name if worker else None,
                     "task_data": task.data if hasattr(task, "data") else None,
                     "message": message,
                 }
@@ -235,7 +235,7 @@ class TestGraph(unittest.TestCase):
         self.graph.execute([])
 
         # Verify callback data
-        self.assertEqual(len(callback_data), 2)  # Should have two status updates
+        self.assertEqual(len(callback_data), 3)  # Should have two status updates
 
         # Check first status update
         self.assertEqual(callback_data[0]["metadata"]["test_key"], "test_value")
@@ -248,6 +248,12 @@ class TestGraph(unittest.TestCase):
         self.assertEqual(callback_data[1]["worker_name"], "StatusTestWorker")
         self.assertEqual(callback_data[1]["task_data"], "initial processed")
         self.assertEqual(callback_data[1]["message"], "Work completed")
+
+        # Check third status update
+        self.assertEqual(callback_data[2]["metadata"]["test_key"], "test_value")
+        self.assertEqual(callback_data[2]["worker_name"], None)
+        self.assertEqual(callback_data[2]["task_data"], None)
+        self.assertEqual(callback_data[2]["message"], "Task removed")
 
 
 if __name__ == "__main__":
