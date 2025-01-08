@@ -148,7 +148,12 @@ class LLMInterface:
 
             # some models can generate structured outputs
             if self.support_structured_outputs and response_schema:
-                kwargs["response_schema"] = response_schema
+                if isinstance(self.client, Client):
+                    # For Ollama, we need to pass the schema directly
+                    kwargs["format"] = response_schema.model_json_schema()
+                else:
+                    # For OpenAI, we need to pass the schema as a pydantic object
+                    kwargs["response_schema"] = response_schema
             elif self.support_json_mode:
                 kwargs["format"] = "json"
 
@@ -303,16 +308,27 @@ class LLMInterface:
                 response_schema=output_schema,
                 tools=tools,
             )
-            if not self.support_json_mode:
-                raw_response = self._strip_text_from_json_response(raw_response)
 
             if self.support_structured_outputs:
-                # If the model supports structured outputs, the response is already a pydantic object
-                response = raw_response
-                error_message = (
-                    "The model refused the request" if response is None else None
-                )
+                # If the model supports structured outputs, we should get a Pydantic object directly
+                # or a string that can be parsed directly
+                try:
+                    if raw_response is None:
+                        response = None
+                        error_message = "The model refused the request"
+                    elif isinstance(raw_response, BaseModel):
+                        response = raw_response
+                        error_message = None
+                    else:
+                        response = output_schema.model_validate_json(raw_response)
+                        error_message = None
+                except Exception as e:
+                    self.logger.error("Error parsing structured response: %s", e)
+                    error_message = str(e)
+                    response = None
             else:
+                if not self.support_json_mode:
+                    raw_response = self._strip_text_from_json_response(raw_response)
                 error_message, response = self._parse_response(raw_response, parser)
 
             if response is None:

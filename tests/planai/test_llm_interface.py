@@ -2,6 +2,7 @@ import json
 import unittest
 from unittest.mock import Mock, patch
 
+from ollama import Client
 from pydantic import BaseModel
 
 from planai.llm_interface import LLMInterface
@@ -33,7 +34,7 @@ class DummyPydanticModel(BaseModel):
 class TestLLMInterface(unittest.TestCase):
     def setUp(self):
         # Mock the Client
-        self.mock_client = Mock()
+        self.mock_client = Mock(spec=Client)
 
         # Initialize the LLMInterface with InMemoryCache
         self.llm_interface = LLMInterface(client=self.mock_client)
@@ -186,6 +187,9 @@ class TestLLMInterface(unittest.TestCase):
         structured_response = StructuredOutputModel(field1="direct", field2=123)
         self.llm_interface.support_structured_outputs = True
 
+        # Replace it with an non ollama client
+        self.mock_client = Mock()
+        self.llm_interface.client = self.mock_client
         self.mock_client.chat.return_value = {
             "message": {"content": structured_response}
         }
@@ -225,6 +229,9 @@ class TestLLMInterface(unittest.TestCase):
             False  # Simulate model without system prompt support
         )
 
+        # Replace it with an non ollama client
+        self.mock_client = Mock()
+        self.llm_interface.client = self.mock_client
         self.mock_client.chat.return_value = {
             "message": {"content": structured_response}
         }
@@ -455,6 +462,41 @@ class TestLLMInterface(unittest.TestCase):
             self.assertTrue(
                 any("Tool execution failed" in message for message in log.output)
             )
+
+    def test_chat_with_ollama_structured_output(self):
+        # Create a LLMInterface that supports structured outputs
+        llm = LLMInterface(
+            model_name="llama3.1",
+            client=self.mock_client,
+            support_structured_outputs=True,
+            support_json_mode=True,
+        )
+        llm.disk_cache = InMemoryCache()
+
+        class TestStructure(BaseModel):
+            field1: str
+            field2: int
+
+        # Mock the response to return a valid JSON string
+        self.mock_client.chat.return_value = {
+            "message": {"content": '{"field1": "test", "field2": 42}'}
+        }
+
+        # Test the chat method with structured output
+        response = llm.generate_pydantic(
+            prompt_template="Test prompt",
+            output_schema=TestStructure,
+            system="Test system",
+        )
+
+        # Verify the response
+        self.assertIsInstance(response, TestStructure)
+        self.assertEqual(response.field1, "test")
+        self.assertEqual(response.field2, 42)
+
+        # Verify that the format parameter was passed correctly
+        chat_kwargs = self.mock_client.chat.call_args[1]
+        self.assertEqual(chat_kwargs["format"], TestStructure.model_json_schema())
 
 
 if __name__ == "__main__":

@@ -93,23 +93,24 @@ def llm_from_config(
                 support_json_mode=False,
                 use_cache=use_cache,
             )
-        case "remote_ollama":
-            ssh = SSHConnection(
-                hostname=hostname,
-                username=username,
-            )
-            client = RemoteOllama(ssh_connection=ssh, model_name=model_name)
+        case "ollama" | "remote_ollama":
+            # Enable structured outputs for Llama 3+ models
+            supports_structured = True
+            if provider == "remote_ollama":
+                ssh = SSHConnection(
+                    hostname=hostname,
+                    username=username,
+                )
+                client = RemoteOllama(ssh_connection=ssh, model_name=model_name)
+            else:
+                client = None
             return LLMInterface(
                 model_name=model_name,
                 log_dir=log_dir,
                 client=client,
-                use_cache=use_cache,
-            )
-        case "ollama":
-            return LLMInterface(
-                model_name=model_name,
-                log_dir=log_dir,
                 host=host,
+                support_json_mode=True,
+                support_structured_outputs=supports_structured,
                 use_cache=use_cache,
             )
 
