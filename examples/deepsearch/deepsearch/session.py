@@ -1,4 +1,5 @@
 import json
+import logging
 import threading
 import time
 import uuid
@@ -88,6 +89,7 @@ class SessionManager:
                     stale_sessions.append(session_id)
 
             for session_id in stale_sessions:
+                logging.info("Cleaning up stale session: %s", session_id)
                 print(f"Cleaning up stale session: {session_id}")
                 self.delete_session(session_id)
                 # Find and remove corresponding SID
