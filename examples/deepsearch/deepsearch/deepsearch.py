@@ -1,10 +1,11 @@
+import logging
 import queue
 import threading
 from typing import Any, Dict, Tuple
 
 from flask import Flask, request
 from flask_socketio import SocketIO, emit
-from graph import Request, Response, setup_graph, SearchQueries, Plan
+from graph import Plan, Request, Response, SearchQueries, SearchQuery, setup_graph
 from session import SessionManager
 
 from planai import Task, TaskWorker
@@ -193,15 +194,29 @@ def handle_message(data):
         session_id = metadata.get("session_id")
         sid = metadata.get("sid")
 
+        logging.info(
+            "Got notification from %s and task: %s with message: %s",
+            worker.name,
+            task,
+            message,
+        )
+
         # get the metadata for this session
         session_metadata = session_manager.metadata(session_id)
+
         # try to determine which phase of the plan we are in
         phase = "unknown"
         if isinstance(task, Plan):
             phase = "plan"
-        if isinstance(task, SearchQueries):
+        elif isinstance(task, SearchQueries):
             phase = "search"
             session_metadata["queries"] = [q.query for q in task.queries]
+        elif isinstance(task, SearchQuery):
+            phase = task.metadata
+        else:
+            search_query: SearchQuery = task.find_input_task(SearchQuery)
+            if search_query:
+                phase = search_query.metadata
 
         print(f"Received response: {str(message)[:100]} for session: {session_id}")
         task_queue.put(

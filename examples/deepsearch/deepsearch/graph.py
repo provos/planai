@@ -110,9 +110,8 @@ class SearchCreator(CachedLLMTaskWorker):
             raise ValueError("The input task is missing a Request task")
         return self.prompt.format(request=request.user_input)
 
-    def pre_process(self, task: Plan):
+    def pre_consume_work(self, task: Plan):
         self.notify_status(task, "Creating search queries for each phase")
-        return task
 
 
 class SearchSplitter(TaskWorker):

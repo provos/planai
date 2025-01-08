@@ -53,9 +53,11 @@ class SearchExecutor(CachedTaskWorker):
     output_types: List[Type[Task]] = [SearchResults]
     max_results: int = Field(10, description="Maximum number of results per query")
 
+    def pre_consume_work(self, task):
+        self.notify_status(task, f"Searching for: {task.query}")
+
     def consume_work(self, task: SearchQuery):
         self.print(f"Executing search for: {task.query}")
-        self.notify_status(task, f"Searching for: {task.query}")
         results = SerperGoogleSearchTool.search_internet(
             task.query, num_results=self.max_results, print_func=self.print
         )
@@ -87,9 +89,12 @@ class PageFetcher(CachedTaskWorker):
         super().__init__()
         self.extract_pdf_func = extract_pdf_func
 
+    def pre_consume_work(self, task):
+        self.notify_status(task, f"Fetching content from: {task.link}")
+
     def consume_work(self, task: SearchResult):
         self.print(f"Fetching content from: {task.link}")
-        self.notify_status(task, f"Fetching content from: {task.link}")
+
         content = WebBrowser.get_markdown_from_page(
             task.link,
             extract_markdown_from_pdf=self.extract_pdf_func,
@@ -138,9 +143,8 @@ class PageRelevanceFilter(CachedLLMTaskWorker):
         """
     ).strip()
 
-    def pre_process(self, task):
+    def pre_consume_work(self, task):
         self.notify_status(task, f"Analyzing relevance of: {task.url}")
-        return task
 
     def post_process(self, response: PageAnalysis, input_task: PageResult):
         if response.is_relevant:
