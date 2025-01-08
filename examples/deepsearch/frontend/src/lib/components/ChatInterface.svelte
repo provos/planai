@@ -113,7 +113,7 @@
 <!-- Remove svelte:window events -->
 
 <div class="chat-wrapper">
-    <h1 class="chat-title">Chat Interface</h1>
+    <h1 class="chat-title">PlanAI Research</h1>
 
     {#if sessionState.connectionStatus !== 'connected'}
         <div class="connection-status {sessionState.connectionStatus}">
