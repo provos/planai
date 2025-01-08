@@ -224,6 +224,89 @@ class TestGraphTask(unittest.TestCase):
         # Optionally, you can verify that the joined data is correct
         # But since FinalWorker does not output anything, and we didn't sink any tasks, we can't retrieve outputs here
 
+    def test_multiple_output_provenance(self):
+        # Create a worker that outputs multiple tasks
+        class MultiOutputWorker(TaskWorker):
+            output_types: List[Type[Task]] = [SubGraphTask]
+
+            def consume_work(self, task: SubGraphTask):
+                # Output multiple tasks from the subgraph
+                for i in range(3):
+                    new_task = SubGraphTask(data=f"{task.data}-{i}", intermediate=True)
+                    self.publish_work(new_task, input_task=task)
+
+        # Create subgraph with multiple output worker
+        subgraph = Graph(name="MultiOutputSubGraph")
+        multi_worker = MultiOutputWorker()
+        subgraph.add_workers(multi_worker)
+
+        # Create GraphTask
+        graph_task = SubGraphWorker(
+            graph=subgraph, entry_worker=multi_worker, exit_worker=multi_worker
+        )
+
+        # Create tracking worker to verify each output
+        received_tasks = []
+
+        class TrackingWorker(TaskWorker):
+            output_types: List[Type[Task]] = []
+
+            def consume_work(self, task: SubGraphTask):
+                received_tasks.append(task)
+                # Verify provenance for each task
+                assert (
+                    len(task._provenance) == 3
+                ), f"Wrong provenance length: {task._provenance}"
+                # The SubGraphWorker counter will increment for each task
+                provenance = task._provenance
+                assert provenance[0] == (
+                    "InitialTaskWorker",
+                    1,
+                ), f"Wrong initial provenance: {provenance[0]}"
+                assert provenance[1] == (
+                    "MainWorker",
+                    1,
+                ), f"Wrong main worker provenance: {provenance[1]}"
+                assert (
+                    provenance[2][0] == "SubGraphWorker"
+                ), f"Wrong subgraph worker name: {provenance[2]}"
+                assert (
+                    1 <= provenance[2][1] <= 3
+                ), f"Subgraph worker counter out of range: {provenance[2]}"
+
+        # Create main graph
+        graph = Graph(name="MainGraph")
+        main_worker = MainWorker()
+        tracking_worker = TrackingWorker()
+
+        graph.add_workers(main_worker, graph_task, tracking_worker)
+        graph.set_dependency(main_worker, graph_task).next(tracking_worker)
+
+        # Run graph
+        initial_task = InputTask(data="TestData")
+        initial_work = [(main_worker, initial_task)]
+
+        graph.run(
+            initial_tasks=initial_work, run_dashboard=False, display_terminal=False
+        )
+
+        # Verify we received all tasks with correct provenance
+        self.assertEqual(len(received_tasks), 3)
+        for task in received_tasks:
+            self.assertTrue(task.intermediate)
+            self.assertTrue(task.data.startswith("TestData-"))
+
+        # Verify dispatcher state
+        dispatcher = graph._dispatcher
+        self.assertIsNotNone(dispatcher)
+        self.assertEqual(dispatcher.work_queue.qsize(), 0)
+        self.assertEqual(dispatcher.active_tasks, 0)
+
+        # Verify total task count:
+        # Main graph: 1 (MainWorker) + 1 (GraphTask) + 3 (TrackingWorker)
+        # Subgraph: 1 (MultiOutputWorker) + 3 (AdapterSinkWorker)
+        self.assertEqual(dispatcher.total_completed_tasks, 9)
+
 
 class StatusNotifyingWorker(TaskWorker):
     output_types: List[Type[Task]] = [FinalTask]

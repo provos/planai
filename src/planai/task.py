@@ -145,10 +145,13 @@ class Task(BaseModel):
             self._input_provenance = []
         return self
 
-    def add_private_state(self, key: str, value: Any):
+    def add_private_state(self, key: str, value: Any) -> None:
         self._private_state[key] = value
 
-    def get_private_state(self, key: str):
+    def get_private_state(self, key: str) -> Any:
+        return self._private_state.get(key, None)
+
+    def delete_private_state(self, key: str) -> Any:
         return self._private_state.pop(key, None)
 
     def model_dump_xml(self) -> str:

@@ -45,7 +45,9 @@ class SubGraphWorkerInternal(TaskWorker):
             def consume_work(self, task: output_type):
                 # we need to move this task from the sub-graph to the main graph
                 # first, we need to fix up the provenance so that it shows only the GraphTask as the parent
-                old_task = task.get_private_state(PRIVATE_STATE_KEY)
+                state = task.delete_private_state(PRIVATE_STATE_KEY)
+                assert state is not None and "old_task" in state
+                old_task = state["old_task"]
                 if old_task is None:
                     raise ValueError(
                         f"No task provenance found for {PRIVATE_STATE_KEY}"
@@ -65,9 +67,22 @@ class SubGraphWorkerInternal(TaskWorker):
                 graph_task.exit_worker._graph._dispatcher.add_work(consumer, task)
 
                 # this only works if the graph outputs a single task XXX
-                graph_task._graph._provenance_tracker._remove_provenance(
-                    old_task, consumer
-                )
+                new_task = state["new_task"]
+                new_task_state = new_task.get_private_state(PRIVATE_STATE_KEY)
+                remove_provenance = False
+                if new_task_state is not None:
+                    with self.lock:
+                        new_task_state["refcount"] -= 1
+                        if new_task_state["refcount"] == 0:
+                            # remove the task from the graph
+                            remove_provenance = True
+                else:
+                    remove_provenance = True
+
+                if remove_provenance:
+                    graph_task._graph._provenance_tracker._remove_provenance(
+                        new_task, consumer
+                    )
 
         instance = AdapterSinkWorker()
         self.graph.add_workers(instance)
@@ -88,7 +103,9 @@ class SubGraphWorkerInternal(TaskWorker):
         new_task = task.model_copy()
         new_task._provenance = []
         new_task._input_provenance = []
-        new_task.add_private_state(PRIVATE_STATE_KEY, task)
+        new_task.add_private_state(
+            PRIVATE_STATE_KEY, {"old_task": task, "new_task": new_task, "refcount": 1}
+        )
 
         # artificially increase the provenance
         logging.debug("Adding additional provenance for %s", task._provenance)
