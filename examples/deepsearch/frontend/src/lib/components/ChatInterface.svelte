@@ -1,5 +1,6 @@
 <script>
     import { marked } from 'marked';
+    import { SvelteMap } from 'svelte/reactivity';
     import { sessionState } from '../stores/sessionStore.svelte.js';
     import { messageBus } from '../stores/messageBus.svelte.js';
 
@@ -12,6 +13,9 @@
 
     let messageInput = $state('');
 
+    // Use SvelteMap instead of regular Map
+    const thinkingUpdates = new SvelteMap();
+
     // Subscribe to message bus events
     $effect(() => {
         const unsubscribe = messageBus.subscribe(({ type, payload }) => {
@@ -21,7 +25,8 @@
                 case 'chatResponse':
                     console.log('Received response:', payload);
                     isLoading.set(false);
-                    thinkingUpdate.set('**Processing** your request...');
+                    // Clear all thinking updates when we get final response
+                    thinkingUpdates.clear();
                     messages.update(msgs => [...msgs, {
                         role: 'assistant',
                         content: payload.message,
@@ -30,7 +35,20 @@
                     }]);
                     break;
                 case 'thinkingUpdate':
-                    thinkingUpdate.set(payload.message);
+                    console.log('Thinking update:', payload);
+                    let phase = payload.phase;
+                    const message = payload.message;
+                    if (!phase)
+                        phase = 'unknown';
+                    if (phase === 'unknown' || phase === 'plan') {
+                        // These phases replace all other updates
+                        thinkingUpdates.clear();
+                        thinkingUpdates.set(phase, message);
+                    } else {
+                        thinkingUpdates.delete('plan');
+                        thinkingUpdates.delete('unknown');
+                        thinkingUpdates.set(phase, message);
+                    }
                     break;
                 case 'error':
                     error.set(payload);
@@ -131,12 +149,15 @@
             {/each}
 
             {#if $isLoading}
-                <div class="flex justify-start">
-                    <div class="message-bubble message-bubble-thinking">
-                        <div class="message-text prose prose-sm dark:prose-invert thinking">
-                            {@html marked($thinkingUpdate)}
+                <div class="flex justify-start flex-col gap-2">
+                    {#each Array.from(thinkingUpdates.entries()) as [phase, message]}
+                        <div class="message-bubble message-bubble-thinking">
+                            <div class="text-sm text-gray-500 mb-1">{phase}</div>
+                            <div class="message-text prose prose-sm dark:prose-invert thinking">
+                                {@html marked(message)}
+                            </div>
                         </div>
-                    </div>
+                    {/each}
                 </div>
             {/if}
         </div>
