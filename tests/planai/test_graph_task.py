@@ -106,8 +106,8 @@ class TestGraphTask(unittest.TestCase):
         self.assertEqual(dispatcher.work_queue.qsize(), 0)
         self.assertEqual(dispatcher.active_tasks, 0)
         self.assertEqual(
-            dispatcher.total_completed_tasks, 3 + 2
-        )  # 3 tasks in the main graph, 1 in the subgraph + the AdapterWorker
+            dispatcher.total_completed_tasks, 3 + 2 + 1
+        )  # 3 tasks in the main graph, 1 in the subgraph + the AdapterWorker + Notify to clean up
 
         # Check that the provenance is as expected
         final_tasks = graph.get_output_tasks()
@@ -212,6 +212,7 @@ class TestGraphTask(unittest.TestCase):
             + 3  # sub_join_worker consumes 3 SubInputTasks
             + 1  # sub_join_worker consumes joined tasks
             + 1  # AdapterSinkWorker
+            + 1  # Notify to clean up state
         )
         expected_total_tasks = total_main_graph_tasks + total_subgraph_tasks
 
@@ -304,8 +305,8 @@ class TestGraphTask(unittest.TestCase):
 
         # Verify total task count:
         # Main graph: 1 (MainWorker) + 1 (GraphTask) + 3 (TrackingWorker)
-        # Subgraph: 1 (MultiOutputWorker) + 3 (AdapterSinkWorker)
-        self.assertEqual(dispatcher.total_completed_tasks, 9)
+        # Subgraph: 1 (MultiOutputWorker) + 3 (AdapterSinkWorker) + 1 (Notify to clean up)
+        self.assertEqual(dispatcher.total_completed_tasks, 10)
 
 
 class StatusNotifyingWorker(TaskWorker):
@@ -393,6 +394,91 @@ class TestSubGraphMetadataAndCallbacks(unittest.TestCase):
         # Verify cleanup: callback should be removed after task completion
         self.assertEqual(len(self.main_graph._provenance_tracker.task_state), 0)
         self.assertEqual(len(self.subgraph._provenance_tracker.task_state), 0)
+
+    def test_metadata_and_callback_handling_with_failure(self):
+        """Test that provenance is cleaned up when a worker in the subgraph fails."""
+
+        class FailingStatusWorker(TaskWorker):
+            output_types: List[Type[Task]] = [FinalTask]
+
+            def consume_work(self, task: InputTask):
+                # Notify about processing status
+                self.notify_status(task, "Processing started")
+
+                # Simulate a failure
+                raise RuntimeError("Simulated worker failure")
+
+        # Create the subgraph with failing worker
+        self.subgraph = Graph(name="TestSubGraph")
+        self.sub_worker = FailingStatusWorker()
+        self.subgraph.add_workers(self.sub_worker)
+
+        # Create the main graph with SubGraphWorker
+        self.main_graph = Graph(name="MainGraph")
+        self.graph_task = SubGraphWorker(
+            graph=self.subgraph,
+            entry_worker=self.sub_worker,
+            exit_worker=self.sub_worker,
+        )
+
+        # Create a consumer for the SubGraphWorker output
+        class FinalWorker(TaskWorker):
+            output_types: List[Type[Task]] = []
+
+            def consume_work(self, task: FinalTask):
+                pass
+
+        self.final_worker = FinalWorker()
+        self.main_graph.add_workers(self.graph_task, self.final_worker)
+        self.main_graph.set_dependency(self.graph_task, self.final_worker)
+
+        # Create a mock callback
+        mock_callback = Mock()
+        test_metadata = {"test_key": "test_value"}
+
+        # Create initial task
+        task = InputTask(data="test_data")
+
+        # Add task with metadata and callback
+        self.main_graph.prepare(display_terminal=False)
+        self.main_graph.set_entry(self.graph_task)
+
+        self.graph_task.add_work(
+            task, metadata=test_metadata, status_callback=mock_callback
+        )
+
+        # Run the graph, it should handle the failure gracefully
+        self.main_graph.execute([])
+
+        # Verify callback was called for both start and failure
+        self.assertEqual(mock_callback.call_count, 3)
+
+        # Verify first call (Processing started)
+        first_call = mock_callback.call_args_list[0]
+        self.assertEqual(first_call.args[0], test_metadata)
+        self.assertIsInstance(first_call.args[1], FailingStatusWorker)
+        self.assertIsInstance(first_call.args[2], InputTask)
+        self.assertEqual(first_call.args[3], "Processing started")
+
+        # Verify subgraph call
+        final_call = mock_callback.call_args_list[1]
+        self.assertEqual(final_call.args[0], test_metadata)
+        self.assertIsNone(final_call.args[1])
+        self.assertIsNone(final_call.args[2])
+        self.assertEqual(final_call.args[3], "Task removed")
+
+        # Verify final call (cleanup)
+        final_call = mock_callback.call_args_list[2]
+        self.assertEqual(final_call.args[0], test_metadata)
+        self.assertIsNone(final_call.args[1])
+        self.assertIsNone(final_call.args[2])
+        self.assertEqual(final_call.args[3], "Task removed")
+
+        # Verify all provenance is cleaned up in both graphs
+        self.assertEqual(len(self.main_graph._provenance_tracker.task_state), 0)
+        self.assertEqual(len(self.subgraph._provenance_tracker.task_state), 0)
+        self.assertEqual(len(self.main_graph._provenance_tracker.provenance), 0)
+        self.assertEqual(len(self.subgraph._provenance_tracker.provenance), 0)
 
 
 if __name__ == "__main__":

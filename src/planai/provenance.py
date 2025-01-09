@@ -134,6 +134,32 @@ class ProvenanceTracker:
         for i in range(1, len(provenance) + 1):
             yield tuple(provenance[:i])
 
+    def get_prefix(self, provenance: ProvenanceChain, length: int) -> ProvenanceChain:
+        """
+        Get a prefix of specified length from a provenance chain.
+
+        Args:
+            provenance (ProvenanceChain): The provenance chain to extract the prefix from.
+            length (int): The desired length of the prefix to extract.
+
+        Returns:
+            ProvenanceChain: A tuple containing the first 'length' elements of the provenance chain.
+        """
+        return tuple(provenance[:length])
+
+    def get_prefix_from_task(self, task: Task, length: int) -> ProvenanceChain:
+        """
+        Get a prefix of specified length from task's provenance chain.
+
+        Args:
+            task (Task): The task object containing provenance information.
+            length (int): The desired length of the prefix to extract.
+
+        Returns:
+            ProvenanceChain: A tuple containing the first 'length' elements of the task's provenance chain.
+        """
+        return tuple(task._provenance[:length])
+
     def _add_provenance(self, task: Task):
         for prefix in self._generate_prefixes(task):
             with self.provenance_lock:

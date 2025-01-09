@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import logging
-from typing import Any, List, Type
+from typing import Any, Dict, List, Type
 
-from pydantic import Field
+from pydantic import Field, PrivateAttr
 
 from .graph import Graph
+from .provenance import ProvenanceChain
 from .task import Task, TaskWorker
 
 PRIVATE_STATE_KEY = "_graph_task_private_state"
@@ -28,6 +29,7 @@ class SubGraphWorkerInternal(TaskWorker):
     )
     entry_worker: TaskWorker = Field(..., description="The entry point of the graph")
     exit_worker: TaskWorker = Field(..., description="The exit point of the graph")
+    _state: Dict[str, Any] = PrivateAttr(default_factory=dict)
 
     def model_post_init(self, _: Any):
         if len(self.exit_worker.output_types) != 1:
@@ -45,9 +47,7 @@ class SubGraphWorkerInternal(TaskWorker):
             def consume_work(self, task: output_type):
                 # we need to move this task from the sub-graph to the main graph
                 # first, we need to fix up the provenance so that it shows only the GraphTask as the parent
-                state = task.delete_private_state(PRIVATE_STATE_KEY)
-                assert state is not None and "old_task" in state
-                old_task = state["old_task"]
+                old_task = task.get_private_state(PRIVATE_STATE_KEY)
                 if old_task is None:
                     raise ValueError(
                         f"No task provenance found for {PRIVATE_STATE_KEY}"
@@ -56,6 +56,10 @@ class SubGraphWorkerInternal(TaskWorker):
 
                 # remove any metadata and callbacks before changing the provenance
                 self.remove_state(task)
+                # remember the provenance of the task
+                provenance = self._graph._provenance_tracker.get_prefix_from_task(
+                    task, 1
+                )
 
                 task._add_input_provenance(old_task)
                 task._add_worker_provenance(graph_task)
@@ -69,22 +73,17 @@ class SubGraphWorkerInternal(TaskWorker):
                 # we need to make sure that we remove the extra provenance only once
                 # so we associated a refcount with the new task that was injected into
                 # the sub-graph and then get a reference back to it here
-                new_task = state["new_task"]
-                new_task_state = new_task.get_private_state(PRIVATE_STATE_KEY)
-                remove_provenance = False
-                if new_task_state is not None:
-                    with self.lock:
-                        new_task_state["refcount"] -= 1
-                        if new_task_state["refcount"] == 0:
-                            # remove the task from the graph
-                            remove_provenance = True
-                else:
-                    remove_provenance = True
-
-                if remove_provenance:
-                    graph_task._graph._provenance_tracker._remove_provenance(
-                        new_task, consumer
-                    )
+                with graph_task.lock:
+                    if provenance not in graph_task._state:
+                        raise ValueError(
+                            f"Task {provenance} does not have any associated state."
+                        )
+                    new_task, remove_provenance = graph_task._state.get(provenance)
+                    if remove_provenance:
+                        graph_task._graph._provenance_tracker._remove_provenance(
+                            new_task, self
+                        )
+                        graph_task._state[provenance] = (new_task, False)
 
         instance = AdapterSinkWorker()
         self.graph.add_workers(instance)
@@ -105,9 +104,7 @@ class SubGraphWorkerInternal(TaskWorker):
         new_task = task.model_copy()
         new_task._provenance = []
         new_task._input_provenance = []
-        new_task.add_private_state(
-            PRIVATE_STATE_KEY, {"old_task": task, "new_task": new_task, "refcount": 1}
-        )
+        new_task.add_private_state(PRIVATE_STATE_KEY, task)
 
         # artificially increase the provenance
         logging.debug("Adding additional provenance for %s", task._provenance)
@@ -118,10 +115,37 @@ class SubGraphWorkerInternal(TaskWorker):
         metadata = state["metadata"]
         callback = state["callback"]
 
+        def inject_state(provenance: ProvenanceChain):
+            self.graph.watch(provenance, self)
+            # We inject True to indicate that extra provenance is still associated with the task
+            with self.lock:
+                self._state[provenance] = (new_task, True)
+
         # and dispatch it to the sub-graph. this also sets the task provenance to InitialTaskWorker
         self.graph._add_work(
-            self.entry_worker, new_task, metadata=metadata, status_callback=callback
+            self.entry_worker,
+            new_task,
+            metadata=metadata,
+            status_callback=callback,
+            provenance_callback=inject_state,
         )
+
+    def notify(self, prefix: str):
+        # if tasks of the sub-graph fail, it's possible that the SinkWorker never gets called
+        # so we need to remove additional provenance here and clean up state
+        self.graph.unwatch(prefix, self)
+        with self.lock:
+            if prefix not in self._state:
+                raise ValueError(f"Task {prefix} does not have any associated state.")
+            task, remove_provenance = self._state.pop(prefix)
+
+        if remove_provenance:
+            logging.info(
+                "Caucht Subgraph execution errror. Removing provenance for %s in %s",
+                prefix,
+                self.name,
+            )
+            self._graph._provenance_tracker._remove_provenance(task, self)
 
 
 def SubGraphWorker(

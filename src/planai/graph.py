@@ -29,6 +29,9 @@ from .task import Task, TaskStatusCallback, TaskType, TaskWorker
 # Initialize colorama for Windows compatibility
 init(autoreset=True)
 
+# Provide the provenance for state tracking before work is added to the dispatcher
+ProvenanceCallback = Callable[["ProvenanceChain"], None]
+
 
 class Graph(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -425,15 +428,20 @@ class Graph(BaseModel):
         task: Task,
         metadata: Optional[Dict] = None,
         status_callback: Optional[TaskStatusCallback] = None,
+        provenance_callback: Optional[ProvenanceCallback] = None,
     ) -> ProvenanceChain:
         provenance = self._initial_worker.get_next_provenance()
         task._provenance = [provenance] + task._provenance
 
-        prov_chain = (task._provenance[0],)
+        prov_chain = self._provenance_tracker.get_prefix_from_task(task, 1)
 
         # Register state before adding work
         if metadata or status_callback:
             self._provenance_tracker.add_state(prov_chain, metadata, status_callback)
+
+        # Allows workers to do additional state tracking based on the provenance
+        if provenance_callback:
+            provenance_callback(prov_chain)
 
         assert self._dispatcher is not None
         self._dispatcher.add_work(worker, task)

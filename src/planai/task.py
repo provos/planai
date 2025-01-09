@@ -149,9 +149,6 @@ class Task(BaseModel):
         self._private_state[key] = value
 
     def get_private_state(self, key: str) -> Any:
-        return self._private_state.get(key, None)
-
-    def delete_private_state(self, key: str) -> Any:
         return self._private_state.pop(key, None)
 
     def model_dump_xml(self) -> str:
@@ -414,7 +411,8 @@ class TaskWorker(BaseModel, ABC):
         Args:
             task (Task): The task to remove the state for.
         """
-        self._graph._provenance_tracker.remove_state((task._provenance[0],))
+        provenance = self._graph._provenance_tracker.get_prefix_from_task(task, 1)
+        self._graph._provenance_tracker.remove_state(provenance)
 
     def get_state(self, task: Task) -> Dict[str, Any]:
         """
@@ -426,7 +424,8 @@ class TaskWorker(BaseModel, ABC):
         Returns:
             Dict[str, Any]: The state of the task.
         """
-        return self._graph._provenance_tracker.get_state((task._provenance[0],))
+        provenance = self._graph._provenance_tracker.get_prefix_from_task(task, 1)
+        return self._graph._provenance_tracker.get_state(provenance)
 
     def get_metadata(self, task: Task) -> Dict[str, Any]:
         """
