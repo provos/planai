@@ -34,6 +34,26 @@ ProvenanceCallback = Callable[["ProvenanceChain"], None]
 
 
 class Graph(BaseModel):
+    """A graph for orchestrating task workers and their dependencies.
+
+    The Graph class manages the execution flow of tasks through workers, handling dependencies,
+    parallel execution, monitoring, and output collection. It supports both terminal-based
+    and web dashboard monitoring of task execution.
+
+    Attributes:
+        name (str): Name identifier for the graph instance
+        workers (Set[TaskWorker]): Set of task workers in the graph
+        dependencies (Dict[TaskWorker, List[TaskWorker]]): Maps workers to their downstream dependencies
+
+    Example:
+        >>> graph = Graph(name="Data Processing Pipeline")
+        >>> worker1 = DataLoader()
+        >>> worker2 = DataProcessor()
+        >>> graph.add_workers(worker1, worker2)
+        >>> graph.set_dependency(worker1, worker2)
+        >>> graph.run([(worker1, LoadTask(file="data.csv"))])
+    """
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     name: str
@@ -73,7 +93,22 @@ class Graph(BaseModel):
         return self._provenance_tracker.unwatch(prefix, notifier)
 
     def add_worker(self, task: TaskWorker) -> "Graph":
-        """Add a task to the Graph."""
+        """Adds a single task worker to the graph.
+
+        Args:
+            task (TaskWorker): The worker instance to add to the graph
+
+        Returns:
+            Graph: The graph instance for method chaining
+
+        Raises:
+            ValueError: If the worker is already present in the graph
+
+        Example:
+            >>> graph = Graph(name="Pipeline")
+            >>> worker = DataProcessor()
+            >>> graph.add_worker(worker)
+        """
         if task in self.workers:
             raise ValueError(f"Task {task} already exists in the Graph.")
         self.workers.add(task)
@@ -137,15 +172,18 @@ class Graph(BaseModel):
         output_type: Type[Task],
         notify: Callable[[Dict[str, Any], None], Task] = None,
     ) -> None:
-        """
-        Sets a worker as a data sink in the task graph.
+        """Designates a worker as a data sink for collecting specific output tasks.
 
-        This method creates a special SinkWorker that consumes the output of the specified worker.
-        The output from this sink can be retrieved after the graph is run using the `get_output_tasks()` method.
+        A sink worker is a special endpoint in the graph that collects and optionally processes
+        output tasks of a specific type. The sink can either store tasks for later retrieval
+        or forward them to a notification callback.
 
         Args:
-            worker (TaskWorker): The worker whose output should be collected in the sink.
-            output_type (Task): The type of task that the sink worker should consume.
+            worker (TaskWorker): The worker whose output should be collected
+            output_type (Type[Task]): The specific task type to collect at this sink
+            notify (Callable[[Dict[str, Any], None], Task], optional): Callback function
+                that receives the task's metadata and the task itself. If provided, tasks
+                won't be stored in the sink's collection.
 
         Raises:
             ValueError: If the specified worker doesn't have exactly one output type.
@@ -183,8 +221,9 @@ class Graph(BaseModel):
                     metadata = self.get_metadata(task)
                     logging.info("SinkWorker is notifying on task %s", task.name)
                     self._notify(metadata, task)
-                with self.lock:
-                    self._graph._sink_tasks.append(task)
+                else:
+                    with self.lock:
+                        self._graph._sink_tasks.append(task)
                 # we should not remove metadata or callbacks here as we don't know
                 # that all provenance has been removed
 
@@ -271,22 +310,24 @@ class Graph(BaseModel):
         display_terminal: bool = True,
         dashboard_port: int = 5000,
     ) -> None:
-        """
-        Prepare the Graph for execution by setting up necessary components and interfaces.
+        """Initializes the graph for execution by setting up monitoring and worker components.
 
-        This method initializes the graph execution environment by setting up the dispatcher,
-        optional monitoring interfaces, and worker configurations. It's a prerequisite step
-        before actual execution of tasks.
+        This method must be called before executing tasks. It sets up:
+        - Task dispatcher for managing worker execution
+        - Optional web dashboard for monitoring
+        - Optional terminal-based status display
+        - Worker parallel execution limits
 
-            - This method sets up the execution environment but does not start task processing
-            - If run_dashboard is True, a web interface will be available at the specified port
-            - Terminal display provides real-time execution status in the console
-            - The method configures maximum parallel tasks for workers as previously defined
+        Args:
+            run_dashboard (bool): If True, starts a web interface for monitoring
+            display_terminal (bool): If True, shows execution progress in terminal
+            dashboard_port (int): Port number for the web dashboard if enabled
 
-            ```
-            # Configure the graph...
-            graph.prepare(run_dashboard=True, dashboard_port=8080)
-            ```
+        Example:
+            >>> graph = Graph(name="Pipeline")
+            >>> # ... add workers and dependencies ...
+            >>> graph.prepare(run_dashboard=True, dashboard_port=8080)
+            >>> graph.execute(initial_tasks)
         """
         # Empty the sink tasks
         if self._sink_worker:
@@ -365,28 +406,28 @@ class Graph(BaseModel):
         self.execute(initial_tasks)
 
     def execute(self, initial_tasks: Sequence[Tuple[TaskWorker, Task]]) -> None:
-        """
-        Execute the Graph by initiating source tasks and managing the workflow.
+        """Executes the graph with the provided initial tasks.
 
-        This method executes the graph by initializing and managing source tasks through workers.
-        It performs the following steps:
-        1. Sets entry points using initial tasks
-        2. Finalizes the graph computation
-        3. Initializes workers
-        4. Validates and adds initial tasks to workers
-        5. Waits for all tasks to complete
-        6. Stops the dispatcher and terminal display
-        7. Marks workers as completed
+        This method starts the actual task processing in the graph. It should be called
+        after prepare() has been used to set up the execution environment.
 
         Args:
-            initial_tasks (Sequence[Tuple[TaskWorker, Task]]): A sequence of tuples containing
-                TaskWorker and Task pairs to initialize the graph execution.
+            initial_tasks (Sequence[Tuple[TaskWorker, Task]]): A sequence of worker-task
+                pairs to start the graph execution
 
         Raises:
-            Exception: If task validation fails for any worker-task pair.
+            Exception: If task validation fails for any worker-task pair
+            RuntimeError: If prepare() hasn't been called first
 
-        Returns:
-            None
+        Note:
+            - Blocks until all tasks complete unless a dashboard is running
+            - Automatically handles worker initialization and cleanup
+            - Maintains execution state for monitoring and debugging
+
+        Example:
+            >>> graph.prepare()
+            >>> initial = [(worker, Task(data="start"))]
+            >>> graph.execute(initial)
         """
         self.set_entry(*[x[0] for x in initial_tasks])
         # Finalize the graph (compute distances)
