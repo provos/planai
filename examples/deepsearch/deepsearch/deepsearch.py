@@ -3,6 +3,7 @@ import queue
 import threading
 from typing import Any, Dict, Tuple
 
+from debug import DebugSaver
 from flask import Flask, request
 from flask_socketio import SocketIO, emit
 from graph import (
@@ -25,6 +26,7 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 
 
 session_manager = SessionManager()
+debug_saver = None
 
 # Create a queue to hold tasks
 task_queue: queue.Queue[Tuple[str, str, Response]] = queue.Queue()
@@ -87,16 +89,19 @@ def start_worker_thread():
     return worker_thread
 
 
+@debug_saver.capture("notify") if debug_saver else lambda x: x
+def notify(metadata, message: Response):
+    """Callback to receive notifications from the graph."""
+    global task_queue
+    session_id = metadata.get("session_id")
+    sid = metadata.get("sid")
+    print(f"Received response: {str(message)[:100]} for session: {session_id}")
+    task_queue.put((sid, session_id, message))
+
+
 def start_graph_thread(provider: str = "ollama", model: str = "llama3.3:latest"):
     """Create and start a new worker thread."""
-    global graph_thread, graph, entry_worker, task_queue
-
-    def notify(metadata, message: Response):
-        """Callback to receive notifications from the graph."""
-        session_id = metadata.get("session_id")
-        sid = metadata.get("sid")
-        print(f"Received response: {str(message)[:100]} for session: {session_id}")
-        task_queue.put((sid, session_id, message))
+    global graph_thread, graph, entry_worker, debug_saver
 
     graph, entry_worker = setup_graph(provider=provider, model=model, notify=notify)
 
@@ -113,12 +118,15 @@ def start_graph_thread(provider: str = "ollama", model: str = "llama3.3:latest")
 
 def stop_worker_thread():
     """Stop the worker thread gracefully."""
-    global should_stop, worker_thread
+    global should_stop, worker_thread, debug_saver
     if worker_thread and worker_thread.is_alive():
         should_stop = True
         task_queue.put((None, None, None))  # Signal to stop
         worker_thread.join(timeout=1.0)  # Reduced timeout to avoid blocking
         worker_thread = None
+
+    if debug_saver:
+        debug_saver.stop_all_replays()
 
 
 def handle_emit_error(e=None):
@@ -191,62 +199,20 @@ def handle_message(data):
 
     # Capture the request.sid (SocketIO SID)
     sid = request.sid
+    current_metadata = {"session_id": session_id, "sid": sid}
+
+    # If in replay mode, trigger replay with current session
+    global debug_saver
+    if debug_saver and debug_saver.mode == "replay":
+        debug_saver.start_replay_session(current_metadata)
+        return
 
     # Update session timestamp on activity
     session_manager.update_session_timestamp(session_id)
 
-    def notify_planai(
-        metadata: Dict[str, Any], worker: TaskWorker, task: Task, message: str
-    ):
-        """Callback to receive notifications from the graph."""
-        session_id = metadata.get("session_id")
-        sid = metadata.get("sid")
-
-        # we failed the task
-        if worker is None:
-            task_queue.put(
-                (
-                    sid,
-                    session_id,
-                    Response(response_type="final", message=message),
-                )
-            )
-            return
-
-        logging.info(
-            "Got notification from %s and task: %s with message: %s",
-            worker.name,
-            task,
-            message,
-        )
-
-        # get the metadata for this session
-        session_metadata = session_manager.metadata(session_id)
-
-        # try to determine which phase of the plan we are in
-        phase = "unknown"
-        if isinstance(task, Plan):
-            phase = "plan"
-        elif isinstance(task, SearchQueries):
-            phase = "search"
-            session_metadata["queries"] = [q.query for q in task.queries]
-        elif isinstance(task, SearchQuery):
-            phase = task.metadata
-        elif isinstance(task, PhaseAnalyses):
-            phase = "plan"
-        else:
-            search_query: SearchQuery = task.find_input_task(SearchQuery)
-            if search_query:
-                phase = search_query.metadata
-
-        print(f"Received response: {str(message)[:100]} for session: {session_id}")
-        task_queue.put(
-            (
-                sid,
-                session_id,
-                Response(response_type="thinking", phase=phase, message=message),
-            )
-        )
+    @debug_saver.capture("notify_planai") if debug_saver else lambda x: x
+    def wrapped_notify_planai(*args, **kwargs):
+        return notify_planai(*args, **kwargs)
 
     # Add the task to the graph
     global graph, entry_worker
@@ -254,7 +220,62 @@ def handle_message(data):
     entry_worker.add_work(
         user_request,
         metadata={"session_id": session_id, "sid": sid},
-        status_callback=notify_planai,
+        status_callback=wrapped_notify_planai,
+    )
+
+
+@debug_saver.capture("notify_planai") if debug_saver else lambda x: x
+def notify_planai(
+    metadata: Dict[str, Any], worker: TaskWorker, task: Task, message: str
+):
+    """Callback to receive notifications from the graph."""
+    session_id = metadata.get("session_id")
+    sid = metadata.get("sid")
+
+    # we failed the task
+    if worker is None:
+        task_queue.put(
+            (
+                sid,
+                session_id,
+                Response(response_type="final", message=message),
+            )
+        )
+        return
+
+    logging.info(
+        "Got notification from %s and task: %s with message: %s",
+        worker.name,
+        task.name,
+        message,
+    )
+
+    # get the metadata for this session
+    session_metadata = session_manager.metadata(session_id)
+
+    # try to determine which phase of the plan we are in
+    phase = "unknown"
+    if isinstance(task, Plan):
+        phase = "plan"
+    elif isinstance(task, SearchQueries):
+        phase = "search"
+        session_metadata["queries"] = [q.query for q in task.queries]
+    elif isinstance(task, SearchQuery):
+        phase = task.metadata
+    elif isinstance(task, PhaseAnalyses):
+        phase = "plan"
+    else:
+        search_query: SearchQuery = task.find_input_task(SearchQuery)
+        if search_query:
+            phase = search_query.metadata
+
+    print(f"Received response: {str(message)[:100]} for session: {session_id}")
+    task_queue.put(
+        (
+            sid,
+            session_id,
+            Response(response_type="thinking", phase=phase, message=message),
+        )
     )
 
 
@@ -265,10 +286,32 @@ def main():
     parser.add_argument("--port", type=int, default=5050)
     parser.add_argument("--provider", type=str, default="ollama")
     parser.add_argument("--model", type=str, default="llama3.3:latest")
+    parser.add_argument("--debug", action="store_true")
+    parser.add_argument("--replay-session", type=str, default=None)
+    parser.add_argument(
+        "--replay-delay",
+        type=float,
+        default=0.2,
+        help="Delay between replay events in seconds",
+    )
     args = parser.parse_args()
 
-    setup_logging(level=logging.DEBUG)
+    if args.debug:
+        global debug_saver
+        debug_saver = DebugSaver(
+            "debug_output",
+            mode="replay" if args.replay_session else "capture",
+            replay_delay=args.replay_delay,
+        )
 
+        if args.replay_session:
+            # Register the original functions for replay
+            debug_saver.register_replay_handler("notify", notify)
+            debug_saver.register_replay_handler("notify_planai", notify_planai)
+            # Load replay data
+            debug_saver.load_replay_session(args.replay_session)
+
+    setup_logging(level=logging.DEBUG)
     start_graph_thread(args.provider, args.model)
     setup_web_interface(port=args.port)
 
