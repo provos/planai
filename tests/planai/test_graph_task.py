@@ -3,7 +3,7 @@ import unittest
 from typing import List, Type
 from unittest.mock import Mock
 
-from planai.graph import Graph
+from planai.graph import Graph, InitialTaskWorker
 from planai.graph_task import SubGraphWorker
 from planai.joined_task import JoinedTaskWorker
 from planai.task import Task, TaskWorker
@@ -307,6 +307,132 @@ class TestGraphTask(unittest.TestCase):
         # Main graph: 1 (MainWorker) + 1 (GraphTask) + 3 (TrackingWorker)
         # Subgraph: 1 (MultiOutputWorker) + 3 (AdapterSinkWorker) + 1 (Notify to clean up)
         self.assertEqual(dispatcher.total_completed_tasks, 10)
+
+    def test_complex_multiple_output_provenance(self):
+        # Create a worker that multiples in the initial task
+        class SecondWorker(TaskWorker):
+            output_types: List[Type[Task]] = [SubGraphTask]
+
+            def consume_work(self, task: SubGraphTask):
+                # Output multiple tasks from the subgraph
+                for i in range(2):
+                    new_task = SubGraphTask(data=f"{task.data}-{i}", intermediate=True)
+                    self.publish_work(new_task, input_task=task)
+
+        # Create a worker that creates two tasks for each input
+        class BranchingWorker(TaskWorker):
+            output_types: List[Type[Task]] = [SubGraphTask]
+
+            def consume_work(self, task: SubGraphTask):
+                # Create two new tasks from each input
+                for i in range(2):
+                    new_task = SubGraphTask(
+                        data=f"{task.data}-branch{i}", intermediate=True
+                    )
+                    self.publish_work(new_task, input_task=task)
+
+        # Create a worker that outputs multiple tasks for each input
+        class MultiOutputWorker(JoinedTaskWorker):
+            output_types: List[Type[Task]] = [SubGraphTask]
+            join_type: Type[TaskWorker] = InitialTaskWorker
+
+            def consume_work_joined(self, tasks: List[SubGraphTask]):
+                # Output multiple tasks from each branched task
+                for i in range(3):
+                    new_task = SubGraphTask(
+                        data=f"{tasks[0].data}-out{i}", intermediate=True
+                    )
+                    self.publish_work(new_task, input_task=tasks[0])
+
+        # Create subgraph with branching and multiple output workers
+        subgraph = Graph(name="ComplexSubGraph")
+        branch_worker = BranchingWorker()
+        multi_worker = MultiOutputWorker()
+        subgraph.add_workers(branch_worker, multi_worker)
+        subgraph.set_dependency(branch_worker, multi_worker)
+
+        # Create GraphTask
+        graph_task = SubGraphWorker(
+            graph=subgraph, entry_worker=branch_worker, exit_worker=multi_worker
+        )
+
+        # Track received tasks and their provenance
+        received_tasks = []
+
+        class TrackingWorker(JoinedTaskWorker):
+            output_types: List[Type[Task]] = []
+            join_type: Type[TaskWorker] = InitialTaskWorker
+
+            def consume_work_joined(self, tasks: List[SubGraphTask]):
+                for task in tasks:
+                    received_tasks.append(task)
+                    # Verify provenance for each task
+                    assert (
+                        len(task._provenance) == 4
+                    ), f"Wrong provenance length: {task._provenance}"
+                    provenance = task._provenance
+                    assert provenance[0] == (
+                        "InitialTaskWorker",
+                        1,
+                    ), f"Wrong initial provenance: {provenance[0]}"
+                    assert provenance[1] == (
+                        "MainWorker",
+                        1,
+                    ), f"Wrong main worker provenance: {provenance[1]}"
+                    assert (
+                        provenance[3][0] == "SubGraphWorker"
+                    ), f"Wrong subgraph worker name: {provenance[2]}"
+                    # Counter should be in range of total outputs (2 branches × 3 outputs)
+                    assert (
+                        1 <= provenance[3][1] <= 12
+                    ), f"Subgraph worker counter out of range: {provenance[2]}"
+
+        # Create main graph
+        graph = Graph(name="MainGraph")
+        main_worker = MainWorker()
+        second_worker = SecondWorker()
+        tracking_worker = TrackingWorker()
+
+        graph.add_workers(main_worker, second_worker, graph_task, tracking_worker)
+        graph.set_dependency(main_worker, second_worker).next(graph_task).next(
+            tracking_worker
+        )
+
+        # Run graph with multiple initial tasks
+        initial_work = [(main_worker, InputTask(data="TestData1"))]
+
+        graph.run(
+            initial_tasks=initial_work, run_dashboard=False, display_terminal=False
+        )
+
+        # Verify we received all tasks with correct provenance
+        # For each initial task: 2 branches × 3 outputs = 3 final tasks
+        expected_tasks = len(initial_work) * 2 * 3
+        self.assertEqual(len(received_tasks), expected_tasks)
+
+        # Verify task data patterns
+        data_patterns = set()
+        for task in received_tasks:
+            self.assertTrue(task.intermediate)
+            # Verify the task data follows the expected pattern
+            self.assertTrue(task.data.startswith("TestData"))
+            self.assertTrue("-branch" in task.data)
+            self.assertTrue("-out" in task.data)
+            data_patterns.add(task.data.split("-")[0])
+
+        # Verify we got outputs from all initial tasks
+        self.assertEqual(data_patterns, {"TestData1"})
+
+        # Verify dispatcher state
+        dispatcher = graph._dispatcher
+        self.assertIsNotNone(dispatcher)
+        self.assertEqual(dispatcher.work_queue.qsize(), 0)
+        self.assertEqual(dispatcher.active_tasks, 0)
+
+        # Verify total task count:
+        # Main graph: 1 (MainWorker) + 2 (GraphTask) + (12 + 2) (TrackingWorker)
+        # Subgraph: 2 (BranchingWorker) + 2 (MultiOutputWorker) + 6 (AdapterSinkWorker) + 2 (Notify)
+        self.assertEqual(dispatcher.total_completed_tasks, 27)
 
 
 class StatusNotifyingWorker(TaskWorker):
