@@ -35,13 +35,11 @@ Outgoing Events (sent):
     import { sessionState } from '../stores/sessionStore.svelte.js';
     import { messageBus } from '../stores/messageBus.svelte.js';
 
-    let { 
-        messages,
-        isLoading,
-        error,
-        thinkingUpdate
-    } = $props();
-
+    // Replace props with state
+    let messages = $state([]);
+    let isLoading = $state(false);
+    let error = $state(null);
+    let thinkingUpdate = $state('**Processing** your request...');
     let messageInput = $state('');
 
     // Use SvelteMap instead of regular Map
@@ -55,15 +53,15 @@ Outgoing Events (sent):
             switch (type) {
                 case 'chatResponse':
                     console.log('Received response:', payload);
-                    isLoading.set(false);
+                    isLoading = false;
                     // Clear all thinking updates when we get final response
                     thinkingUpdates.clear();
-                    messages.update(msgs => [...msgs, {
+                    messages = [...messages, {
                         role: 'assistant',
                         content: payload.message,
                         timestamp: new Date(),
                         isMarkdown: true
-                    }]);
+                    }];
                     break;
                 case 'thinkingUpdate':
                     console.log('Thinking update:', payload);
@@ -82,11 +80,11 @@ Outgoing Events (sent):
                     }
                     break;
                 case 'error':
-                    error.set(payload);
+                    error = payload;
                     break;
                 case 'resetMessages':
-                    messages.set([]);
-                    isLoading.set(false);
+                    messages = [];
+                    isLoading = false;
                     break;
                 case 'cleanup':
                     if (sessionState.socket) {
@@ -103,8 +101,8 @@ Outgoing Events (sent):
     function handleSendMessage(message) {
         if (!sessionState.sessionId || sessionState.connectionStatus !== 'connected') return;
         
-        isLoading.set(true);
-        error.set(null);
+        isLoading = true;
+        error = null;
 
         const userMessage = {
             role: 'user',
@@ -112,7 +110,7 @@ Outgoing Events (sent):
             timestamp: new Date()
         };
 
-        messages.update(msgs => [...msgs, userMessage]);
+        messages = [...messages, userMessage];
         sessionState.socket?.emit('chat_message', {
             session_id: sessionState.sessionId,
             message: message
@@ -125,7 +123,7 @@ Outgoing Events (sent):
 
     function handleSend() {
         if (sessionState.connectionStatus !== 'connected') {
-            error.set('Cannot send message while disconnected');
+            error = 'Cannot send message while disconnected';
             return;
         }
         if (messageInput.trim()) {
@@ -158,7 +156,7 @@ Outgoing Events (sent):
 
     <div class="chat-box">
         <div class="messages-area">
-            {#each $messages as message}
+            {#each messages as message}
                 <div class="flex {message.role === 'user' ? 'justify-end' : 'justify-start'}">
                     <div
                         class="message-bubble {message.role === 'user'
@@ -179,7 +177,7 @@ Outgoing Events (sent):
                 </div>
             {/each}
 
-            {#if $isLoading}
+            {#if isLoading}
                 <div class="flex justify-start flex-col gap-2">
                     {#each Array.from(thinkingUpdates.entries()) as [phase, message]}
                         <div class="message-bubble message-bubble-thinking">
@@ -194,8 +192,8 @@ Outgoing Events (sent):
         </div>
 
         <div class="input-area">
-            {#if $error}
-                <div class="error-message">{$error}</div>
+            {#if error}
+                <div class="error-message">{error}</div>
             {/if}
             <div class="flex gap-2">
                 <input
@@ -204,16 +202,16 @@ Outgoing Events (sent):
                     placeholder="Type your message..."
                     class="input-field"
                     onkeydown={handleKeyDown}
-                    disabled={$isLoading || sessionState.connectionStatus !== 'connected'}
+                    disabled={isLoading || sessionState.connectionStatus !== 'connected'}
                 />
                 <button
                     onclick={handleSend}
-                    disabled={$isLoading || sessionState.connectionStatus !== 'connected'}
-                    class="send-button {$isLoading || sessionState.connectionStatus !== 'connected'
+                    disabled={isLoading || sessionState.connectionStatus !== 'connected'}
+                    class="send-button {isLoading || sessionState.connectionStatus !== 'connected'
                         ? 'send-button-disabled'
                         : 'send-button-enabled'}"
                 >
-                    {$isLoading ? 'Sending...' : 'Send'}
+                    {isLoading ? 'Sending...' : 'Send'}
                 </button>
             </div>
         </div>
