@@ -46,7 +46,7 @@ class DebugSaver:
         self.mode = mode
         self.replay_delay = replay_delay
         self.fp = None
-        self._replay_data = []
+        self._replay_data = {}
         self._function_registry = {}
         self._active_replays = {}
         self._replay_threads: Dict[str, threading.Thread] = {}
@@ -118,14 +118,19 @@ class DebugSaver:
 
         return new_args, new_kwargs
 
-    def _replay_session_thread(self, session_id: str):
+    def _replay_session_thread(self, prompt: str, session_id: str):
         """Thread function to replay events with delays."""
         replay_state = self._active_replays.get(session_id)
         if not replay_state:
             return
 
-        while replay_state["index"] < len(self._replay_data):
-            call_data = self._replay_data[replay_state["index"]]
+        replay_data = self._replay_data.get(prompt, None)
+        if replay_data is None:
+            # pick the first entry
+            replay_data = self._replay_data[list(self._replay_data.keys())[0]]
+
+        while replay_state["index"] < len(replay_data):
+            call_data = replay_data[replay_state["index"]]
             func_name = call_data["func_name"]
             args = list(pickle.loads(call_data["args"]))
             kwargs = pickle.loads(call_data["kwargs"])
@@ -138,14 +143,14 @@ class DebugSaver:
                 func(*patched_args, **patched_kwargs)
 
             replay_state["index"] += 1
-            if replay_state["index"] < len(self._replay_data):
+            if replay_state["index"] < len(replay_data):
                 time.sleep(self.replay_delay)
 
         # Cleanup when done
         if session_id in self._replay_threads:
             del self._replay_threads[session_id]
 
-    def start_replay_session(self, current_metadata: dict):
+    def start_replay_session(self, prompt: str, current_metadata: dict):
         """Start a new replay session with given metadata in a separate thread."""
         session_id = current_metadata["session_id"]
 
@@ -159,7 +164,12 @@ class DebugSaver:
 
         # Start new replay thread
         thread = threading.Thread(
-            target=self._replay_session_thread, args=(session_id,), daemon=True
+            target=self._replay_session_thread,
+            args=(
+                prompt,
+                session_id,
+            ),
+            daemon=True,
         )
         self._replay_threads[session_id] = thread
         thread.start()
@@ -174,13 +184,22 @@ class DebugSaver:
         if self.mode != "replay":
             raise RuntimeError("Loading replay data only allowed in replay mode")
 
-        self._replay_session_file = self.output_dir / f"{session_id}.log"
-        self._replay_data = []
+        replay_session_prompt = (
+            (self.output_dir / f"{session_id}.prompt").read_text().strip()
+        )
+        replay_session_file = self.output_dir / f"{session_id}.log"
+        self._replay_data[replay_session_prompt] = []
 
-        with open(self._replay_session_file, "rb") as fp:
+        with open(replay_session_file, "rb") as fp:
             while True:
                 try:
                     call_data = pickle.load(fp)
-                    self._replay_data.append(call_data)
+                    self._replay_data[replay_session_prompt].append(call_data)
                 except EOFError:
                     break
+
+    def load_replays(self):
+        """Load all replay data into memory."""
+        for session_file in self.output_dir.glob("*.prompt"):
+            session_id = session_file.stem
+            self.load_replay_session(session_id)

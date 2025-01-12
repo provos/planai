@@ -55,6 +55,7 @@ def start_worker_thread():
                 if sid is None:  # Use None as a signal to stop the worker
                     task_queue.task_done()
                     break
+
                 try:
                     print(f"Sending response: {message} to session: {session_id}")
                     socketio.emit(
@@ -92,10 +93,15 @@ def start_worker_thread():
 @debug_saver.capture("notify") if debug_saver else lambda x: x
 def notify(metadata, message: Response):
     """Callback to receive notifications from the graph."""
-    global task_queue
+    global task_queue, session_manager
     session_id = metadata.get("session_id")
     sid = metadata.get("sid")
     print(f"Received response: {str(message)[:100]} for session: {session_id}")
+
+    # this is the final response, so we can mark the session as not started
+    session_metadata = session_manager.metadata(session_id)
+    session_metadata["started"] = False
+
     task_queue.put((sid, session_id, message))
 
 
@@ -201,10 +207,14 @@ def handle_message(data):
     sid = request.sid
     current_metadata = {"session_id": session_id, "sid": sid}
 
+    # record that we started
+    session_metadata = session_manager.metadata(session_id)
+    session_metadata["started"] = True
+
     # If in replay mode, trigger replay with current session
     global debug_saver
     if debug_saver and debug_saver.mode == "replay":
-        debug_saver.start_replay_session(current_metadata)
+        debug_saver.start_replay_session(message.strip(), current_metadata)
         return
 
     # Update session timestamp on activity
@@ -234,13 +244,20 @@ def notify_planai(
 
     # we failed the task
     if worker is None:
-        task_queue.put(
-            (
-                sid,
-                session_id,
-                Response(response_type="final", message=message),
+        global session_manager
+        # get the metadata for this session
+        session_metadata = session_manager.metadata(session_id)
+        if session_metadata.get("started"):
+            # this indicates that we failed the task
+            task_queue.put(
+                (
+                    sid,
+                    session_id,
+                    Response(
+                        response_type="error", message=f"Unknown error: {message}"
+                    ),
+                )
             )
-        )
         return
 
     logging.info(
@@ -259,7 +276,6 @@ def notify_planai(
         phase = "plan"
     elif isinstance(task, SearchQueries):
         phase = "search"
-        session_metadata["queries"] = [q.query for q in task.queries]
     elif isinstance(task, SearchQuery):
         phase = task.metadata
     elif isinstance(task, PhaseAnalyses):
@@ -287,7 +303,7 @@ def main():
     parser.add_argument("--provider", type=str, default="ollama")
     parser.add_argument("--model", type=str, default="llama3.3:latest")
     parser.add_argument("--debug", action="store_true")
-    parser.add_argument("--replay-session", type=str, default=None)
+    parser.add_argument("--replay", action="store_true")
     parser.add_argument(
         "--replay-delay",
         type=float,
@@ -300,16 +316,16 @@ def main():
         global debug_saver
         debug_saver = DebugSaver(
             "debug_output",
-            mode="replay" if args.replay_session else "capture",
+            mode="replay" if args.replay else "capture",
             replay_delay=args.replay_delay,
         )
 
-        if args.replay_session:
+        if args.replay:
             # Register the original functions for replay
             debug_saver.register_replay_handler("notify", notify)
             debug_saver.register_replay_handler("notify_planai", notify_planai)
             # Load replay data
-            debug_saver.load_replay_session(args.replay_session)
+            debug_saver.load_replays()
 
     setup_logging(level=logging.DEBUG)
     start_graph_thread(args.provider, args.model)
