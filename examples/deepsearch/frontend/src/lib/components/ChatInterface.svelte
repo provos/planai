@@ -1,3 +1,34 @@
+<!--
+ChatInterface Component Documentation:
+
+This component implements a real-time chat interface with the following features:
+- Handles sending and receiving messages through a WebSocket connection
+- Displays messages in a chat-like interface with user/assistant bubbles
+- Shows thinking/progress updates during processing
+- Supports markdown rendering for assistant responses
+- Manages connection state and error handling
+- Provides real-time feedback through thinking updates
+
+Key Features:
+- Uses SvelteMap for reactive thinking updates
+- Integrates with messageBus for event handling
+- Manages WebSocket connection state
+- Supports markdown rendering via marked library
+- Provides visual feedback for connection status
+
+Socket.IO Events:
+
+Incoming Events (received):
+- chatResponse: Final response from the assistant with the complete message
+- thinkingUpdate: Intermediate updates about the processing state with phase and message
+- error: Error messages from the server
+- resetMessages: Command to clear all messages
+- cleanup: Signal to disconnect the socket
+
+Outgoing Events (sent):
+- chat_message: Sends user message to server with session_id and message content
+-->
+
 <script>
     import { marked } from 'marked';
     import { SvelteMap } from 'svelte/reactivity';
