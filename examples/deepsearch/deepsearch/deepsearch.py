@@ -1,7 +1,9 @@
 import logging
 import queue
+import re
 import threading
 from typing import Any, Dict, Tuple
+from urllib.parse import urlparse
 
 from debug import DebugSaver
 from flask import Flask, request
@@ -39,6 +41,27 @@ graph = None
 entry_worker = None
 
 
+def format_message(message: str) -> str:
+    """Format the message for display in the chat window.
+    - Replaced URLs with the site name and the favicon in markdown format.
+    """
+    # Replace URLs with site name and favicon
+    url_pattern = re.compile(r'https?://[^\s<>"]+|www\.[^\s<>"]+')
+
+    def get_site_info(url):
+        site = urlparse(url).netloc
+        return site, urlparse(url).path[:20]
+
+    def format_url(match):
+        url = match.group(0)
+        site_name, path = get_site_info(url)
+        return f"[{site_name}{path}...]({url})"
+
+    message = url_pattern.sub(format_url, message)
+
+    return message
+
+
 def start_worker_thread():
     """Create and start a new worker thread."""
     global worker_thread, should_stop
@@ -58,6 +81,7 @@ def start_worker_thread():
 
                 try:
                     print(f"Sending response: {message} to session: {session_id}")
+                    message.message = format_message(message.message)
                     socketio.emit(
                         (
                             "chat_response"
