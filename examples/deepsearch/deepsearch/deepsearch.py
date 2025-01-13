@@ -224,11 +224,15 @@ def handle_abort(data):
         return
 
     print(f"Aborting session: {session_id}")
+    session_metadata = session_manager.metadata(session_id)
 
     # If in replay mode, abort the replay
     global debug_saver
     if debug_saver and debug_saver.mode == "replay":
         debug_saver.abort_replay(session_id)
+    else:
+        global graph
+        graph.abort_work(session_metadata.get("provenance"))
 
     # Update session timestamp on activity
     session_manager.update_session_timestamp(session_id)
@@ -277,11 +281,13 @@ def handle_message(data):
     # Add the task to the graph
     global graph, entry_worker
     user_request = Request(user_input=message)
-    entry_worker.add_work(
+    provenance = entry_worker.add_work(
         user_request,
         metadata={"session_id": session_id, "sid": sid},
         status_callback=wrapped_notify_planai,
     )
+    # Remember the provenance for this session, so that we can abort it if needed
+    session_metadata["provenance"] = provenance
 
 
 @debug_saver.capture("notify_planai") if debug_saver else lambda x: x
