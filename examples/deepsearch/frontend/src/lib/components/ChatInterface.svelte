@@ -143,14 +143,14 @@ Outgoing Events (sent):
 	}
 
 	function handleAbort() {
-        console.log('Aborting current request...');
+		console.log('Aborting current request...');
 		if (sessionState.socket) {
 			sessionState.socket.emit('abort', {
 				session_id: sessionState.sessionId
 			});
 		}
 		isLoading = false;
-        thinkingUpdates.clear();
+		thinkingUpdates.clear();
 	}
 </script>
 
@@ -222,9 +222,12 @@ Outgoing Events (sent):
 				<button
 					onclick={isLoading ? handleAbort : handleSend}
 					disabled={sessionState.connectionStatus !== 'connected'}
-					class="{isLoading ? 'stop-button' : 'send-button'} {!isLoading && sessionState.connectionStatus !== 'connected'
+					class="{isLoading ? 'stop-button' : 'send-button'} {!isLoading &&
+					sessionState.connectionStatus !== 'connected'
 						? 'send-button-disabled'
-						: isLoading ? '' : 'send-button-enabled'}"
+						: isLoading
+							? ''
+							: 'send-button-enabled'}"
 					aria-label={isLoading ? 'Stop' : 'Send'}
 				>
 					{#if isLoading}
