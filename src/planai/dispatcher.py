@@ -112,9 +112,9 @@ class Dispatcher:
         self.work_available = threading.Event()
 
         self.stop_event = Event()
-        self._active_tasks = 0
         self.task_completion_event = Event()
-        self.debug_active_tasks: Dict[int, Tuple[TaskWorker, Task]] = {}
+        self._num_active_tasks = 0
+        self._active_tasks: Dict[int, Tuple[TaskWorker, Task]] = {}
         self.completed_tasks: Deque[Tuple[TaskWorker, Task]] = deque(
             maxlen=100
         )  # Keep last 100 completed tasks
@@ -144,7 +144,7 @@ class Dispatcher:
     @property
     def active_tasks(self):
         with self.task_lock:
-            return self._active_tasks
+            return self._num_active_tasks
 
     def decrement_active_tasks(self, worker: TaskWorker) -> bool:
         """
@@ -164,9 +164,9 @@ class Dispatcher:
                         < self._per_worker_max_parallel_tasks[cls_name]
                     ):
                         self.work_available.set()
-            self._active_tasks -= 1
+            self._num_active_tasks -= 1
             if (
-                self._active_tasks == 0
+                self._num_active_tasks == 0
                 and self.work_queue.empty()
                 and all(q.empty() for q in self._per_worker_queue.values())
             ):
@@ -180,7 +180,7 @@ class Dispatcher:
             for cls_name in inherited_chain:
                 if cls_name in self._per_worker_task_count:
                     self._per_worker_task_count[cls_name] += 1
-            self._active_tasks += 1
+            self._num_active_tasks += 1
 
     def set_max_parallel_tasks(
         self, worker_class: Type[TaskWorker], max_parallel_tasks: int
@@ -273,7 +273,7 @@ class Dispatcher:
                     self.stop_event.is_set()
                     and self.work_queue.empty()
                     and all(q.empty() for q in self._per_worker_queue.values())
-                    and self._active_tasks == 0
+                    and self._num_active_tasks == 0
                 ):
                     break
             if self._dispatch_once():
@@ -285,7 +285,7 @@ class Dispatcher:
     def _execute_task(self, worker: TaskWorker, task: Task):
         task_id = self._get_next_task_id()
         with self.task_lock:
-            self.debug_active_tasks[task_id] = (worker, task)
+            self._active_tasks[task_id] = (worker, task)
 
         # keep track of some basic timing information
         task._start_time = time.time()
@@ -299,8 +299,8 @@ class Dispatcher:
             raise  # Re-raise the caught exception
         finally:
             with self.task_lock:
-                if task_id in self.debug_active_tasks:
-                    del self.debug_active_tasks[task_id]
+                if task_id in self._active_tasks:
+                    del self._active_tasks[task_id]
 
             task._end_time = time.time()
 
@@ -341,7 +341,7 @@ class Dispatcher:
         with self.task_lock:
             return [
                 self._task_to_dict(worker, task)
-                for task_id, (worker, task) in self.debug_active_tasks.items()
+                for task_id, (worker, task) in self._active_tasks.items()
             ]
 
     def get_completed_tasks(self) -> List[Dict]:
@@ -483,6 +483,10 @@ class Dispatcher:
 
             if self.decrement_active_tasks(worker):
                 self.task_completion_event.set()
+
+    def abort_work(self, ProvenanceChain: List[Tuple[str, str]]):
+        with self.task_lock:
+            pass
 
     def add_work(self, worker: TaskWorker, task: Task):
         task_copy = task.model_copy()

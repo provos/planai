@@ -177,7 +177,7 @@ class TestDispatcher(unittest.TestCase):
         worker = DummyTaskWorkerSimple()
         worker._graph = self.graph
         task = DummyTask(data="test")
-        self.dispatcher.debug_active_tasks = {1: (worker, task)}
+        self.dispatcher._active_tasks = {1: (worker, task)}
         result = self.dispatcher.get_active_tasks()
         self.assertIsInstance(result, list)
         self.assertEqual(len(result), 1)
@@ -565,7 +565,7 @@ class TestDispatcherThreading(unittest.TestCase):
 
         # Verify that the task is not in the active tasks list
         self.assertEqual(
-            len(dispatcher.debug_active_tasks),
+            len(dispatcher._active_tasks),
             0,
             "No tasks should be in the active tasks list",
         )
