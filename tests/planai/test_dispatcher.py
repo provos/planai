@@ -779,5 +779,98 @@ class TestDispatcherConcurrent(unittest.TestCase):
         dispatcher._thread_pool.shutdown(wait=True)
 
 
+class TestDispatcherAbort(unittest.TestCase):
+    def test_abort_work(self):
+        class InputTask(Task):
+            data: str
+
+        class OutputTask(Task):
+            data: str
+
+        class FirstWorker(TaskWorker):
+            output_types: List[Type[Task]] = [OutputTask]
+
+            def consume_work(self, task: InputTask):
+                time.sleep(0.1)  # Simulate work
+                for i in range(2):
+                    output = OutputTask(data=f"{task.data}-{i}")
+                    self.publish_work(output, input_task=task)
+
+        class SecondWorker(TaskWorker):
+            output_types: List[Type[Task]] = [OutputTask]
+
+            def consume_work(self, task: OutputTask):
+                time.sleep(0.1)  # Simulate work
+                for i in range(3):
+                    output = OutputTask(data=f"{task.data}-{i}")
+                    self.publish_work(output, input_task=task)
+
+        # Create graph and add workers
+        graph = Graph(name="TestAbortGraph")
+        first_worker = FirstWorker()
+        second_worker = SecondWorker()
+
+        graph.add_workers(first_worker, second_worker)
+        graph.set_dependency(first_worker, second_worker).sink(OutputTask)
+        graph.set_max_parallel_tasks(TaskWorker, 2)
+
+        # Create initial tasks
+        task1 = InputTask(data="task1")
+        task2 = InputTask(data="task2")
+
+        # Prepare graph
+        graph.prepare(display_terminal=False)
+        graph.set_entry(first_worker)
+
+        # Add tasks and get their provenance
+        prov1 = graph.add_work(first_worker, task1)
+        _ = graph.add_work(first_worker, task2)
+
+        def abort_thread():
+            time.sleep(0.1)
+            graph.abort_work(prov1)
+
+        # Start a thread to abort the work
+        abort_thread = threading.Thread(target=abort_thread)
+        abort_thread.start()
+
+        # Start execution and wait a bit
+        graph.execute([])
+        time.sleep(0.2)  # Let some tasks process
+
+        # Verify results
+        dispatcher = graph._dispatcher
+
+        # Check that task2's chain was processed
+        self.assertGreater(
+            dispatcher.total_completed_tasks, 0, "No tasks were completed"
+        )
+
+        # Verify that aborted tasks were not processed
+        processed_aborted_count = 0
+        for _, completed_task in dispatcher.completed_tasks:
+            if completed_task._provenance[: len(prov1)] == list(prov1):
+                processed_aborted_count += 1
+
+        self.assertLessEqual(
+            processed_aborted_count,
+            3,
+            "Too many aborted tasks were processed",
+        )
+
+        # Expected tasks from task2's chain:
+        # - Initial task2 (1)
+        # - OutputTasks from first_worker (2)
+        # - OutputTasks from second_worker (6)
+        # Total: 9 tasks
+        # - Plus up to 3 tasks from task1's chain
+        expected_task_count = 9 + 3
+        self.assertLessEqual(
+            dispatcher.total_completed_tasks,
+            expected_task_count,
+            f"Expected at most {expected_task_count} completed tasks, got {dispatcher.total_completed_tasks}",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

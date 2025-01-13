@@ -1,3 +1,4 @@
+import threading
 import time
 import unittest
 from typing import List, Type
@@ -433,6 +434,129 @@ class TestGraphTask(unittest.TestCase):
         # Main graph: 1 (MainWorker) + 2 (GraphTask) + (12 + 2) (TrackingWorker)
         # Subgraph: 2 (BranchingWorker) + 2 (MultiOutputWorker) + 6 (AdapterSinkWorker) + 2 (Notify)
         self.assertEqual(dispatcher.total_completed_tasks, 27)
+
+    def test_abort_subgraph_propagation(self):
+
+        class InputTask(Task):
+            data: str
+
+        class OutputTask(Task):
+            data: str
+
+        class FirstWorker(TaskWorker):
+            output_types: List[Type[Task]] = [OutputTask]
+
+            def consume_work(self, task: InputTask):
+                time.sleep(0.1)  # Simulate work
+                for i in range(2):
+                    output = OutputTask(data=f"{task.data}-{i}")
+                    self.publish_work(output, input_task=task)
+
+        class SubGraphInnerFirst(TaskWorker):
+            output_types: List[Type[Task]] = [OutputTask]
+
+            def consume_work(self, task: OutputTask):
+                time.sleep(0.5)  # Simulate work
+                for i in range(2):
+                    output = OutputTask(data=f"{task.data}-inner1-{i}")
+                    self.publish_work(output, input_task=task)
+
+        class SubGraphInnerSecond(TaskWorker):
+            output_types: List[Type[Task]] = [OutputTask]
+
+            def consume_work(self, task: OutputTask):
+                time.sleep(0.4)  # Simulate work
+                for i in range(2):
+                    output = OutputTask(data=f"{task.data}-inner2-{i}")
+                    self.publish_work(output, input_task=task)
+
+        # Create subgraph
+        subgraph = Graph(name="SubGraph")
+        inner_first = SubGraphInnerFirst()
+        inner_second = SubGraphInnerSecond()
+        subgraph.add_workers(inner_first, inner_second)
+        subgraph.set_dependency(inner_first, inner_second)
+
+        # Create GraphTask
+        graph_task = SubGraphWorker(
+            graph=subgraph, entry_worker=inner_first, exit_worker=inner_second
+        )
+
+        # Create main graph
+        graph = Graph(name="MainGraph")
+        first_worker = FirstWorker()
+
+        graph.add_workers(first_worker, graph_task)
+        graph.set_dependency(first_worker, graph_task).sink(OutputTask)
+        graph.set_max_parallel_tasks(TaskWorker, 3)
+
+        # Create initial tasks
+        task1 = InputTask(data="task1")
+        task2 = InputTask(data="task2")
+
+        # Prepare graph
+        graph.prepare(display_terminal=False)
+        graph.set_entry(first_worker)
+
+        # Add tasks and get their provenance
+        prov1 = graph.add_work(first_worker, task1)
+        _ = graph.add_work(first_worker, task2)
+
+        def abort_thread():
+            time.sleep(0.4)  # Let some tasks start processing
+            graph.abort_work(prov1)
+
+        # Start a thread to abort the work
+        abort_thread = threading.Thread(target=abort_thread)
+        abort_thread.start()
+
+        # Start execution and wait a bit
+        graph.execute([])
+
+        # Verify results
+        dispatcher = graph._dispatcher
+        self.assertIsNotNone(dispatcher)
+
+        # Calculate potential task chain for task1:
+        # - FirstWorker: 1 input -> 2 outputs
+        # - SubGraphInnerFirst: 2 inputs -> 4 outputs
+        # - SubGraphInnerSecond: 4 inputs -> 8 outputs
+        # Total: 15 tasks (1 + 2 + 4 + 8)
+        max_aborted_tasks = 5  # We expect to catch the abort early in the chain
+
+        # Count tasks from aborted chain
+        processed_aborted_count = 0
+        processed_subgraph_count = 0
+        for _, completed_task in dispatcher.completed_tasks:
+            provenance = completed_task._provenance
+            if provenance[: len(prov1)] == list(prov1):
+                processed_aborted_count += 1
+            if len(provenance) > 1 and provenance[1][0] == "SubGraphInnerFirst":
+                processed_subgraph_count += 1
+
+        self.assertEqual(
+            processed_subgraph_count,
+            12,
+            f"Too many subgraph tasks were processed: {processed_subgraph_count}",
+        )
+
+        self.assertLessEqual(
+            processed_aborted_count,
+            max_aborted_tasks,
+            f"Too many aborted tasks were processed: {processed_aborted_count}",
+        )
+
+        # Calculate tasks from task2's chain (same structure as task1)
+        expected_minimum_tasks = 10  # Conservative estimate for task2 chain
+        self.assertGreaterEqual(
+            dispatcher.total_completed_tasks,
+            expected_minimum_tasks,
+            f"Expected at least {expected_minimum_tasks} completed tasks from non-aborted chain",
+        )
+
+        # Verify queue and active tasks are empty
+        self.assertEqual(dispatcher.work_queue.qsize(), 0)
+        self.assertEqual(dispatcher.active_tasks, 0)
 
 
 class StatusNotifyingWorker(TaskWorker):

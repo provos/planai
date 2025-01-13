@@ -65,6 +65,7 @@ from queue import Empty, Queue
 from threading import Event, Lock
 from typing import TYPE_CHECKING, Any, Deque, Dict, List, Optional, Tuple, Type
 
+from .provenance import ProvenanceChain
 from .stats import WorkerStat
 from .task import Task, TaskWorker
 from .user_input import UserInputRequest
@@ -115,6 +116,7 @@ class Dispatcher:
         self.task_completion_event = Event()
         self._num_active_tasks = 0
         self._active_tasks: Dict[int, Tuple[TaskWorker, Task]] = {}
+        self._aborted_prefixes: List[Tuple[ProvenanceChain, "Graph"]] = []
         self.completed_tasks: Deque[Tuple[TaskWorker, Task]] = deque(
             maxlen=100
         )  # Keep last 100 completed tasks
@@ -201,6 +203,17 @@ class Dispatcher:
         for name, queue in queues:
             try:
                 worker, task = queue.get_nowait()
+
+                # Check if the task has been aborted
+                if self._is_provenance_aborted(worker, task._provenance):
+                    logging.info(
+                        "Skipping task %s with %s due to aborted provenance chain",
+                        task.name,
+                        task._provenance,
+                    )
+                    worker._graph._provenance_tracker._remove_provenance(task, worker)
+                    continue
+
                 if name is not None:
                     # Check if the worker has reached its maximum parallel tasks
                     inheritance_chain = get_inheritance_chain(worker.__class__)
@@ -484,20 +497,57 @@ class Dispatcher:
             if self.decrement_active_tasks(worker):
                 self.task_completion_event.set()
 
-    def abort_work(self, ProvenanceChain: List[Tuple[str, str]]):
+    def abort_work(self, graph: "Graph", ProvenanceChain: List[Tuple[str, str]]):
         with self.task_lock:
-            pass
+            self._aborted_prefixes.append((tuple(ProvenanceChain), graph))
+
+    def _is_provenance_aborted(
+        self, worker: TaskWorker, provenance: ProvenanceChain
+    ) -> bool:
+        """
+        Checks if any prefix in self._aborted_prefixes matches the given provenance chain.
+
+        Args:
+            provenance: The provenance chain to check
+
+        Returns:
+            bool: True if the provenance chain has an aborted prefix
+        """
+        with self.task_lock:
+            for aborted_prefix, graph in self._aborted_prefixes:
+                if worker._graph == graph and provenance[: len(aborted_prefix)] == list(
+                    aborted_prefix
+                ):
+                    return True
+        return False
 
     def add_work(self, worker: TaskWorker, task: Task):
+        # Skip adding the task if its provenance chain has been aborted
+        if self._is_provenance_aborted(worker, task._provenance):
+            logging.info("Skipping task %s due to aborted provenance chain", task.name)
+            return
+
         task_copy = task.model_copy()
         worker._graph._provenance_tracker._add_provenance(task_copy)
+
         self._add_to_queue(worker, task_copy)
 
     def add_multiple_work(self, work_items: List[Tuple[TaskWorker, Task]]):
+        filtered_work_items = []
+        for worker, task in work_items:
+            if not self._is_provenance_aborted(worker, task._provenance):
+                filtered_work_items.append((worker, task))
+            else:
+                logging.info(
+                    "Skipping task %s with %s due to aborted provenance chain",
+                    task.name,
+                    task._provenance,
+                )
+        work_items = filtered_work_items
+
         # the ordering of adding provenance first is important for join tasks to
         # work correctly. Otherwise, caching may lead to fast execution of tasks
         # before all the provenance is added.
-        work_items = [(worker, task.model_copy()) for worker, task in work_items]
         for worker, task in work_items:
             worker._graph._provenance_tracker._add_provenance(task)
         for worker, task in work_items:

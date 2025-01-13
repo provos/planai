@@ -45,7 +45,16 @@ import logging
 import sys
 from collections import defaultdict
 from threading import Lock, RLock
-from typing import TYPE_CHECKING, DefaultDict, Dict, Generator, List, Optional, Tuple
+from typing import (
+    TYPE_CHECKING,
+    DefaultDict,
+    Dict,
+    Generator,
+    List,
+    Optional,
+    Tuple,
+    Type,
+)
 
 from .task import Task, TaskStatusCallback, TaskWorker
 
@@ -68,6 +77,11 @@ class ProvenanceTracker:
         )
         self.provenance_lock = RLock()
         self.notifiers_lock = Lock()
+
+    def has_provenance(self, provenance: ProvenanceChain) -> bool:
+        """Check if a provenance chain is being tracked."""
+        with self.provenance_lock:
+            return provenance in self.provenance
 
     def add_state(
         self,
@@ -159,6 +173,27 @@ class ProvenanceTracker:
             ProvenanceChain: A tuple containing the first 'length' elements of the task's provenance chain.
         """
         return tuple(task._provenance[:length])
+
+    def get_prefix_by_type(
+        self, task: Task, worker_type: Type[TaskWorker]
+    ) -> Optional[ProvenanceChain]:
+        """
+        Get the prefix of the provenance chain that corresponds to the first occurrence of specified worker type.
+
+        Args:
+            task (Task): The task object containing provenance information.
+            worker_type (Type[TaskWorker]): The type of the worker to extract the prefix for.
+
+        Returns:
+            ProvenanceChain: A tuple containing the provenance chain elements corresponding to the specified worker type.
+            None: If the worker type is not found in the task's provenance chain.
+        """
+        # XXX - This should always be true - but I fear it might not be
+        assert len(task._provenance) == len(task.input_provenance)
+        for index, entry in enumerate(task.input_provenance):
+            if entry[0] == worker_type.__name__:
+                return tuple(task.input_provenance[: index + 1])
+        return None
 
     def _add_provenance(self, task: Task):
         for prefix in self._generate_prefixes(task):

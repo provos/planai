@@ -156,6 +156,20 @@ class SubGraphWorkerInternal(TaskWorker):
             )
             self._graph._provenance_tracker._remove_provenance(task, self)
 
+    def abort_work(self, provenance: ProvenanceChain):
+        # map the provenance to the sub-graph provenance
+        need_to_abort = []
+        with self.lock:
+            for prefix, (task, _) in self._state.items():
+                if task._provenance[: len(provenance)] == list(provenance):
+                    need_to_abort.append((prefix, provenance))
+        # abort the mapped provenance in our graph
+        for prefix, provenance in need_to_abort:
+            logging.info(
+                "Aborting %s in %s (mapped from %s)", prefix, self.name, provenance
+            )
+            self.graph.abort_work(prefix)
+
 
 def SubGraphWorker(
     *,

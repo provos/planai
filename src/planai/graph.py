@@ -71,6 +71,7 @@ class Graph(BaseModel):
     _sink_tasks: List[TaskType] = PrivateAttr(default_factory=list)
     _sink_worker: Optional[TaskWorker] = PrivateAttr(default=None)
     _initial_worker: TaskWorker = PrivateAttr(default=None)
+    _subgraph_workers: Set[TaskWorker] = PrivateAttr(default_factory=set)
 
     _worker_distances: Dict[str, Dict[str, int]] = PrivateAttr(default_factory=dict)
     _has_terminal: bool = PrivateAttr(default=False)
@@ -92,7 +93,7 @@ class Graph(BaseModel):
     def unwatch(self, prefix: ProvenanceChain, notifier: TaskWorker) -> bool:
         return self._provenance_tracker.unwatch(prefix, notifier)
 
-    def add_worker(self, task: TaskWorker) -> "Graph":
+    def add_worker(self, worker: TaskWorker) -> "Graph":
         """Adds a single task worker to the graph.
 
         Args:
@@ -109,11 +110,16 @@ class Graph(BaseModel):
             >>> worker = DataProcessor()
             >>> graph.add_worker(worker)
         """
-        if task in self.workers:
-            raise ValueError(f"Task {task} already exists in the Graph.")
-        self.workers.add(task)
-        self.dependencies[task] = []
-        task.set_graph(self)
+        if worker in self.workers:
+            raise ValueError(f"Task {worker} already exists in the Graph.")
+        self.workers.add(worker)
+        # Check if any class in the MRO hierarchy is named 'SubGraphWorkerInternal'
+        if any(
+            cls.__name__ == "SubGraphWorkerInternal" for cls in type(worker).__mro__
+        ):
+            self._subgraph_workers.add(worker)
+        self.dependencies[worker] = []
+        worker.set_graph(self)
         return self
 
     def add_workers(self, *workers: TaskWorker) -> "Graph":
@@ -500,6 +506,27 @@ class Graph(BaseModel):
                 f"Worker {worker.name} is not an entry point to the Graph."
             )
         return self._add_work(worker, task, metadata, status_callback)
+
+    def abort_work(self, provenance: ProvenanceChain) -> bool:
+        """
+        This method attempts to abort work that is currently in progress. It first checks if the
+        provenance chain exists in the provenance tracker. If found, it aborts the work through
+        the dispatcher and propagates the abort request to all subgraph workers. If the provenance
+        chain is not found, a warning is logged.
+
+        Returns:
+            bool: True if the work was aborted successfully, False otherwise
+        """
+        # We don't need to worry about race conditions here as provenance chains are unique
+        # and either they exists in the provenance tracker or they have completed already
+        if self._provenance_tracker.has_provenance(provenance):
+            self._dispatcher.abort_work(self, provenance)
+            for worker in self._subgraph_workers:
+                worker.abort_work(provenance)
+            return True
+
+        logging.warning("Provenance %s not found to abort work", provenance)
+        return False
 
     def set_entry(self, *workers: TaskWorker) -> "Graph":
         """Set the workers that are entry points to the Graph.
