@@ -149,6 +149,7 @@ Outgoing Events (sent):
 			});
 		}
 		isLoading = false;
+        thinkingUpdates.clear();
 	}
 </script>
 
