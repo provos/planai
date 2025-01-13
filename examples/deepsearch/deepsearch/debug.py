@@ -51,6 +51,7 @@ class DebugSaver:
         self._function_registry = {}
         self._active_replays = {}
         self._replay_threads: Dict[str, threading.Thread] = {}
+        self._lock = threading.RLock()
 
     def capture(self, func_name: str = None):
         # In replay mode, return a no-op decorator
@@ -121,10 +122,11 @@ class DebugSaver:
 
     def _replay_session_thread(self, prompt: str, session_id: str):
         """Thread function to replay events with delays."""
-        replay_state = self._active_replays.get(session_id)
-        if not replay_state:
-            logging.debug(f"No replay state found for session {session_id}")
-            return
+        with self._lock:
+            replay_state = self._active_replays.get(session_id)
+            if not replay_state:
+                logging.debug(f"No replay state found for session {session_id}")
+                return
 
         replay_data = self._replay_data.get(prompt, None)
         if replay_data is None:
@@ -164,16 +166,23 @@ class DebugSaver:
 
     def _cleanup_replay_session(self, session_id: str, from_thread: bool = False):
         """Clean up replay session resources."""
-        if session_id in self._replay_threads:
-            thread = self._replay_threads[session_id]
+        thread = None
+        with self._lock:
+            if session_id in self._replay_threads:
+                thread = self._replay_threads[session_id]
             # Only attempt to join if we're not in the replay thread
+
+        if thread:
             if thread.is_alive() and not from_thread:
                 logging.debug(f"Waiting for replay thread {session_id} to finish")
                 thread.join(timeout=1.0)
-            del self._replay_threads[session_id]
+            with self._lock:
+                if session_id in self._replay_threads:
+                    del self._replay_threads[session_id]
 
-        if session_id in self._active_replays:
-            del self._active_replays[session_id]
+        with self._lock:
+            if session_id in self._active_replays:
+                del self._active_replays[session_id]
         logging.debug(f"Cleaned up replay session {session_id}")
 
     def abort_replay(self, session_id: str):
