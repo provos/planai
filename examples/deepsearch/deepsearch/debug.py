@@ -1,6 +1,7 @@
 import pickle
 import threading
 import time
+import logging
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
@@ -122,6 +123,7 @@ class DebugSaver:
         """Thread function to replay events with delays."""
         replay_state = self._active_replays.get(session_id)
         if not replay_state:
+            logging.debug(f"No replay state found for session {session_id}")
             return
 
         replay_data = self._replay_data.get(prompt, None)
@@ -129,7 +131,15 @@ class DebugSaver:
             # pick the first entry
             replay_data = self._replay_data[list(self._replay_data.keys())[0]]
 
+        logging.debug(
+            f"Starting replay for session {session_id} with {len(replay_data)} events"
+        )
+
         while replay_state["index"] < len(replay_data):
+            if replay_state.get("abort", False):
+                logging.debug(f"Abort detected for session {session_id}")
+                break
+
             call_data = replay_data[replay_state["index"]]
             func_name = call_data["func_name"]
             args = list(pickle.loads(call_data["args"]))
@@ -143,41 +153,68 @@ class DebugSaver:
                 func(*patched_args, **patched_kwargs)
 
             replay_state["index"] += 1
-            if replay_state["index"] < len(replay_data):
+            if replay_state["index"] < len(replay_data) and not replay_state.get(
+                "abort", False
+            ):
                 time.sleep(self.replay_delay)
 
-        # Cleanup when done
+        logging.debug(f"Replay finished or aborted for session {session_id}")
+        # Cleanup when done or aborted, indicate we're calling from within thread
+        self._cleanup_replay_session(session_id, from_thread=True)
+
+    def _cleanup_replay_session(self, session_id: str, from_thread: bool = False):
+        """Clean up replay session resources."""
         if session_id in self._replay_threads:
+            thread = self._replay_threads[session_id]
+            # Only attempt to join if we're not in the replay thread
+            if thread.is_alive() and not from_thread:
+                logging.debug(f"Waiting for replay thread {session_id} to finish")
+                thread.join(timeout=1.0)
             del self._replay_threads[session_id]
+
+        if session_id in self._active_replays:
+            del self._active_replays[session_id]
+        logging.debug(f"Cleaned up replay session {session_id}")
+
+    def abort_replay(self, session_id: str):
+        """Abort a specific replay session."""
+        logging.debug(f"Attempting to abort replay for session {session_id}")
+        if session_id in self._active_replays:
+            logging.debug(f"Setting abort flag for session {session_id}")
+            self._active_replays[session_id]["abort"] = True
+
+            # Give the thread a moment to notice the abort flag
+            time.sleep(0.1)
+            # Clean up from outside the thread
+            self._cleanup_replay_session(session_id, from_thread=False)
+
+    def stop_all_replays(self):
+        """Stop all active replay threads."""
+        logging.debug("Stopping all replay sessions")
+        session_ids = list(self._active_replays.keys())
+        for session_id in session_ids:
+            self.abort_replay(session_id)
 
     def start_replay_session(self, prompt: str, current_metadata: dict):
         """Start a new replay session with given metadata in a separate thread."""
         session_id = current_metadata["session_id"]
 
-        # Stop existing replay thread if any
-        if session_id in self._replay_threads:
-            # We don't need to explicitly stop the thread as it will finish naturally
-            del self._replay_threads[session_id]
+        # Stop existing replay if any
+        self.abort_replay(session_id)
 
         # Reset or create replay state
-        self._active_replays[session_id] = {"metadata": current_metadata, "index": 0}
+        self._active_replays[session_id] = {
+            "metadata": current_metadata,
+            "index": 0,
+            "abort": False,
+        }
 
         # Start new replay thread
         thread = threading.Thread(
-            target=self._replay_session_thread,
-            args=(
-                prompt,
-                session_id,
-            ),
-            daemon=True,
+            target=self._replay_session_thread, args=(prompt, session_id), daemon=True
         )
         self._replay_threads[session_id] = thread
         thread.start()
-
-    def stop_all_replays(self):
-        """Stop all active replay threads."""
-        self._replay_threads.clear()
-        self._active_replays.clear()
 
     def load_replay_session(self, session_id: str):
         """Load replay data into memory."""

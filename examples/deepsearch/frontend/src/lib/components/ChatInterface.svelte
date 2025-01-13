@@ -143,6 +143,7 @@ Outgoing Events (sent):
 	}
 
 	function handleAbort() {
+        console.log('Aborting current request...');
 		if (sessionState.socket) {
 			sessionState.socket.emit('abort', {
 				session_id: sessionState.sessionId

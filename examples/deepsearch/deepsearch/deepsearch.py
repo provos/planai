@@ -184,6 +184,32 @@ def handle_disconnect():
         print(f"Disconnected unknown session (SID: {request.sid})")
 
 
+@socketio.on("abort")
+def handle_abort(data):
+    session_id = data.get("session_id")
+    if not session_id or session_manager.get_session(session_id) is None:
+        print(f"Invalid session ID: {session_id}")
+        session_manager.debug_dump()
+        emit("error", "Invalid session ID")
+        return
+
+    # Check if the session_id is associated with the current SID
+    expected_session_id = session_manager.get_session_id_by_sid(request.sid)
+    if session_id != expected_session_id:
+        emit("error", "Session ID does not match current connection")
+        return
+
+    print(f"Aborting session: {session_id}")
+
+    # If in replay mode, abort the replay
+    global debug_saver
+    if debug_saver and debug_saver.mode == "replay":
+        debug_saver.abort_replay(session_id)
+
+    # Update session timestamp on activity
+    session_manager.update_session_timestamp(session_id)
+
+
 @socketio.on("chat_message")
 def handle_message(data):
     session_id = data.get("session_id")
