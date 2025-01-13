@@ -350,5 +350,4 @@ def setup_graph(
 
     # limit the amount of LLM calls we will do in parallel
     graph.set_max_parallel_tasks(LLMTaskWorker, 2 if provider == "ollama" else 6)
-    graph.set_max_parallel_tasks(TaskWorker, 1)  # for debugging
     return graph, plan_worker
