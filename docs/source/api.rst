@@ -2,7 +2,7 @@ API Reference
 =============
 
 Core Components
---------------
+---------------
 
 .. automodule:: planai
    :members:
@@ -14,7 +14,7 @@ Core Components
 .. autoclass:: planai.InitialTaskWorker
 
 Integrations
------------
+------------
 
 .. automodule:: planai.integrations
    :members:
