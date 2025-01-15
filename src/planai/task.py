@@ -21,6 +21,7 @@ from typing import (
     Any,
     Callable,
     Dict,
+    ForwardRef,
     List,
     Optional,
     Tuple,
@@ -36,6 +37,9 @@ from planai.utils import dict_dump_xml
 if TYPE_CHECKING:
     from .graph import Graph
     from .provenance import ProvenanceChain
+
+Task = ForwardRef("Task")
+TaskWorker = ForwardRef("TaskWorker")
 
 TaskType = TypeVar("TaskType", bound="Task")
 
@@ -59,7 +63,7 @@ class Task(BaseModel):
     """
 
     _provenance: List[Tuple[str, int]] = PrivateAttr(default_factory=list)
-    _input_provenance: List["Task"] = PrivateAttr(default_factory=list)
+    _input_provenance: List[Task] = PrivateAttr(default_factory=list)
     _private_state: Dict[str, Any] = PrivateAttr(default_factory=dict)
     _retry_count: int = PrivateAttr(default=0)
     _start_time: Optional[float] = PrivateAttr(default=None)
@@ -86,10 +90,10 @@ class Task(BaseModel):
     def copy_provenance(self) -> List[Tuple[str, int]]:
         return self._provenance.copy()
 
-    def copy_input_provenance(self) -> List["Task"]:
+    def copy_input_provenance(self) -> List[Task]:
         return [input.model_copy() for input in self._input_provenance]
 
-    def find_input_task(self, task_class: Type["Task"]) -> Optional[TaskType]:
+    def find_input_task(self, task_class: Type[Task]) -> Optional[TaskType]:
         """
         Find the most recent input task of the specified class in the input provenance.
         This is guaranteed to work only on the immediate input task and not on any tasks
@@ -126,12 +130,12 @@ class Task(BaseModel):
                 return tuple(self._provenance[: i + 1])
         return None
 
-    def _add_worker_provenance(self, worker: "TaskWorker") -> "Task":
+    def _add_worker_provenance(self, worker: "TaskWorker") -> Task:
         provenance = worker.get_next_provenance()
         self._provenance.append(provenance)
         return self
 
-    def _add_input_provenance(self, input_task: Optional["Task"]) -> "Task":
+    def _add_input_provenance(self, input_task: Optional[Task]) -> Task:
         # Copy provenance from input task if provided
         if input_task is not None:
             self._provenance = input_task.copy_provenance()
@@ -159,8 +163,8 @@ class Task(BaseModel):
 class WorkBufferContext:
     def __init__(self, worker, input_task=None):
         self.worker: "TaskWorker" = worker
-        self.input_task: "Task" = input_task
-        self.work_buffer: List[Tuple["TaskWorker", "Task"]] = []
+        self.input_task: Task = input_task
+        self.work_buffer: List[Tuple["TaskWorker", Task]] = []
 
     def __enter__(self):
         self.worker._local.ctx = self
@@ -186,7 +190,7 @@ class WorkBufferContext:
                 self.worker._dispatch_work(task)
         self.work_buffer.clear()
 
-    def add_to_buffer(self, consumer: "TaskWorker", task: "Task"):
+    def add_to_buffer(self, consumer: "TaskWorker", task: Task):
         self.work_buffer.append((consumer, task))
 
 
@@ -213,7 +217,7 @@ class TaskWorker(BaseModel, ABC):
 
     _state_lock: threading.RLock = PrivateAttr(default_factory=threading.RLock)
     _id: int = PrivateAttr(default=0)
-    _consumers: Dict[Type["Task"], "TaskWorker"] = PrivateAttr(default_factory=dict)
+    _consumers: Dict[Type[Task], TaskWorker] = PrivateAttr(default_factory=dict)
     _graph: Optional["Graph"] = PrivateAttr(default=None)
     _last_input_task: Optional[Task] = PrivateAttr(default=None)
     _instance_id: uuid.UUID = PrivateAttr(default_factory=uuid.uuid4)
@@ -375,7 +379,7 @@ class TaskWorker(BaseModel, ABC):
         Removes the watch for this task provenance to be completed in the graph.
 
         Parameters:
-            worker (Type["Task"]): The worker to unwatch.
+            worker (Type[Task]): The worker to unwatch.
 
         Returns:
             True if the watch was removed, False if the watch was not present.
@@ -520,7 +524,7 @@ class TaskWorker(BaseModel, ABC):
         # this requires that anything that might call publish_work is wrapped in a work_buffer_context
         self._local.ctx.add_to_buffer(consumer, task)
 
-    def _get_consumer(self, task: Task) -> "TaskWorker":
+    def _get_consumer(self, task: Task) -> TaskWorker:
         # Verify if there is a consumer for the given task class
         consumer = self._consumers.get(task.__class__)
         if consumer is None:
