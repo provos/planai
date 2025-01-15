@@ -13,6 +13,7 @@ Welcome to PlanAI's documentation!
    installation
    usage
    prompts
+   provenance
    cli
    api
 

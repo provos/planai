@@ -163,7 +163,8 @@ JoinedTaskWorker allows you to combine results from multiple upstream tasks:
     from planai import JoinedTaskWorker
 
     class DataAggregator(JoinedTaskWorker):
-        output_types = [AggregatedData]
+        output_types: List[Type[Task]] = [AggregatedData]
+        join_type: Type[TaskWorker] = InitialTaskWorker
 
         def consume_work(self, task: ProcessedData):
             super().consume_work(task)
