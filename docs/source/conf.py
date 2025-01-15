@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.abspath("../../src"))
 
 # Import the problematic module
 import planai.cli_optimize_prompt
+import planai.patterns.search_fetch
 
 # Configuration file for the Sphinx documentation builder.
 #
