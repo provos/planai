@@ -1,3 +1,10 @@
+"""
+Common workflow patterns for PlanAI.
+
+This module provides reusable workflow patterns that can be used to build
+complex task processing pipelines.
+"""
+
 # Copyright 2024 Niels Provos
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
