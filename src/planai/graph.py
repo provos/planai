@@ -480,7 +480,7 @@ class Graph(BaseModel):
         provenance = self._initial_worker.get_next_provenance()
         task._provenance = [provenance] + task._provenance
 
-        prov_chain = self._provenance_tracker.get_prefix_from_task(task, 1)
+        prov_chain = task.prefix(1)
 
         # Register state before adding work
         if metadata or status_callback:

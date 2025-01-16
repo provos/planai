@@ -58,9 +58,7 @@ class SubGraphWorkerInternal(TaskWorker):
                 self.remove_state(task)
 
                 # remember the provenance of the task
-                provenance = self._graph._provenance_tracker.get_prefix_from_task(
-                    task, 1
-                )
+                provenance = task.prefix(1)
 
                 task._add_input_provenance(old_task)
                 task._add_worker_provenance(graph_task)
@@ -127,6 +125,7 @@ class SubGraphWorkerInternal(TaskWorker):
         def inject_state(provenance: ProvenanceChain):
             self.graph.watch(provenance, self)
             # We inject True to indicate that extra provenance is still associated with the task
+            logging.debug("Injecting state for %s in %s", provenance, self.name)
             with self.lock:
                 self._state[provenance] = (old_task, True)
 
@@ -142,6 +141,7 @@ class SubGraphWorkerInternal(TaskWorker):
     def notify(self, prefix: str):
         # if tasks of the sub-graph fail, it's possible that the SinkWorker never gets called
         # so we need to remove additional provenance here and clean up state
+        logging.debug("Removing state for %s in %s", prefix, self.name)
         self.graph.unwatch(prefix, self)
         with self.lock:
             if prefix not in self._state:

@@ -114,6 +114,19 @@ class Task(BaseModel):
     def previous_input_task(self):
         return self._input_provenance[-1] if self._input_provenance else None
 
+    def prefix(self, length: int) -> "ProvenanceChain":
+        """
+        Get a prefix of specified length from task's provenance chain.
+
+        Args:
+            task (Task): The task object containing provenance information.
+            length (int): The desired length of the prefix to extract.
+
+        Returns:
+            ProvenanceChain: A tuple containing the first 'length' elements of the task's provenance chain.
+        """
+        return tuple(self._provenance[:length])
+
     def prefix_for_input_task(
         self, task_class: Type["TaskWorker"]
     ) -> Optional["ProvenanceChain"]:
@@ -415,7 +428,7 @@ class TaskWorker(BaseModel, ABC):
         Args:
             task (Task): The task to remove the state for.
         """
-        provenance = self._graph._provenance_tracker.get_prefix_from_task(task, 1)
+        provenance = task.prefix(1)
         self._graph._provenance_tracker.remove_state(provenance)
 
     def get_state(self, task: Task) -> Dict[str, Any]:
@@ -428,7 +441,7 @@ class TaskWorker(BaseModel, ABC):
         Returns:
             Dict[str, Any]: The state of the task.
         """
-        provenance = self._graph._provenance_tracker.get_prefix_from_task(task, 1)
+        provenance = task.prefix(1)
         return self._graph._provenance_tracker.get_state(provenance)
 
     def get_metadata(self, task: Task) -> Dict[str, Any]:
