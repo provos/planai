@@ -68,6 +68,19 @@ Outgoing Events (sent):
 						}
 					];
 					break;
+				case 'chatError':
+					console.error('Chat error:', payload);
+					isLoading = false;
+					thinkingUpdates.clear();
+					messages = [
+						...messages,
+						{
+							role: 'error',
+							content: payload.message,
+							timestamp: new Date()
+						}
+					]
+					break;
 				case 'thinkingUpdate':
 					console.log('Thinking update:', payload);
 					let phase = payload.phase;
@@ -176,7 +189,9 @@ Outgoing Events (sent):
 					<div
 						class="message-bubble {message.role === 'user'
 							? 'message-bubble-user'
-							: 'message-bubble-assistant'}"
+								: message.role === 'error'
+									? 'message-bubble-error'
+									: 'message-bubble-assistant'}"
 					>
 						{#if message.isMarkdown}
 							<div class="message-text prose prose-sm dark:prose-invert">

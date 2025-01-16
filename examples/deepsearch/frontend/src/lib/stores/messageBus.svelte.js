@@ -9,6 +9,7 @@ function createMessageBus() {
     return {
         subscribe,
         chatResponse: (message) => set({ type: 'chatResponse', payload: message }),
+        chatError: (message) => set({ type: 'chatError', payload: message }),
         thinkingUpdate: (message) => set({ type: 'thinkingUpdate', payload: message }),
         error: (message) => set({ type: 'error', payload: message }),
         resetMessages: () => set({ type: 'resetMessages', payload: null }),

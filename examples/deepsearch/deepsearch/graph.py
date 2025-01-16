@@ -39,7 +39,7 @@ class SearchQueries(Task):
 
 
 class Response(Task):
-    response_type: Literal["final", "thinking"] = Field(
+    response_type: Literal["final", "thinking", "error"] = Field(
         ..., description="The type of response"
     )
     message: str = Field(..., description="The response to the user")

@@ -82,12 +82,13 @@ def start_worker_thread():
                 try:
                     print(f"Sending response: {message} to session: {session_id}")
                     message.message = format_message(message.message)
+                    response_mapping = {
+                        "error": "chat_error",
+                        "thinking": "thinking_update",
+                        "final": "chat_response",
+                    }
                     socketio.emit(
-                        (
-                            "chat_response"
-                            if message.response_type == "final"
-                            else "thinking_update"
-                        ),
+                        response_mapping.get(message.response_type, "error"),
                         message.model_dump(),
                         namespace="/",
                         to=sid,

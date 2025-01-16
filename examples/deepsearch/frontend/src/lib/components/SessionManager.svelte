@@ -70,6 +70,11 @@
             messageBus.error('Failed to connect to server');
         });
 
+        socket.on('chat_error', (err) => {
+            console.error('Chat error:', err);
+            messageBus.chatError(err);
+        });
+
         socket.on('chat_response', (response) => {
             messageBus.chatResponse(response);
         });

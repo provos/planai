@@ -35,6 +35,10 @@
         @apply bg-gray-100 text-gray-900 dark:bg-gray-700 dark:text-white;
     }
 
+    .message-bubble-error {
+        @apply bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50;
+    }
+
     .message-text {
         @apply text-sm;
     }
