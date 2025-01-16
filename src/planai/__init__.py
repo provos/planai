@@ -20,6 +20,7 @@ from .joined_task import InitialTaskWorker, JoinedTaskWorker
 from .llm_config import llm_from_config
 from .llm_interface import LLMInterface
 from .llm_task import CachedLLMTaskWorker, LLMTaskWorker
+from .provenance import ProvenanceChain
 from .task import Task, TaskWorker
 from .utils import PydanticDictWrapper
 
@@ -35,6 +36,7 @@ __all__ = [
     "CachedTaskWorker",
     "CachedLLMTaskWorker",
     "JoinedTaskWorker",
+    "ProvenanceChain",
     "PydanticDictWrapper",
     "SubGraphWorker",
 ]
