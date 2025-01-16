@@ -87,7 +87,7 @@ class PlanWorker(CachedLLMTaskWorker):
         where each phase utilizes web searches to gather different types of information.
 
         Each phase should have a clear objective and contribute to a comprehensive understanding of the topic.
-        
+
         Structure your plan in the following format:
 
         Phase 1: [Objective of the phase]
@@ -116,8 +116,8 @@ class SearchCreator(CachedLLMTaskWorker):
     llm_input_type: Type[Task] = Plan
     use_xml: bool = True
     system_prompt: str = dedent(
-        """You are an expert search query generator. Given a research plan, you will generate targeted search queries 
-        for each phase of the plan. Your goal is to create queries that will retrieve the most relevant information 
+        """You are an expert search query generator. Given a research plan, you will generate targeted search queries
+        for each phase of the plan. Your goal is to create queries that will retrieve the most relevant information
         from the web to fulfill the objectives of each research phase."""
     ).strip()
     prompt: str = dedent(
@@ -139,7 +139,7 @@ class SearchCreator(CachedLLMTaskWorker):
 
         Phase: [Phase description]
         Query: [Generated search query]
-        
+
         Repeat this structure for each phase of the plan.
         """
     )
@@ -173,7 +173,7 @@ class SearchSummarizer(CachedLLMTaskWorker):
     system_prompt: str = dedent(
         """You are a master research scientist, adept at synthesizing complex information from multiple sources into clear, concise, and engaging extractions.
         You will be provided with research results related to a specific phase of a larger research plan.
-        Your task is to distill the core findings and insights from these materials, focusing on answering the research question posed in that phase. 
+        Your task is to distill the core findings and insights from these materials, focusing on answering the research question posed in that phase.
         Craft a narrative that seamlessly integrates the information, prioritizing a natural flow of knowledge over explicitly referencing individual sources.
         Assume the reader is intelligent but may not be familiar with the specific details of the research. Explain complex concepts clearly and avoid jargon where possible.
         The goal is to produce a comprehensive and insightful extraction that stands alone as a valuable piece of knowledge, directly contributing to a broader understanding of the overarching research topic."""
@@ -192,7 +192,7 @@ class SearchSummarizer(CachedLLMTaskWorker):
         {plan}
         </overall plan>
 
-        Your task is to synthesize the information from the provided research results (web pages) into a comprehensive extraction that directly addresses the objective of this research phase. 
+        Your task is to synthesize the information from the provided research results (web pages) into a comprehensive extraction that directly addresses the objective of this research phase.
 
         Focus on distilling the key findings, insights, and concepts from the research.
 
@@ -243,10 +243,10 @@ class FinalNarrativeWorker(CachedLLMTaskWorker):
     llm_output_type: Type[Task] = FinalWriteup
     use_xml: bool = True
     system_prompt: str = dedent(
-        """You are a master science communicator, adept at explaining complex scientific concepts to a curious and intelligent audience. 
+        """You are a master science communicator, adept at explaining complex scientific concepts to a curious and intelligent audience.
         You will be provided with a user's original query and a series of detailed research extractions related to that query.
         Your task is to synthesize these extractions into a single, comprehensive, and engaging narrative that directly and thoroughly answers the user's query.
-        Maintain scientific accuracy while presenting the information in a narrative style, as if guiding the reader through a fascinating scientific journey. 
+        Maintain scientific accuracy while presenting the information in a narrative style, as if guiding the reader through a fascinating scientific journey.
         Use Markdown formatting to enhance the readability and presentation of your narrative."""
     ).strip()
     prompt: str = dedent(
@@ -314,11 +314,17 @@ class ResponsePublisher(TaskWorker):
 
 
 def setup_graph(
-    provider: str = "ollama",
+    provider: Literal["ollama", "remote_ollama", "openai"] = "ollama",
     model: str = "llama3.3:latest",
-    notify: Callable[Dict[str, Any], None] = None,
+    ollama_port: int = 11434,
+    notify: Optional[Callable[Dict[str, Any], None]] = None,
 ) -> Tuple[Graph, TaskWorker]:
-    llm = llm_from_config(provider=provider, model_name=model, use_cache=False)
+    llm = llm_from_config(
+        provider=provider,
+        model_name=model,
+        host=f"localhost:{ollama_port}",
+        use_cache=False,
+    )
 
     graph = Graph(name="Plan Graph")
     plan_worker = PlanWorker(llm=llm)

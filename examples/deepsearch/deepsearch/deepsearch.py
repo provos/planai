@@ -129,11 +129,15 @@ def notify(metadata, message: Response):
     task_queue.put((sid, session_id, message))
 
 
-def start_graph_thread(provider: str = "ollama", model: str = "llama3.3:latest"):
+def start_graph_thread(
+    provider: str = "ollama", model: str = "llama3.3:latest", ollama_port: int = 11434
+):
     """Create and start a new worker thread."""
     global graph_thread, graph, entry_worker, debug_saver
 
-    graph, entry_worker = setup_graph(provider=provider, model=model, notify=notify)
+    graph, entry_worker = setup_graph(
+        provider=provider, model=model, ollama_port=ollama_port, notify=notify
+    )
 
     def worker():
         """Worker thread to process tasks from the queue."""
@@ -358,6 +362,7 @@ def main():
     parser.add_argument("--port", type=int, default=5050)
     parser.add_argument("--provider", type=str, default="ollama")
     parser.add_argument("--model", type=str, default="llama3.3:latest")
+    parser.add_argument("--ollama-port", type=int, default=11434)
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--replay", action="store_true")
     parser.add_argument(
@@ -384,7 +389,7 @@ def main():
             debug_saver.load_replays()
 
     setup_logging(level=logging.DEBUG)
-    start_graph_thread(args.provider, args.model)
+    start_graph_thread(args.provider, args.model, args.ollama_port)
     setup_web_interface(port=args.port)
 
 
