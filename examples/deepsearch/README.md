@@ -56,7 +56,8 @@ The frontend is a Svelte application that provides a clean and intuitive chat in
 2.  **Install backend dependencies:**
 
     ```bash
-    pip install -e .
+    poetry install
+    poetry run playwright install
     ```
 
 3.  **Install frontend dependencies:**
