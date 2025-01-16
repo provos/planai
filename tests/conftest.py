@@ -25,6 +25,10 @@ LOGGING = True
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "regression: marks tests as regression tests")
+    config.addinivalue_line(
+        "markers",
+        "timeout(seconds): mark test to timeout after given number of seconds",
+    )
 
     if LOGGING:
         logging.basicConfig(
@@ -60,6 +64,13 @@ def pytest_addoption(parser):
         default=None,
         help="SSH username (for remote Ollama)",
     )
+    parser.addoption(
+        "--test-timeout",
+        action="store",
+        type=int,
+        default=30,  # 30 seconds default timeout
+        help="Default test timeout in seconds",
+    )
 
 
 def pytest_collection_modifyitems(config, items):
@@ -68,3 +79,10 @@ def pytest_collection_modifyitems(config, items):
         for item in items:
             if "regression" in item.keywords:
                 item.add_marker(skip_regression)
+
+    timeout = config.getoption("--test-timeout")
+
+    for item in items:
+        # Skip if test already has a timeout marker
+        if not any(marker.name == "timeout" for marker in item.iter_markers()):
+            item.add_marker(pytest.mark.timeout(timeout))
