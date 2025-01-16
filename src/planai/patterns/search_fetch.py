@@ -23,19 +23,19 @@ class SearchQuery(Task):
 
 
 class SearchResult(Task):
-    title: str
-    link: str
-    snippet: str
+    title: str = Field(description="Title of the search result")
+    link: str = Field(description="URL of the search result")
+    snippet: str = Field(description="Snippet of the search result")
 
 
 class SearchResults(Task):
-    results: List[SearchResult]
+    results: List[SearchResult] = Field(description="List of search results")
 
 
 class PageResult(Task):
-    url: str
-    title: str
-    content: Optional[str]
+    url: str = Field(description="URL of the page")
+    title: str = Field(description="Title of the page")
+    content: Optional[str] = Field(default=None, description="Content of the page")
 
 
 class PageAnalysis(Task):
@@ -46,7 +46,7 @@ class PageAnalysis(Task):
 
 
 class ConsolidatedPages(Task):
-    pages: List[PageResult]
+    pages: List[PageResult] = Field(description="List of consolidated pages")
 
 
 class SearchExecutor(CachedTaskWorker):
@@ -81,7 +81,7 @@ class SearchResultSplitter(TaskWorker):
 
 
 class PageFetcher(CachedTaskWorker):
-    output_types: List[Type[Task]] = [PageResult]
+    output_types: List[Type[Task]] = [PageResult, PageAnalysis]
     extract_pdf_func: Optional[Callable] = None
     support_user_input: bool = False
 
@@ -122,13 +122,18 @@ class PageFetcher(CachedTaskWorker):
             # Remove markdown links while preserving the link text
             content = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", content)
 
-        result = PageResult(url=task.link, title=task.title, content=content)
-        self.publish_work(task=result, input_task=task)
+            result = PageResult(url=task.link, title=task.title, content=content)
+            self.publish_work(task=result, input_task=task)
+        else:
+            result = PageAnalysis(
+                is_relevant=False,
+                summary=f"Failed to fetch content from {task.link}",
+            )
+            self.publish_work(task=result, input_task=task)
 
 
 class PageRelevanceFilter(CachedLLMTaskWorker):
-    output_types: List[Type[Task]] = [PageResult]
-    llm_output_type: Type[Task] = PageAnalysis
+    output_types: List[Type[Task]] = [PageAnalysis]
     llm_input_type: Type[Task] = PageResult
     use_xml: bool = True
     prompt: str = dedent(
@@ -146,9 +151,24 @@ class PageRelevanceFilter(CachedLLMTaskWorker):
     def pre_consume_work(self, task):
         self.notify_status(task, f"Analyzing relevance of: {task.url}")
 
-    def post_process(self, response: PageAnalysis, input_task: PageResult):
-        if response.is_relevant:
-            self.publish_work(task=input_task.model_copy(), input_task=input_task)
+
+class PageAnalysisConsumer(CachedTaskWorker):
+    output_types: List[Type[Task]] = [PageResult]
+
+    def consume_work(self, task: PageAnalysis):
+        if task.is_relevant:
+            result: PageResult = task.find_input_task(PageResult)
+            if result is None:
+                raise ValueError("PageAnalysisConsumer requires a PageResult input")
+            self.publish_work(task=result, input_task=task)
+        else:
+            result: SearchResult = task.find_input_task(SearchResult)
+            if result is None:
+                raise ValueError("PageAnalysisConsumer requires a SearchResult input")
+            self.publish_work(
+                PageResult(url=result.link, title=result.title),
+                input_task=task,
+            )
 
 
 class PageConsolidator(JoinedTaskWorker):
@@ -199,12 +219,17 @@ def create_search_fetch_worker(
     splitter = SearchResultSplitter()
     fetcher = PageFetcher(extract_pdf_func=extract_pdf_func)
     relevance = PageRelevanceFilter(llm=llm)
+    analysis_consumer = PageAnalysisConsumer()
     consolidator = PageConsolidator()
 
-    graph.add_workers(search, splitter, fetcher, relevance, consolidator)
-    graph.set_dependency(search, splitter).next(fetcher).next(relevance).next(
-        consolidator
+    graph.add_workers(
+        search, splitter, fetcher, relevance, analysis_consumer, consolidator
     )
+    graph.set_dependency(search, splitter).next(fetcher).next(relevance).next(
+        analysis_consumer
+    ).next(consolidator)
+    # if we can't fetch the content, we will bypass the relevance filter
+    graph.set_dependency(fetcher, analysis_consumer)
 
     return SubGraphWorker(
         name=name,
