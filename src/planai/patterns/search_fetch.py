@@ -18,7 +18,8 @@ from ..task import Task, TaskWorker
 class SearchQuery(Task):
     query: str = Field(..., description="The search query to execute")
     metadata: Optional[str] = Field(
-        None, description="Metadata to pass along with the query", example="phase1"
+        None,
+        description="Metadata to pass along with the query",
     )
 
 
