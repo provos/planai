@@ -7,23 +7,12 @@ from pydantic import BaseModel
 
 from planai.llm_interface import LLMInterface
 from planai.llm_tool import tool
+from planai.testing.test_helpers import MockCache
 
 
 @tool(name="mock_tool")
 def mock_function(param1: str, param2: int) -> str:
     return f"Executed mock function with args: {param1}, {param2}"
-
-
-# Simple In-Memory Cache to Mock diskcache.Cache for Testing
-class InMemoryCache:
-    def __init__(self):
-        self.store = {}
-
-    def get(self, key, default=None):
-        return self.store.get(key, default)
-
-    def set(self, key, value):
-        self.store[key] = value
 
 
 class DummyPydanticModel(BaseModel):
@@ -38,7 +27,7 @@ class TestLLMInterface(unittest.TestCase):
 
         # Initialize the LLMInterface with InMemoryCache
         self.llm_interface = LLMInterface(client=self.mock_client)
-        self.llm_interface.disk_cache = InMemoryCache()
+        self.llm_interface.disk_cache = MockCache()
 
         self.prompt = "What is the capital of France?"
         self.system = "test_system"
@@ -471,7 +460,7 @@ class TestLLMInterface(unittest.TestCase):
             support_structured_outputs=True,
             support_json_mode=True,
         )
-        llm.disk_cache = InMemoryCache()
+        llm.disk_cache = MockCache()
 
         class TestStructure(BaseModel):
             field1: str
