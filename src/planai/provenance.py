@@ -68,7 +68,8 @@ ProvenanceChain = Tuple[Tuple[TaskName, TaskID], ...]
 
 
 class ProvenanceTracker:
-    def __init__(self):
+    def __init__(self, name: str = "ProvenanceTracker"):
+        self.name = name
         self.provenance: DefaultDict[ProvenanceChain, int] = defaultdict(int)
         self.provenance_trace: Dict[ProvenanceChain, list] = {}  # TODO: rename to trace
         self.task_state: Dict[ProvenanceChain, Dict] = {}
@@ -77,6 +78,9 @@ class ProvenanceTracker:
         )
         self.provenance_lock = RLock()
         self.notifiers_lock = Lock()
+
+    def __repr__(self):
+        return f"{self.name}(p:{len(self.provenance)})"
 
     def has_provenance(self, provenance: ProvenanceChain) -> bool:
         """Check if a provenance chain is being tracked."""
@@ -181,7 +185,10 @@ class ProvenanceTracker:
             with self.provenance_lock:
                 self.provenance[prefix] = self.provenance.get(prefix, 0) + 1
                 logging.debug(
-                    "+Provenance for %s is now %s", prefix, self.provenance[prefix]
+                    "%s: +Provenance for %s is now %s",
+                    self,
+                    prefix,
+                    self.provenance[prefix],
                 )
                 if prefix in self.provenance_trace:
                     trace_entry = {
@@ -202,7 +209,10 @@ class ProvenanceTracker:
             with self.provenance_lock:
                 self.provenance[prefix] -= 1
                 logging.debug(
-                    "-Provenance for %s is now %s", prefix, self.provenance[prefix]
+                    "%s: -Provenance for %s is now %s",
+                    repr(self),
+                    prefix,
+                    self.provenance[prefix],
                 )
 
                 effective_count = self.provenance[prefix]
@@ -236,7 +246,7 @@ class ProvenanceTracker:
                     )
 
                 if effective_count < 0:
-                    error_message = f"FATAL ERROR: Provenance count for prefix {prefix} became negative ({effective_count}). This indicates a serious bug in the provenance tracking system."
+                    error_message = f"FATAL ERROR in {self}: Provenance count for prefix {prefix} became negative ({effective_count}). This indicates a serious bug in the provenance tracking system."
                     logging.critical(error_message)
                     print(error_message, file=sys.stderr)
                     sys.exit(1)
