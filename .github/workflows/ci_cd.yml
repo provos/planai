@@ -27,7 +27,7 @@ jobs:
         poetry install
     - name: Run tests
       run: |
-        poetry run pytest
+        poetry run pytest --cov-branch --cov-report=xml
     - name: Comment PR
       uses: actions/github-script@v6
       if: github.event_name == 'pull_request'
@@ -40,6 +40,10 @@ jobs:
             repo: context.repo.name,
             body: '✅ Tests passed for Python ${{ matrix.python-version }}!'
           })
+    - name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v5
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
 
   lint:
     runs-on: ubuntu-latest
