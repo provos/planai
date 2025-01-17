@@ -4,6 +4,7 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python Versions](https://img.shields.io/pypi/pyversions/planai.svg)](https://pypi.org/project/planai/)
 [![Documentation Status](https://readthedocs.org/projects/planai/badge/?version=latest)](https://docs.getplanai.com/en/latest/?badge=latest)
+[![codecov](https://codecov.io/gh/provos/planai/graph/badge.svg?token=7RU082HEPN)](https://codecov.io/gh/provos/planai)
 
 **PlanAI** is an innovative system designed for complex task automation through a sophisticated graph-based architecture. It integrates traditional computations and cutting-edge AI technologies to enable versatile and efficient workflow management.
 
