@@ -99,7 +99,9 @@ class TestProvenanceTracker(unittest.TestCase):
         self.provenance_tracker.remove_state((("Task1", 1),), execute_callback=True)
 
         # Verify callback was called with correct arguments
-        mock_callback.assert_called_once_with(mock_metadata, None, None, "Task removed")
+        mock_callback.assert_called_once_with(
+            mock_metadata, (("Task1", 1),), None, None, "Task removed"
+        )
 
 
 if __name__ == "__main__":

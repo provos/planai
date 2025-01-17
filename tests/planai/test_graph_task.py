@@ -625,21 +625,23 @@ class TestSubGraphMetadataAndCallbacks(unittest.TestCase):
         # Verify first call
         first_call = mock_callback.call_args_list[0]
         self.assertEqual(first_call.args[0], test_metadata)  # metadata
-        self.assertIsInstance(first_call.args[1], StatusNotifyingWorker)  # worker
-        self.assertIsInstance(first_call.args[2], InputTask)  # task
-        self.assertEqual(first_call.args[3], "Processing started")  # message
+        self.assertEqual(first_call.args[1], (("InitialTaskWorker", 1),))  # prefix
+        self.assertIsInstance(first_call.args[2], StatusNotifyingWorker)  # worker
+        self.assertIsInstance(first_call.args[3], InputTask)  # task
+        self.assertEqual(first_call.args[4], "Processing started")  # message
 
         # Verify second call
         second_call = mock_callback.call_args_list[1]
         self.assertEqual(second_call.args[0], test_metadata)  # metadata
-        self.assertIsInstance(second_call.args[1], StatusNotifyingWorker)  # worker
-        self.assertEqual(second_call.args[3], "Processing complete")  # message
+        self.assertIsInstance(second_call.args[2], StatusNotifyingWorker)  # worker
+        self.assertEqual(second_call.args[4], "Processing complete")  # message
 
         # Verify third call
         third_call = mock_callback.call_args_list[2]
         self.assertEqual(third_call.args[0], test_metadata)
-        self.assertIsNone(third_call.args[1])
+        self.assertEqual(third_call.args[1], (("InitialTaskWorker", 1),))  # prefix
         self.assertIsNone(third_call.args[2])
+        self.assertIsNone(third_call.args[3])
 
         # Verify cleanup: callback should be removed after task completion
         self.assertEqual(len(self.main_graph._provenance_tracker.task_state), 0)
@@ -706,23 +708,23 @@ class TestSubGraphMetadataAndCallbacks(unittest.TestCase):
         # Verify first call (Processing started)
         first_call = mock_callback.call_args_list[0]
         self.assertEqual(first_call.args[0], test_metadata)
-        self.assertIsInstance(first_call.args[1], FailingStatusWorker)
-        self.assertIsInstance(first_call.args[2], InputTask)
-        self.assertEqual(first_call.args[3], "Processing started")
+        self.assertIsInstance(first_call.args[2], FailingStatusWorker)
+        self.assertIsInstance(first_call.args[3], InputTask)
+        self.assertEqual(first_call.args[4], "Processing started")
 
         # Verify subgraph call
         final_call = mock_callback.call_args_list[1]
         self.assertEqual(final_call.args[0], test_metadata)
-        self.assertIsNone(final_call.args[1])
         self.assertIsNone(final_call.args[2])
-        self.assertEqual(final_call.args[3], "Task removed")
+        self.assertIsNone(final_call.args[3])
+        self.assertEqual(final_call.args[4], "Task removed")
 
         # Verify final call (cleanup)
         final_call = mock_callback.call_args_list[2]
         self.assertEqual(final_call.args[0], test_metadata)
-        self.assertIsNone(final_call.args[1])
         self.assertIsNone(final_call.args[2])
-        self.assertEqual(final_call.args[3], "Task removed")
+        self.assertIsNone(final_call.args[3])
+        self.assertEqual(final_call.args[4], "Task removed")
 
         # Verify all provenance is cleaned up in both graphs
         self.assertEqual(len(self.main_graph._provenance_tracker.task_state), 0)

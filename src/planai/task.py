@@ -44,7 +44,9 @@ TaskWorker = ForwardRef("TaskWorker")
 TaskType = TypeVar("TaskType", bound="Task")
 
 
-TaskStatusCallback = Callable[[Dict, "TaskWorker", "Task", Optional[str]], None]
+TaskStatusCallback = Callable[
+    [Dict, "ProvenanceChain", "TaskWorker", "Task", Optional[str]], None
+]
 
 
 class Task(BaseModel):
@@ -503,6 +505,8 @@ class TaskWorker(BaseModel, ABC):
         Publish a work item.
 
         This method handles the publishing of work items, including provenance tracking and consumer routing.
+        It is important that task is a newly created object and not a reference to an existing task. You can
+        use the model_copy method to create a new object with the same data.
 
         Args:
             task (Task): The work item to be published.

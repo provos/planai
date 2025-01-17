@@ -109,9 +109,12 @@ class ProvenanceTracker:
     ):
         """Execute callback if registered for this task's initial provenance."""
         logging.info("Notifying status %s on %s", worker.name, task.name)
-        state = self.get_state((task._provenance[0],))
+        provenance_prefix = (task._provenance[0],)
+        state = self.get_state(provenance_prefix)
         if state["callback"]:
-            state["callback"](state["metadata"], worker, task, message)
+            state["callback"](
+                state["metadata"], provenance_prefix, worker, task, message
+            )
 
     def remove_state(self, prefix: ProvenanceChain, execute_callback: bool = False):
         """Remove metadata and callback for a task's provenance.
@@ -139,7 +142,11 @@ class ProvenanceTracker:
                     )
                     # this can be an indication to the user that the task may have failed
                     self.task_state[prefix]["callback"](
-                        self.task_state[prefix]["metadata"], None, None, "Task removed"
+                        self.task_state[prefix]["metadata"],
+                        prefix,
+                        None,
+                        None,
+                        "Task removed",
                     )
                 del self.task_state[prefix]
 

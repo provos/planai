@@ -3,6 +3,7 @@ from typing import Dict, List, Optional, Type
 
 from planai.graph import Graph
 from planai.task import Task, TaskWorker
+from planai.provenance import ProvenanceChain
 
 # Dummy task and worker classes for testing
 
@@ -191,11 +192,16 @@ class TestGraph(unittest.TestCase):
         callback_data = []
 
         def status_callback(
-            metadata: Dict, worker: TaskWorker, task: Task, message: Optional[str]
+            metadata: Dict,
+            prefix: ProvenanceChain,
+            worker: TaskWorker,
+            task: Task,
+            message: Optional[str],
         ):
             callback_data.append(
                 {
                     "metadata": metadata,
+                    "prefix": prefix,
                     "worker_name": worker.name if worker else None,
                     "task_data": task.data if hasattr(task, "data") else None,
                     "message": message,
@@ -239,18 +245,21 @@ class TestGraph(unittest.TestCase):
 
         # Check first status update
         self.assertEqual(callback_data[0]["metadata"]["test_key"], "test_value")
+        self.assertEqual(callback_data[0]["prefix"], (("InitialTaskWorker", 1),))
         self.assertEqual(callback_data[0]["worker_name"], "StatusTestWorker")
         self.assertEqual(callback_data[0]["task_data"], "initial")
         self.assertEqual(callback_data[0]["message"], "Starting work")
 
         # Check second status update
         self.assertEqual(callback_data[1]["metadata"]["test_key"], "test_value")
+        self.assertEqual(callback_data[1]["prefix"], (("InitialTaskWorker", 1),))
         self.assertEqual(callback_data[1]["worker_name"], "StatusTestWorker")
         self.assertEqual(callback_data[1]["task_data"], "initial processed")
         self.assertEqual(callback_data[1]["message"], "Work completed")
 
         # Check third status update
         self.assertEqual(callback_data[2]["metadata"]["test_key"], "test_value")
+        self.assertEqual(callback_data[2]["prefix"], (("InitialTaskWorker", 1),))
         self.assertEqual(callback_data[2]["worker_name"], None)
         self.assertEqual(callback_data[2]["task_data"], None)
         self.assertEqual(callback_data[2]["message"], "Task removed")

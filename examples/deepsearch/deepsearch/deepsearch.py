@@ -19,7 +19,7 @@ from graph import (
 )
 from session import SessionManager
 
-from planai import Task, TaskWorker
+from planai import ProvenanceChain, Task, TaskWorker
 from planai.utils import setup_logging
 
 app = Flask(__name__)
@@ -297,7 +297,11 @@ def handle_message(data):
 
 @debug_saver.capture("notify_planai") if debug_saver else lambda x: x
 def notify_planai(
-    metadata: Dict[str, Any], worker: TaskWorker, task: Task, message: str
+    metadata: Dict[str, Any],
+    prefix: ProvenanceChain,
+    worker: TaskWorker,
+    task: Task,
+    message: str,
 ):
     """Callback to receive notifications from the graph."""
     session_id = metadata.get("session_id")

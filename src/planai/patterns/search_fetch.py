@@ -161,7 +161,7 @@ class PageAnalysisConsumer(CachedTaskWorker):
             result: PageResult = task.find_input_task(PageResult)
             if result is None:
                 raise ValueError("PageAnalysisConsumer requires a PageResult input")
-            self.publish_work(task=result, input_task=task)
+            self.publish_work(task=result.model_copy(), input_task=task)
         else:
             result: SearchResult = task.find_input_task(SearchResult)
             if result is None:
