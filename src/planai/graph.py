@@ -42,6 +42,7 @@ class Graph(BaseModel):
 
     Attributes:
         name (str): Name identifier for the graph instance
+        strict (bool): If True, the graph will enforce strict validation of tasks provided to publish_work()
         workers (Set[TaskWorker]): Set of task workers in the graph
         dependencies (Dict[TaskWorker, List[TaskWorker]]): Maps workers to their downstream dependencies
 
@@ -57,6 +58,7 @@ class Graph(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     name: str
+    strict: bool = False
     workers: Set[TaskWorker] = Field(default_factory=set)
     dependencies: Dict[TaskWorker, List[TaskWorker]] = Field(default_factory=dict)
 
@@ -113,6 +115,11 @@ class Graph(BaseModel):
         """
         if worker in self.workers:
             raise ValueError(f"Task {worker} already exists in the Graph.")
+        if self.strict:
+            # This causes the worker to check during publish_work() that the provenance fields of the new
+            # task are empty. This can help with a common bug patterns where a task is reused.
+            worker._strict_checking = True
+
         self.workers.add(worker)
         # Check if any class in the MRO hierarchy is named 'SubGraphWorkerInternal'
         if any(

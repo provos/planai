@@ -104,11 +104,9 @@ class SubGraphWorkerInternal(TaskWorker):
         self.graph.init_workers()
 
     def consume_work(self, task: Task):
-        # save the task provenance
-        new_task = task.model_copy()
-        new_task._provenance = []
-        new_task._input_provenance = []
+        new_task = task.copy_public()
 
+        # save the task provenance
         # xxx - we really just need to remember the provenance of the task
         old_task = task.model_copy(deep=True)
         new_task.add_private_state(PRIVATE_STATE_KEY, old_task)

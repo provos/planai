@@ -161,7 +161,7 @@ class PageAnalysisConsumer(CachedTaskWorker):
             result: PageResult = task.find_input_task(PageResult)
             if result is None:
                 raise ValueError("PageAnalysisConsumer requires a PageResult input")
-            self.publish_work(task=result.model_copy(), input_task=task)
+            self.publish_work(task=result.copy_public(), input_task=task)
         else:
             result: SearchResult = task.find_input_task(SearchResult)
             if result is None:
@@ -189,7 +189,7 @@ def create_search_fetch_graph(
     name: str = "SearchFetchWorker",
     extract_pdf_func: Optional[Callable] = None,
 ) -> Tuple[Graph, TaskWorker, TaskWorker]:
-    graph = Graph(name=f"{name}Graph")
+    graph = Graph(name=f"{name}Graph", strict=True)
 
     search = SearchExecutor()
     splitter = SearchResultSplitter()

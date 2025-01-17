@@ -54,6 +54,15 @@ class TestTask(unittest.TestCase):
         self.assertEqual(copied, [input_task1, input_task2])
         self.assertIsNot(copied, self.task._input_provenance)
 
+    def test_copy_public(self):
+        input_task1 = Task()
+        input_task1._provenance = [("Task1", 1)]
+        input_task1._input_provenance = [self.task]
+
+        new_task = input_task1.copy_public()
+        self.assertEqual(new_task._provenance, [])
+        self.assertEqual(new_task._input_provenance, [])
+
     def test_find_input_task(self):
         class Task1(Task):
             pass

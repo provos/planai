@@ -82,6 +82,23 @@ class Task(BaseModel):
         """
         return self._retry_count
 
+    def copy_public(self, deep: bool = False) -> Task:
+        """
+        Creates a copy of the Task instance, excluding private attributes. This is a safer way than model_copy()
+        of creating a new task from an existing one. Can be used in conjunction with enabling strict on a graph.
+
+        Args:
+            deep: Whether to perform a deep copy of the public fields.
+
+        Returns:
+            A new Task instance without the private attributes.
+        """
+        return self.model_validate(
+            self.model_dump(
+                exclude_unset=True, exclude_defaults=True, exclude_none=True
+            )
+        )
+
     def increment_retry_count(self) -> None:
         """
         Increments the retry count by 1.
@@ -93,7 +110,7 @@ class Task(BaseModel):
         return self._provenance.copy()
 
     def copy_input_provenance(self) -> List[Task]:
-        return [input.model_copy() for input in self._input_provenance]
+        return [input.copy_public() for input in self._input_provenance]
 
     def find_input_task(self, task_class: Type[Task]) -> Optional[TaskType]:
         """
@@ -237,6 +254,7 @@ class TaskWorker(BaseModel, ABC):
     _last_input_task: Optional[Task] = PrivateAttr(default=None)
     _instance_id: uuid.UUID = PrivateAttr(default_factory=uuid.uuid4)
     _local: threading.local = PrivateAttr(default_factory=threading.local)
+    _strict_checking: bool = PrivateAttr(default=False)
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -518,6 +536,10 @@ class TaskWorker(BaseModel, ABC):
         if type(task) not in self.output_types:
             raise ValueError(
                 f"Task {self.name} cannot publish work of type {type(task).__name__}"
+            )
+        if self._strict_checking and (task._provenance or task._input_provenance):
+            raise ValueError(
+                "Cannot publish a task that has already been published. Use copy_public() to create a new task."
             )
 
         # the order of these operations is important as the first call erases the provenance

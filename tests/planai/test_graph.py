@@ -20,7 +20,8 @@ class DummyWorker(TaskWorker):
     output_types: List[Type[Task]] = [DummyTask]
 
     def consume_work(self, task: DummyTask):
-        self.publish_work(task.model_copy(), input_task=task)
+        # Use copy_public() in case we're in strict mode
+        self.publish_work(task.copy_public(), input_task=task)
 
 
 class AnotherDummyWorker(TaskWorker):
@@ -263,6 +264,54 @@ class TestGraph(unittest.TestCase):
         self.assertEqual(callback_data[2]["worker_name"], None)
         self.assertEqual(callback_data[2]["task_data"], None)
         self.assertEqual(callback_data[2]["message"], "Task removed")
+
+    def test_strict_mode(self):
+        # Create a graph with strict mode enabled
+        graph = Graph(name="Test Graph", strict=True)
+
+        success_flag = False
+        failure_flag = False
+
+        # Create a task worker that attempts to reuse tasks with provenance
+        class StrictTestWorker(TaskWorker):
+            output_types: list = [DummyTask]
+
+            def consume_work(self, task: DummyTask):
+                nonlocal success_flag, failure_flag
+                # First try with model_copy() which should fail
+                task_copy = task.model_copy()
+                try:
+                    self.publish_work(task_copy, input_task=task)
+                except ValueError:
+                    failure_flag = True
+
+                # Now try with copy_public() which should succeed
+                task_copy = task.copy_public()
+                try:
+                    self.publish_work(task_copy, input_task=task)
+                    success_flag = True
+                except ValueError:
+                    pass
+
+        # Register workers and set up graph
+        worker1 = DummyWorker()
+        worker2 = StrictTestWorker()
+        graph.add_worker(worker1)
+        graph.add_worker(worker2)
+        graph.set_dependency(worker1, worker2).sink(DummyTask)
+
+        # Run the graph
+        initial_task = DummyTask(data="initial")
+        initial_tasks = [(worker1, initial_task)]
+        graph.run(initial_tasks, display_terminal=False)
+
+        # Verify both conditions were met
+        self.assertTrue(
+            failure_flag, "publish_work() with model_copy() should have failed"
+        )
+        self.assertTrue(
+            success_flag, "publish_work() with copy_public() should have succeeded"
+        )
 
 
 if __name__ == "__main__":
