@@ -64,6 +64,11 @@ class TestGraph(unittest.TestCase):
     def test_sink_worker(self):
         worker = DummyWorker()
         self.graph.add_worker(worker)
+
+        # Cannot set a sink that is not being produced
+        with self.assertRaises(ValueError):
+            self.graph.set_sink(worker, Task)
+
         self.graph.set_sink(worker, DummyTask)
         self.assertIsNotNone(self.graph._sink_worker)
 
@@ -130,6 +135,10 @@ class TestGraph(unittest.TestCase):
 
         self.graph.prepare(display_terminal=False)
         self.graph.set_entry(worker)
+
+        # Try to add work for a non-entry worker
+        with self.assertRaises(ValueError):
+            self.graph.add_work(test_worker, initial_task)
 
         # Add metadata to be tracked with the task
         metadata = {"test_key": "test_value"}

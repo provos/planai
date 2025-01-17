@@ -730,7 +730,7 @@ class Graph(BaseModel):
         return self.__str__()
 
 
-def main():
+def main():  # pragma: no cover
     import argparse
     import random
 
