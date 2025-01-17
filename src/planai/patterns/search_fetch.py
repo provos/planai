@@ -1,7 +1,7 @@
 import re
 import tempfile
 from textwrap import dedent
-from typing import Callable, List, Optional, Type
+from typing import Callable, List, Optional, Tuple, Type
 
 from pydantic import Field
 
@@ -183,6 +183,32 @@ class PageConsolidator(JoinedTaskWorker):
         )
 
 
+def create_search_fetch_graph(
+    *,
+    llm: LLMInterface,
+    name: str = "SearchFetchWorker",
+    extract_pdf_func: Optional[Callable] = None,
+) -> Tuple[Graph, TaskWorker, TaskWorker]:
+    graph = Graph(name=f"{name}Graph")
+
+    search = SearchExecutor()
+    splitter = SearchResultSplitter()
+    fetcher = PageFetcher(extract_pdf_func=extract_pdf_func)
+    relevance = PageRelevanceFilter(llm=llm)
+    analysis_consumer = PageAnalysisConsumer()
+    consolidator = PageConsolidator()
+
+    graph.add_workers(
+        search, splitter, fetcher, relevance, analysis_consumer, consolidator
+    )
+    graph.set_dependency(search, splitter).next(fetcher).next(relevance).next(
+        analysis_consumer
+    ).next(consolidator)
+    # if we can't fetch the content, we will bypass the relevance filter
+    graph.set_dependency(fetcher, analysis_consumer)
+    return graph, search, consolidator
+
+
 def create_search_fetch_worker(
     *,
     llm: LLMInterface,
@@ -214,23 +240,9 @@ def create_search_fetch_worker(
     Returns:
         A SubGraphWorker that implements the search and fetch pattern
     """
-    graph = Graph(name=f"{name}Graph")
-
-    search = SearchExecutor()
-    splitter = SearchResultSplitter()
-    fetcher = PageFetcher(extract_pdf_func=extract_pdf_func)
-    relevance = PageRelevanceFilter(llm=llm)
-    analysis_consumer = PageAnalysisConsumer()
-    consolidator = PageConsolidator()
-
-    graph.add_workers(
-        search, splitter, fetcher, relevance, analysis_consumer, consolidator
+    graph, search, consolidator = create_search_fetch_graph(
+        llm=llm, name=name, extract_pdf_func=extract_pdf_func
     )
-    graph.set_dependency(search, splitter).next(fetcher).next(relevance).next(
-        analysis_consumer
-    ).next(consolidator)
-    # if we can't fetch the content, we will bypass the relevance filter
-    graph.set_dependency(fetcher, analysis_consumer)
 
     return SubGraphWorker(
         name=name,

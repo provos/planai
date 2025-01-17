@@ -7,6 +7,7 @@ from planai.patterns.search_fetch import (
     PageAnalysis,
     PageResult,
     SearchQuery,
+    create_search_fetch_graph,
     create_search_fetch_worker,
 )
 from planai.testing import MockCache, MockLLM, MockLLMResponse, inject_mock_cache
@@ -81,29 +82,36 @@ class TestSearchFetch(unittest.TestCase):
 
         # Create initial query
         query = SearchQuery(query="test query")
-        initial_work = [(search_fetch, query)]
+        initial_work = [(search_fetch, query)] * 10
 
         # Run the graph
         graph.run(
             initial_tasks=initial_work, run_dashboard=False, display_terminal=False
         )
 
-        # Verify search was called
-        self.mock_search.assert_called_once_with(
-            "test query", num_results=10, print_func=unittest.mock.ANY
+        # Verify search was called 10 times
+        self.assertEqual(self.mock_search.call_count, 10)
+        self.mock_search.assert_has_calls(
+            [
+                unittest.mock.call(
+                    "test query", num_results=10, print_func=unittest.mock.ANY
+                )
+            ]
+            * 10
         )
 
         # Verify web browser calls
         self.assertEqual(
             self.mock_browser.get_markdown_from_page.call_count,
-            len(self.mock_search_results),
+            len(self.mock_search_results) * 10,
+            "Expected number of page fetches",
         )
 
         # Get output tasks
         output_tasks = graph.get_output_tasks()
 
         # Should have one consolidated output
-        self.assertEqual(len(output_tasks), 1)
+        self.assertEqual(len(output_tasks), 10)
 
         consolidated = output_tasks[0]
         self.assertIsInstance(consolidated, ConsolidatedPages)
@@ -153,6 +161,67 @@ class TestSearchFetch(unittest.TestCase):
         # Should only have one successful page
         self.assertEqual(len(consolidated.pages), 1)
         self.assertEqual(consolidated.pages[0].url, "https://example.com/1")
+
+    def test_search_fetch_graph_workflow(self):
+        # Create main graph using the plain graph version
+        graph, _, exit_worker = create_search_fetch_graph(
+            llm=self.mock_llm, name="TestSearchFetch"
+        )
+        graph.set_sink(exit_worker, ConsolidatedPages)
+
+        # Find the search executor (entry point)
+        search_executor = next(
+            w for w in graph.workers if w.__class__.__name__ == "SearchExecutor"
+        )
+
+        # Inject mock cache into all cached workers
+        inject_mock_cache(graph, self.mock_cache)
+
+        # Create initial query
+        query = SearchQuery(query="test query")
+        initial_work = [(search_executor, query)] * 10
+
+        # Run the graph
+        graph.run(
+            initial_tasks=initial_work, run_dashboard=False, display_terminal=False
+        )
+
+        # Verify search was called 10 times
+        self.assertEqual(self.mock_search.call_count, 10)
+        self.mock_search.assert_has_calls(
+            [
+                unittest.mock.call(
+                    "test query", num_results=10, print_func=unittest.mock.ANY
+                )
+            ]
+            * 10
+        )
+
+        # Verify web browser calls
+        self.assertEqual(
+            self.mock_browser.get_markdown_from_page.call_count,
+            len(self.mock_search_results) * 10,
+            "Expected number of page fetches",
+        )
+
+        # Get output tasks
+        output_tasks = graph.get_output_tasks()
+
+        # Should have one consolidated output
+        self.assertEqual(len(output_tasks), 10)
+
+        consolidated = output_tasks[0]
+        self.assertIsInstance(consolidated, ConsolidatedPages)
+
+        # Verify pages were processed
+        self.assertEqual(len(consolidated.pages), len(self.mock_search_results))
+
+        # Verify content of pages
+        for page in consolidated.pages:
+            self.assertIsInstance(page, PageResult)
+            self.assertTrue(page.url.startswith("https://example.com/"))
+            self.assertTrue(page.title.startswith("Test Result"))
+            self.assertEqual(page.content, self.mock_page_content)
 
 
 if __name__ == "__main__":
