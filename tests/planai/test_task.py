@@ -97,11 +97,6 @@ class TestTaskWorker(unittest.TestCase):
     def test_name_property(self):
         self.assertEqual(self.worker.name, "DummyWorker")
 
-    def test_last_input_task_property(self):
-        task = DummyTask()
-        self.worker._last_input_task = task
-        self.assertIs(self.worker.last_input_task, task)
-
     def test_set_graph(self):
         graph = Mock()
         self.worker.set_graph(graph)
@@ -146,7 +141,6 @@ class TestTaskWorker(unittest.TestCase):
         task = DummyTask()
         with patch("test_task.DummyWorker.consume_work") as mock_consume:
             self.worker._pre_consume_work(task)
-            self.assertIs(self.worker._last_input_task, task)
             mock_consume.assert_called_once_with(task)
 
     def test_init(self):

@@ -239,7 +239,6 @@ class TaskWorker(BaseModel, ABC):
         _id (int): Internal worker ID counter
         _consumers (Dict[Type[Task], TaskWorker]): Registered downstream consumers
         _graph (Optional[Graph]): Reference to containing workflow graph
-        _last_input_task (Optional[Task]): Most recently processed input task
         _instance_id (UUID): Unique worker instance identifier
         _local (threading.local): Thread-local storage
     """
@@ -251,7 +250,6 @@ class TaskWorker(BaseModel, ABC):
     _id: int = PrivateAttr(default=0)
     _consumers: Dict[Type[Task], TaskWorker] = PrivateAttr(default_factory=dict)
     _graph: Optional["Graph"] = PrivateAttr(default=None)
-    _last_input_task: Optional[Task] = PrivateAttr(default=None)
     _instance_id: uuid.UUID = PrivateAttr(default_factory=uuid.uuid4)
     _local: threading.local = PrivateAttr(default_factory=threading.local)
     _strict_checking: bool = PrivateAttr(default=False)
@@ -288,17 +286,6 @@ class TaskWorker(BaseModel, ABC):
         :rtype: threading.Lock
         """
         return self._state_lock
-
-    @property
-    def last_input_task(self) -> Optional[TaskType]:
-        """
-        Returns the last input task consumed by this worker.
-
-        :return: The last input task as a Task object, or None if there is no last input task.
-        :rtype: Optional[Task]
-        """
-        with self._state_lock:
-            return self._last_input_task
 
     def set_graph(self, graph: "Graph"):
         self._graph = graph
@@ -494,8 +481,6 @@ class TaskWorker(BaseModel, ABC):
         self._graph._provenance_tracker.notify_status(self, task, message)
 
     def _pre_consume_work(self, task: Task):
-        with self._state_lock:
-            self._last_input_task = task
         with self.work_buffer_context(task):
             self.consume_work(task)
 

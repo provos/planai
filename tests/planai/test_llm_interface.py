@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from planai.llm_interface import LLMInterface
 from planai.llm_tool import tool
-from planai.testing.test_helpers import MockCache
+from planai.testing.helpers import MockCache
 
 
 @tool(name="mock_tool")
