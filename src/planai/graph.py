@@ -80,6 +80,7 @@ class Graph(BaseModel):
     def __init__(self, **data):
         super().__init__(**data)
         self._initial_worker = InitialTaskWorker()
+        self._provenance_tracker = ProvenanceTracker(name=self.name)
         self.add_worker(self._initial_worker)
 
     def trace(self, prefix: ProvenanceChain):
@@ -145,6 +146,28 @@ class Graph(BaseModel):
         """
         for worker in self.workers:
             if input_type == worker.get_task_class():
+                return worker
+        return None
+
+    def get_worker_by_output_type(
+        self, output_type: Type[Task]
+    ) -> Optional[TaskWorker]:
+        """Get a worker that produces a specific output type.
+
+        This method searches through registered workers to find one that produces
+        the specified output task type.
+
+        Args:
+            output_type (Type[Task]): The output task type class to match against workers.
+
+        Returns:
+            Optional[TaskWorker]: The matching worker if found, None otherwise.
+
+        Example:
+            worker = graph.get_worker_by_output_type(ImageTask)
+        """
+        for worker in self.workers:
+            if output_type in worker.output_types:
                 return worker
         return None
 
