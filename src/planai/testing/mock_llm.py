@@ -76,7 +76,7 @@ class MockLLM(LLMInterface):
                     return None
 
                 if self.support_structured_outputs:
-                    return mock_response.response
+                    return mock_response.response.model_copy()
                 else:
                     # Convert Pydantic object to JSON string
                     return mock_response.response.model_dump_json()
