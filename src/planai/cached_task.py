@@ -105,7 +105,7 @@ class CachedTaskWorker(TaskWorker):
         cache_key = self._get_cache_key(input_task)
         try:
             self._cache.set(cache_key, [cached_results, input_task])
-            logging.info("Task %s cached results for key: %s", self.name, cache_key)
+            logging.info("Worker %s cached results for key: %s", self.name, cache_key)
         except Exception as e:
             logging.error("Error caching results for key %s: %s", cache_key, str(e))
 
