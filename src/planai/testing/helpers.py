@@ -1,10 +1,11 @@
 import logging
 from collections import defaultdict
 from threading import Lock
-from typing import Dict, List, Optional, Type
+from typing import Dict, List, Optional, Type, Union
 
 from planai.graph import Graph
 from planai.graph_task import SubGraphWorkerInternal
+from planai.joined_task import JoinedTaskWorker
 from planai.task import Task, TaskWorker
 
 
@@ -79,7 +80,9 @@ class InvokeTaskWorker:
     >>> worker.assert_published_task_types([OutputTask])
     """
 
-    def __init__(self, worker_class: Type[TaskWorker], **kwargs):
+    def __init__(
+        self, worker_class: Union[Type[TaskWorker], Type[JoinedTaskWorker]], **kwargs
+    ):
         """
         Args:
             worker_class: The TaskWorker class to test
@@ -87,28 +90,68 @@ class InvokeTaskWorker:
         """
         self.context = TestTaskContext()
         self.worker = worker_class(**kwargs)
+        self.is_joined_worker = issubclass(worker_class, JoinedTaskWorker)
 
-    def invoke(self, input_task: Task) -> List[Task]:
-        """
-        Invoke the worker with an input task and return published tasks.
-
-        Args:
-            input_task: The input task to process
-
-        Returns:
-            List of tasks published during processing
-        """
+    def _setup_patch(self):
+        """Set up patching of publish_work and reset context."""
 
         def patched_publish_work(task: Task, input_task: Optional[Task]):
             self.context.published_tasks.append(task)
 
         original_publish_work = self.worker.publish_work
         object.__setattr__(self.worker, "publish_work", patched_publish_work)
-
         self.context.reset()
+
+        return original_publish_work
+
+    def invoke(self, input_task: Task) -> List[Task]:
+        """
+        Invoke the worker with an input task and return published tasks.
+        Only valid for TaskWorker instances.
+
+        Args:
+            input_task: The input task to process
+
+        Returns:
+            List of tasks published during processing
+
+        Raises:
+            TypeError: If worker is a JoinedTaskWorker
+        """
+        if self.is_joined_worker:
+            raise TypeError("Use invoke_joined() for JoinedTaskWorker instances")
+
+        original_publish_work = self._setup_patch()
         self.context.current_input_task = input_task
+
         try:
             self.worker.consume_work(input_task)
+        finally:
+            object.__setattr__(self.worker, "publish_work", original_publish_work)
+
+        return self.context.published_tasks
+
+    def invoke_joined(self, input_tasks: List[Task]) -> List[Task]:
+        """
+        Invoke the worker with multiple input tasks and return published tasks.
+        Only valid for JoinedTaskWorker instances.
+
+        Args:
+            input_tasks: The list of input tasks to process
+
+        Returns:
+            List of tasks published during processing
+
+        Raises:
+            TypeError: If worker is not a JoinedTaskWorker
+        """
+        if not self.is_joined_worker:
+            raise TypeError("Use invoke() for regular TaskWorker instances")
+
+        original_publish_work = self._setup_patch()
+
+        try:
+            self.worker.consume_work_joined(input_tasks)
         finally:
             object.__setattr__(self.worker, "publish_work", original_publish_work)
 
