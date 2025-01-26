@@ -115,7 +115,6 @@ def start_worker_thread():
     return worker_thread
 
 
-@debug_saver.capture("notify") if debug_saver else lambda x: x
 def notify(metadata, message: Response):
     """Callback to receive notifications from the graph."""
     global task_queue, session_manager
@@ -272,14 +271,16 @@ def handle_message(data):
 
     # If in replay mode, trigger replay with current session
     global debug_saver
-    if debug_saver and debug_saver.mode == "replay":
-        debug_saver.start_replay_session(message.strip(), current_metadata)
-        return
+    if debug_saver:
+        if debug_saver.mode == "replay":
+            debug_saver.start_replay_session(message.strip(), current_metadata)
+            return
+        else:
+            debug_saver.save_prompt(session_id, message.strip())
 
     # Update session timestamp on activity
     session_manager.update_session_timestamp(session_id)
 
-    @debug_saver.capture("notify_planai") if debug_saver else lambda x: x
     def wrapped_notify_planai(*args, **kwargs):
         return notify_planai(*args, **kwargs)
 
@@ -295,7 +296,6 @@ def handle_message(data):
     session_metadata["provenance"] = provenance
 
 
-@debug_saver.capture("notify_planai") if debug_saver else lambda x: x
 def notify_planai(
     metadata: Dict[str, Any],
     prefix: ProvenanceChain,
@@ -312,7 +312,7 @@ def notify_planai(
         global session_manager
         # get the metadata for this session
         session_metadata = session_manager.metadata(session_id)
-        if session_metadata.get("started"):
+        if session_metadata.get("started") and False:  # ignore for now
             # this indicates that we failed the task
             task_queue.put(
                 (
@@ -360,6 +360,14 @@ def notify_planai(
     )
 
 
+def patch_notify_functions():
+    """Patch the notify functions with debug_saver decorators."""
+    global notify, notify_planai, debug_saver
+    if debug_saver:
+        notify = debug_saver.capture("notify")(notify)
+        notify_planai = debug_saver.capture("notify_planai")(notify_planai)
+
+
 def main():
     import argparse
 
@@ -385,6 +393,9 @@ def main():
             mode="replay" if args.replay else "capture",
             replay_delay=args.replay_delay,
         )
+
+        # Patch the notify functions after debug_saver is initialized
+        patch_notify_functions()
 
         if args.replay:
             # Register the original functions for replay

@@ -53,6 +53,14 @@ class DebugSaver:
         self._replay_threads: Dict[str, threading.Thread] = {}
         self._lock = threading.RLock()
 
+    def save_prompt(self, session_id: str, prompt: str):
+        """Save prompt for replay."""
+        if self.mode == "replay":
+            return
+
+        with open(self.output_dir / f"{session_id}.prompt", "w") as fp:
+            fp.write(prompt)
+
     def capture(self, func_name: str = None):
         # In replay mode, return a no-op decorator
         if self.mode == "replay":
@@ -88,9 +96,13 @@ class DebugSaver:
                     "timestamp": datetime.now().isoformat(),
                 }
 
-                # Write the pickled call data
-                pickle.dump(call_data, self.fp)
-                self.fp.flush()
+                try:
+                    # Write the pickled call data
+                    pickle.dump(call_data, self.fp)
+                    self.fp.flush()
+                    logging.debug(f"Captured call to {func_name}: {call_data}")
+                except Exception as e:
+                    logging.error(f"Failed to capture call data: {e}")
 
                 return func(*args, **kwargs)
 
@@ -246,6 +258,14 @@ class DebugSaver:
 
     def load_replays(self):
         """Load all replay data into memory."""
+
+        if not any(self.output_dir.glob("*.prompt")):
+            logging.warning(f"No replay files found in {self.output_dir}")
+            return
+
         for session_file in self.output_dir.glob("*.prompt"):
             session_id = session_file.stem
-            self.load_replay_session(session_id)
+            try:
+                self.load_replay_session(session_id)
+            except Exception as e:
+                logging.error(f"Failed to load replay session {session_id}: {e}")
