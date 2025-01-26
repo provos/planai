@@ -84,11 +84,18 @@ class PydanticDictWrapper(BaseModel):
 
 def dict_dump_xml(dict: Dict[Any, Any], root: str = "root") -> str:
     """Formats the task as XML."""
-    xml = dicttoxml.dicttoxml(dict, custom_root=root, attr_type=False)
-    xml_string = parseString(xml).toprettyxml(indent="  ")
-    # Remove the XML declaration efficiently
-    if xml_string.startswith("<?xml"):
-        newline_index = xml_string.find("\n")
-        if newline_index != -1:
-            xml_string = xml_string[(newline_index + 1) :]
-    return xml_string
+    try:
+        xml = dicttoxml.dicttoxml(dict, custom_root=root, attr_type=False)
+        # Decode bytes to string with utf-8 encoding
+        xml_str = xml.decode("utf-8")
+        xml_string = parseString(xml_str).toprettyxml(indent="  ")
+        # Remove the XML declaration efficiently
+        if xml_string.startswith("<?xml"):
+            newline_index = xml_string.find("\n")
+            if newline_index != -1:
+                xml_string = xml_string[(newline_index + 1) :]
+        return xml_string
+    except Exception as e:
+        logging.error(f"Failed to convert dictionary to XML: {e}")
+        # Return a simple valid XML as fallback
+        return f"<{root}><error>Failed to convert to XML</error></{root}>"
