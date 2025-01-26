@@ -558,6 +558,51 @@ class TestGraphTask(unittest.TestCase):
         self.assertEqual(dispatcher.work_queue.qsize(), 0)
         self.assertEqual(dispatcher.active_tasks, 0)
 
+    def test_graph_task_entry_setup(self):
+        # Create subgraph
+        subgraph = Graph(name="SubGraph")
+        subgraph_worker = SubGraphHandler()
+        subgraph.add_workers(subgraph_worker)
+
+        # Create GraphTask
+        _ = SubGraphWorker(
+            graph=subgraph, entry_worker=subgraph_worker, exit_worker=subgraph_worker
+        )
+
+        # Verify that entry worker has been set correctly
+        self.assertIn(subgraph_worker, subgraph.dependencies[subgraph._initial_worker])
+        self.assertEqual(len(subgraph.dependencies[subgraph._initial_worker]), 1)
+
+    def test_graph_task_distances(self):
+        # Create subgraph with multiple workers
+        subgraph = Graph(name="SubGraph")
+
+        class Worker1(TaskWorker):
+            output_types: List[Type[Task]] = [SubGraphTask]
+
+            def consume_work(self, task: SubGraphTask):
+                self.publish_work(task, input_task=task)
+
+        class Worker2(TaskWorker):
+            output_types: List[Type[Task]] = [SubGraphTask]
+
+            def consume_work(self, task: SubGraphTask):
+                self.publish_work(task, input_task=task)
+
+        worker1 = Worker1()
+        worker2 = Worker2()
+        subgraph.add_workers(worker1, worker2)
+        subgraph.set_dependency(worker1, worker2)
+
+        # Create GraphTask
+        _ = SubGraphWorker(graph=subgraph, entry_worker=worker1, exit_worker=worker2)
+
+        # Verify subgraph distances
+        sub_distances = subgraph._worker_distances["InitialTaskWorker"]
+        self.assertEqual(sub_distances["Worker1"], 1)
+        self.assertEqual(sub_distances["Worker2"], 2)
+        self.assertEqual(sub_distances["AdapterSinkWorker"], 3)
+
 
 class StatusNotifyingWorker(TaskWorker):
     output_types: List[Type[Task]] = [FinalTask]

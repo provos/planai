@@ -50,7 +50,8 @@ class SubGraphWorkerInternal(TaskWorker):
                 old_task = task.get_private_state(PRIVATE_STATE_KEY)
                 if old_task is None:
                     raise ValueError(
-                        f"No task provenance found for {PRIVATE_STATE_KEY}"
+                        f"No task state found for {PRIVATE_STATE_KEY}: {task._private_state} "
+                        f"(provenance: {task._provenance})",
                     )
                 assert isinstance(task, Task)
 
@@ -75,7 +76,7 @@ class SubGraphWorkerInternal(TaskWorker):
                 with graph_task.lock:
                     if provenance not in graph_task._state:
                         raise ValueError(
-                            f"Task {provenance} does not have any associated state."
+                            f"Task {provenance} does not have any associated state: {graph_task._state}"
                         )
                     logging.debug(
                         "Subgraph is removing provenance for %s in %s",
@@ -92,6 +93,9 @@ class SubGraphWorkerInternal(TaskWorker):
         instance = AdapterSinkWorker()
         self.graph.add_workers(instance)
         self.graph.set_dependency(self.exit_worker, instance)
+        self.graph.set_entry(self.entry_worker)
+        self.graph.finalize()  # compute the worker distances
+        self.graph.init_workers()
 
     def get_task_class(self) -> Type[Task]:
         # usually the entry task gets dynamically determined from consume_work but we are overriding it here
@@ -101,7 +105,6 @@ class SubGraphWorkerInternal(TaskWorker):
         # we need to install the graph dispatcher into the sub-graph
         assert self._graph is not None
         self.graph._dispatcher = self._graph._dispatcher
-        self.graph.init_workers()
 
     def consume_work(self, task: Task):
         new_task = task.copy_public()
@@ -143,7 +146,9 @@ class SubGraphWorkerInternal(TaskWorker):
         self.graph.unwatch(prefix, self)
         with self.lock:
             if prefix not in self._state:
-                raise ValueError(f"Task {prefix} does not have any associated state.")
+                raise ValueError(
+                    f"Task {prefix} does not have any associated state: {self._state}"
+                )
             task, remove_provenance = self._state.pop(prefix)
 
         if remove_provenance:

@@ -223,6 +223,42 @@ class TestSearchFetch(unittest.TestCase):
             self.assertTrue(page.title.startswith("Test Result"))
             self.assertEqual(page.content, self.mock_page_content)
 
+    def test_search_fetch_worker_distances(self):
+        # Create graph and get references to workers
+        graph, search_executor, exit_worker = create_search_fetch_graph(
+            llm=self.mock_llm, name="TestSearchFetch"
+        )
+
+        # Compute distances
+        graph.set_entry(search_executor)
+        graph.finalize()
+
+        # Validate specific distances from InitialTaskWorker
+        initial_distances = graph._worker_distances["InitialTaskWorker"]
+        expected_order = {
+            "SearchExecutor": 1,
+            "SearchResultSplitter": 2,
+            "PageFetcher": 3,
+            "PageRelevanceFilter": 4,
+            "PageAnalysisConsumer": 4,
+            "PageConsolidator": 5,
+        }
+        for worker_name, expected_distance in expected_order.items():
+            self.assertEqual(
+                initial_distances[worker_name],
+                expected_distance,
+                f"Expected {worker_name} to be at distance {expected_distance}, "
+                f"got {initial_distances[worker_name]}",
+            )
+
+        # Validate specific distance between PageAnalysisConsumer and PageConsolidator
+        analysis_consumer_distances = graph._worker_distances["PageAnalysisConsumer"]
+        self.assertEqual(
+            analysis_consumer_distances["PageConsolidator"],
+            1,
+            "Expected PageConsolidator to be at distance 1 from PageAnalysisConsumer",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
