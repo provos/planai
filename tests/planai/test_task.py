@@ -78,6 +78,41 @@ class TestTask(unittest.TestCase):
         self.assertIs(self.task.find_input_task(Task1), task1)
         self.assertIsNone(self.task.find_input_task(Task))
 
+    def test_copy_input_provenance_creates_new_tasks(self):
+        input_task1 = Task()
+        input_task1._provenance = [("Task1", 1)]
+        input_task2 = Task()
+        input_task2._provenance = [("Task2", 2)]
+
+        self.task._input_provenance = [input_task1, input_task2]
+        copied = self.task.copy_input_provenance()
+
+        # Verify tasks are different instances
+        self.assertIsNot(copied[0], input_task1)
+        self.assertIsNot(copied[1], input_task2)
+
+        # Verify provenance is cleared in copied tasks
+        self.assertEqual(copied[0]._provenance, [])
+        self.assertEqual(copied[1]._provenance, [])
+        self.assertEqual(copied[0]._input_provenance, [])
+        self.assertEqual(copied[1]._input_provenance, [])
+
+    def test_add_input_provenance_creates_new_tasks(self):
+        input_task = Task()
+        input_task._provenance = [("Task1", 1)]
+        input_task._input_provenance = [Task()]
+
+        new_task = Task()
+        new_task._add_input_provenance(input_task)
+
+        # Verify the last input provenance task is different from original
+        last_input = new_task._input_provenance[-1]
+        self.assertIsNot(last_input, input_task)
+
+        # Verify provenance is cleared in the copied input task
+        self.assertEqual(last_input._provenance, [])
+        self.assertEqual(last_input._input_provenance, [])
+
 
 class DummyTask(Task):
     pass

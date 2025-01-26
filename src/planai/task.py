@@ -172,7 +172,7 @@ class Task(BaseModel):
         if input_task is not None:
             self._provenance = input_task.copy_provenance()
             self._input_provenance = input_task.copy_input_provenance() + [
-                input_task.model_copy()
+                input_task.copy_public()
             ]
             # merge private state
             self._private_state.update(input_task._private_state)
