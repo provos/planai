@@ -4,7 +4,8 @@ import unittest
 from typing import List, Optional, Type
 from unittest.mock import MagicMock, Mock, patch
 
-from planai.llm_interface import LLMInterface
+from llm_interface import LLMInterface
+
 from planai.llm_task import LLMTaskWorker
 from planai.task import Task
 

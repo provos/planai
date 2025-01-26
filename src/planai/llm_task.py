@@ -18,10 +18,10 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Any, Dict, Optional, Type
 
+from llm_interface import LLMInterface
 from pydantic import ConfigDict, Field
 
 from .cached_task import CachedTaskWorker
-from .llm_interface import LLMInterface
 from .task import Task, TaskWorker
 
 PROMPT_TEMPLATE = dedent(

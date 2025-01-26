@@ -3,6 +3,7 @@ import tempfile
 from textwrap import dedent
 from typing import Callable, List, Optional, Tuple, Type
 
+from llm_interface import LLMInterface
 from pydantic import Field
 
 from ..cached_task import CachedTaskWorker
@@ -10,7 +11,6 @@ from ..graph import Graph
 from ..graph_task import SubGraphWorker
 from ..integrations import SerperGoogleSearchTool, WebBrowser
 from ..joined_task import JoinedTaskWorker
-from ..llm_interface import LLMInterface
 from ..llm_task import CachedLLMTaskWorker
 from ..task import Task, TaskWorker
 

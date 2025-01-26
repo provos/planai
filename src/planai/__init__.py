@@ -13,12 +13,12 @@
 # limitations under the License.
 # src/planai/__init__.py
 
+from llm_interface import LLMInterface, llm_from_config
+
 from .cached_task import CachedTaskWorker
 from .graph import Graph
 from .graph_task import SubGraphWorker
 from .joined_task import InitialTaskWorker, JoinedTaskWorker
-from .llm_config import llm_from_config
-from .llm_interface import LLMInterface
 from .llm_task import CachedLLMTaskWorker, LLMTaskWorker
 from .provenance import ProvenanceChain
 from .task import Task, TaskWorker
