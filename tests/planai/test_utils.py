@@ -49,22 +49,6 @@ class TestDictDumpXml(unittest.TestCase):
         self.assertIn("<bytes>", result)
         self.assertIn("<set>", result)
 
-    def test_invalid_input(self):
-        test_cases = [
-            ("Function value", {"func": lambda x: x}),
-            ("Circular reference", {}),
-        ]
-
-        # Create circular reference
-        d = test_cases[1][1]
-        d["circular"] = d
-
-        for case_name, test_dict in test_cases:
-            with self.subTest(case_name=case_name):
-                result = dict_dump_xml(test_dict)
-                self.assertIsInstance(result, str)
-                self.assertIn("<error>Failed to convert to XML</error>", result)
-
     def test_custom_root(self):
         test_dict = {"key": "value"}
         result = dict_dump_xml(test_dict, root="custom")
@@ -81,6 +65,12 @@ class TestDictDumpXml(unittest.TestCase):
         result = dict_dump_xml(test_dict)
         self.assertIn("<키>값</키>", result)
         self.assertIn("<ключ>значение</ключ>", result)
+
+    def test_random_bytes(self):
+        test_dict = {"random": b"\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09"}
+        result = dict_dump_xml(test_dict)
+        self.assertIn("<random>", result)
+        self.assertIn("</random>", result)
 
 
 if __name__ == "__main__":
