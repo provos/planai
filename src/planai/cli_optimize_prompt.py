@@ -58,6 +58,7 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Any, Dict, List, Optional, Type
 
+from llm_interface import LLMInterface
 from pydantic import Field, PrivateAttr
 
 from planai import (
@@ -70,7 +71,6 @@ from planai import (
     TaskWorker,
     llm_from_config,
 )
-from planai.llm_interface import LLMInterface
 from planai.utils import setup_logging
 
 from .cli_utils import (

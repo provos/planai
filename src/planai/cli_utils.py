@@ -3,8 +3,9 @@ import os
 import sys
 from typing import Any, Optional
 
+from llm_interface import LLMInterface
+
 from planai import LLMTaskWorker
-from planai.llm_interface import LLMInterface
 
 
 def load_module_from_file(
