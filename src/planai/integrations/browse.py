@@ -159,7 +159,7 @@ class WebBrowser:
             return WebBrowser.extract_markdown(content) if content else None
 
 
-def main():
+def main():  # pragma: no cover
     parser = argparse.ArgumentParser(
         description="Extract main content from a webpage or PDF"
     )

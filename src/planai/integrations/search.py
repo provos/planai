@@ -100,7 +100,7 @@ class SerperGoogleSearchTool:
             return None
 
 
-def main():
+def main():  # pragma: no cover
     import argparse
     import json
 

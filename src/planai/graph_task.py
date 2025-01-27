@@ -211,7 +211,7 @@ def SubGraphWorker(
     return CustomClass(graph=graph, entry_worker=entry_worker, exit_worker=exit_worker)
 
 
-def main():
+def main():  # pragma: no cover
     import argparse
     import random
     import time

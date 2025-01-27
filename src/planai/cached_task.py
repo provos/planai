@@ -112,7 +112,7 @@ class CachedTaskWorker(TaskWorker):
             logging.error("Error caching results for key %s: %s", cache_key, str(e))
 
 
-def main():
+def main():  # pragma: no cover
     parser = argparse.ArgumentParser(
         description="Read and print entries from a diskcache."
     )
