@@ -51,6 +51,8 @@ class CachedTaskWorker(TaskWorker):
                 logging.info("Cache miss for %s with key: %s", self.name, cache_key)
                 self.consume_work(task)
                 input_task, outputs = self._local.ctx.get_input_and_outputs()
+                # strip private fields from outputs
+                outputs = [task.copy_public() for task in outputs]
                 self._set_cache(input_task, outputs)
 
             self.post_consume_work(task)
