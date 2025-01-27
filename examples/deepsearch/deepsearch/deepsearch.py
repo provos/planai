@@ -312,7 +312,7 @@ def notify_planai(
         global session_manager
         # get the metadata for this session
         session_metadata = session_manager.metadata(session_id)
-        if session_metadata.get("started") and False:  # ignore for now
+        if session_metadata.get("started"):
             # this indicates that we failed the task
             task_queue.put(
                 (
