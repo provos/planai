@@ -26,7 +26,9 @@ class SearchQuery(Task):
 class SearchResult(Task):
     title: str = Field(description="Title of the search result")
     link: str = Field(description="URL of the search result")
-    snippet: str = Field(description="Snippet of the search result")
+    snippet: Optional[str] = Field(
+        default=None, description="Snippet of the search result"
+    )
 
 
 class SearchResults(Task):
@@ -54,7 +56,7 @@ class SearchExecutor(CachedTaskWorker):
     output_types: List[Type[Task]] = [SearchResults]
     max_results: int = Field(10, description="Maximum number of results per query")
 
-    def pre_consume_work(self, task):
+    def pre_consume_work(self, task: SearchQuery):
         self.notify_status(task, f"Searching for: {task.query}")
 
     def consume_work(self, task: SearchQuery):

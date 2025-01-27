@@ -40,7 +40,7 @@ class TestSearchFetch(unittest.TestCase):
             {
                 "title": "Test Result 2",
                 "link": "https://example.com/2",
-                "snippet": "Test snippet 2",
+                "snippet": None,
             },
         ]
 
