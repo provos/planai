@@ -3,6 +3,12 @@
 	import { faPaperPlane, faStop } from '@fortawesome/free-solid-svg-icons';
     import { messageBus } from '../stores/messageBus.svelte.js';
 
+    const providerMapping = {
+        'ollama': 'Ollama',
+        'openai': 'OpenAI',
+        'anthropic': 'Anthropic'
+    };
+
 	let showSettings = $state(false);
 
 	let config = $state({
@@ -26,7 +32,8 @@
                 config.serperApiKey = payload.serperApiKey || '';
                 config.openAiApiKey = payload.openAiApiKey || '';
                 config.anthropicApiKey = payload.anthropicApiKey || '';
-                config.provider = payload.provider || 'Ollama';
+                // Map provider name from backend format to display format
+                config.provider = providerMapping[payload.provider?.toLowerCase()] || 'Ollama';
                 config.modelName = payload.modelName || '';
                 hasKey.serper = !!payload.serperApiKey;
                 hasKey.openAi = !!payload.openAiApiKey;

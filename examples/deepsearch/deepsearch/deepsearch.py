@@ -2,6 +2,7 @@ import logging
 import queue
 import re
 import threading
+import os
 from typing import Any, Dict, Tuple
 from urllib.parse import urlparse
 
@@ -39,6 +40,15 @@ graph_thread = None
 should_stop = False
 graph = None
 entry_worker = None
+
+# Add new global settings variable
+current_settings = {
+    "provider": "ollama",
+    "model": "llama2",
+    "serperApiKey": os.environ.get("SERPER_API_KEY", ""),
+    "openAiApiKey": os.environ.get("OPENAI_API_KEY", ""),
+    "anthropicApiKey": os.environ.get("ANTHROPIC_API_KEY", ""),
+}
 
 
 def format_message(message: str) -> str:
@@ -130,10 +140,14 @@ def notify(metadata, message: Response):
 
 
 def start_graph_thread(
-    provider: str = "ollama", model: str = "llama3.3:latest", ollama_port: int = 11434
+    provider: str = "ollama", model: str = "llama2", ollama_port: int = 11434
 ):
-    """Create and start a new worker thread."""
-    global graph_thread, graph, entry_worker, debug_saver
+    """Modified to use current settings."""
+    global graph_thread, graph, entry_worker, debug_saver, current_settings
+
+    # Update current settings
+    current_settings["provider"] = provider
+    current_settings["model"] = model
 
     graph, entry_worker = setup_graph(
         provider=provider, model=model, ollama_port=ollama_port, notify=notify
@@ -370,23 +384,55 @@ def patch_notify_functions():
 
 @socketio.on("load_settings")
 def handle_load_settings():
-    # Retrieve or mock existing settings
+    """Load current settings, masking API keys if they exist."""
     settings = {
-        "serperApiKey": "",
-        "openAiApiKey": None,
-        "anthropicApiKey": None,
-        "provider": "Ollama",
-        "modelName": "llama2",
+        "provider": current_settings["provider"],
+        "modelName": current_settings["model"],
+        "serperApiKey": "",  # Don't send actual keys
+        "openAiApiKey": "",
+        "anthropicApiKey": "",
     }
+
+    # Just indicate if keys exist
+    if current_settings["serperApiKey"]:
+        settings["serperApiKey"] = "SET"
+    if current_settings["openAiApiKey"]:
+        settings["openAiApiKey"] = "SET"
+    if current_settings["anthropicApiKey"]:
+        settings["anthropicApiKey"] = "SET"
+
     emit("settings_loaded", settings)
 
 
 @socketio.on("save_settings")
 def handle_save_settings(data):
-    # Persist settings to environment or config
+    """Save settings and update environment variables."""
     try:
-        # TODO: Implement actual settings persistence
-        print(f"Saving settings: {data}")
+        # Update current settings with lowercase provider
+        current_settings["provider"] = data.get("provider", "ollama").lower()
+        current_settings["model"] = data.get("modelName", "llama2")
+
+        # Update environment variables if new keys provided
+        if data.get("serperApiKey"):
+            os.environ["SERPER_API_KEY"] = data["serperApiKey"]
+            current_settings["serperApiKey"] = data["serperApiKey"]
+
+        if data.get("openAiApiKey"):
+            os.environ["OPENAI_API_KEY"] = data["openAiApiKey"]
+            current_settings["openAiApiKey"] = data["openAiApiKey"]
+
+        if data.get("anthropicApiKey"):
+            os.environ["ANTHROPIC_API_KEY"] = data["anthropicApiKey"]
+            current_settings["anthropicApiKey"] = data["anthropicApiKey"]
+
+        # Restart graph with new settings if provider or model changed
+        global graph, entry_worker
+        if graph:
+            stop_worker_thread()
+            start_graph_thread(
+                provider=current_settings["provider"], model=current_settings["model"]
+            )
+
         emit("settings_saved", {"status": "ok"})
     except Exception as e:
         emit("error", f"Failed to save settings: {str(e)}")
@@ -409,6 +455,10 @@ def main():
         help="Delay between replay events in seconds",
     )
     args = parser.parse_args()
+
+    # Initialize current settings from args
+    current_settings["provider"] = args.provider
+    current_settings["model"] = args.model
 
     if args.debug:
         global debug_saver
