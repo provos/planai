@@ -131,7 +131,12 @@ class Task(BaseModel):
         return None
 
     def previous_input_task(self):
-        return self._input_provenance[-1] if self._input_provenance else None
+        if not self._input_provenance:
+            return None
+        task = self._input_provenance[-1].copy_public()
+        task._provenance = self._provenance.copy()[:-1]
+        task._input_provenance = self._input_provenance.copy()[:-1]
+        return task
 
     def prefix(self, length: int) -> "ProvenanceChain":
         """
