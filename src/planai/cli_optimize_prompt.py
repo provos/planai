@@ -48,6 +48,7 @@ Note: This tool requires a comprehensive debug log with diverse examples for eff
 """
 
 import argparse
+import logging
 import hashlib
 import json
 import random
@@ -352,9 +353,6 @@ class AccumulateCritiqueOutput(JoinedTaskWorker):
     _state: Dict[str, PromptCritique] = PrivateAttr(default_factory=dict)
     _count: int = PrivateAttr(default=0)
 
-    def consume_work(self, task: CombinedPromptCritique):
-        return super().consume_work(task)
-
     def consume_work_joined(self, tasks: List[CombinedPromptCritique]):
         if not tasks:
             self.print("No tasks received - this is a serious error")
@@ -487,7 +485,10 @@ Provide the improved prompt_template and a comment on the improvement.
 
 
 def optimize_prompt(
-    llm_fast: LLMInterface, llm_reason: LLMInterface, args: argparse.Namespace
+    llm_fast: LLMInterface,
+    llm_reason: LLMInterface,
+    args: argparse.Namespace,
+    debug: bool = False,
 ):
     """
     Orchestrates the prompt optimization process for a given LLMTaskWorker class.
@@ -670,7 +671,7 @@ def optimize_prompt(
             )
             self.publish_work(output, input_task=task)
 
-    setup_logging()
+    setup_logging(level=logging.DEBUG if debug else logging.INFO)
 
     graph = Graph(name="Prompt Optimization Graph")
     generation = PromptGenerationWorker(llm=llm_reason)
@@ -711,6 +712,12 @@ def optimize_prompt(
         prepare_input
     )
     graph.set_sink(accumulate_critique, PromptCritique)
+
+    # inject a mock cache
+    if debug:
+        from planai.testing.helpers import MockCache, inject_mock_cache
+
+        inject_mock_cache(graph, MockCache())
 
     # create two new prompts
     input_tasks = []
@@ -762,7 +769,11 @@ def optimize_prompt(
     # Make sure to pick the prompt from the upstream workers and reflect it in the cache key
     inject_prompt_awareness(llm_class)
 
-    graph.run(initial_tasks=input_tasks, run_dashboard=False)
+    graph.run(
+        initial_tasks=input_tasks,
+        run_dashboard=False,
+        display_terminal=not debug,
+    )
 
     output = graph.get_output_tasks()
     write_results(llm_class.name, output)
@@ -821,6 +832,9 @@ def sanitize_prompt(original_template: str, prompt_template: str) -> str:
 
 
 def inject_prompt_awareness(llm_class: LLMTaskWorker):
+    if not hasattr(llm_class, "extra_cache_key"):
+        return
+
     original_format_prompt = llm_class.format_prompt
     original_extra_cache_key = llm_class.extra_cache_key
 
