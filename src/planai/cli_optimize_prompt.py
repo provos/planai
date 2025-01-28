@@ -39,8 +39,8 @@ This module is typically invoked through the PlanAI CLI using the 'optimize-prom
 It requires specifying the target Python file, class name, debug log, and optimization goal.
 
 Example:
-    planai optimize-prompt --python-file your_app.py --class-name YourLLMTaskWorker
-                           --debug-log debug/YourLLMTaskWorker.json --goal-prompt "Your optimization goal here"
+    PYTHONPATH=. planai optimize-prompt --python-file your_app.py --class-name YourLLMTaskWorker \
+        --debug-log debug/YourLLMTaskWorker.json --goal-prompt "Your optimization goal here"
 
 The module outputs optimized prompts as text files and corresponding metadata as JSON files.
 
@@ -546,6 +546,7 @@ def optimize_prompt(
                 llm_opt_provider = config.get("llm_opt_provider")
                 llm_opt_model = config.get("llm_opt_model")
                 llm_opt_max_tokens = config.get("llm_opt_max_tokens", 4096)
+                output_dir = config.get("output_dir", ".")
 
                 missing_fields = []
                 if not python_file:
@@ -581,6 +582,7 @@ def optimize_prompt(
         llm_opt_model = args.llm_opt_model
         llm_opt_provider = args.llm_opt_provider
         llm_opt_max_tokens = 4096
+        output_dir = args.output_dir if args.output_dir else "."
 
     # Write out configuration if requested
     if args.output_config:
@@ -594,6 +596,7 @@ def optimize_prompt(
             "llm_opt_provider": llm_opt_provider,
             "llm_opt_model": llm_opt_model,
             "llm_opt_max_tokens": llm_opt_max_tokens,
+            "output_dir": output_dir,
         }
         with open(args.output_config, "w") as config_file:
             json.dump(config_data, config_file, indent=4)
@@ -776,10 +779,12 @@ def optimize_prompt(
     )
 
     output = graph.get_output_tasks()
-    write_results(llm_class.name, output)
+    write_results(llm_class.name, output, output_dir=output_dir)
 
 
-def write_results(class_name: str, output: List[PromptCritique]):
+def write_results(
+    class_name: str, output: List[PromptCritique], output_dir: str = "."
+) -> None:
     """
     Writes the results from prompt optimization to a text file and a JSON file.
 
@@ -802,7 +807,7 @@ def write_results(class_name: str, output: List[PromptCritique]):
 
     for index, task in enumerate(output, start=1):
         # Create the base file name prefixed with the class name and prompt number.
-        base_filename = f"{class_name}_prompt_{index}"
+        base_filename = Path(output_dir) / f"{class_name}_prompt_{index}"
 
         # Create the text file containing the prompt and score.
         text_filename = get_available_filename(base_filename, "txt")

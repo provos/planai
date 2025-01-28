@@ -104,6 +104,12 @@ def create_parser():
         required=False,
         help="LLM model name for generation to be used for the prompt that is being optimized. This should be the same LLM as being used in production.",
     )
+    optimize_parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=".",
+        help="Directory to write output files",
+    )
 
     # Subcommand cache
     cache_parser = subparsers.add_parser("cache", help="Inspect and manipulate cache")

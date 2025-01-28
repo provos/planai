@@ -1,5 +1,4 @@
 import json
-import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -29,9 +28,13 @@ class FakeOutputTask(Task):
 
 
 class TestCliOptimizePrompt(unittest.TestCase):
-    def setUp(self):
+
+    @pytest.fixture(autouse=True)
+    def inject_fixtures(self, tmp_path):
+        self.temp_dir = tmp_path
+
+    def create_tmp_data(self):
         # Create temporary files for tests
-        self.temp_dir = tempfile.mkdtemp()
         self.python_file = Path(self.temp_dir) / "test_worker.py"
         self.debug_log = Path(self.temp_dir) / "debug.json"
 
@@ -45,7 +48,6 @@ from test_cli_optimize_prompt import FakeInputTask, FakeOutputTask
 class TestWorker(LLMTaskWorker):
     output_types: Type[Task] = [FakeOutputTask]
     llm_input_type: Type[Task] = FakeInputTask
-
     prompt: str = "Original prompt with {query}"
 
     def format_prompt(self, task: FakeInputTask
@@ -97,12 +99,14 @@ class TestWorker(LLMTaskWorker):
             self.assertEqual(task.query, "test query")
 
     def test_load_debug_log(self):
+        self.create_tmp_data()
         result = load_debug_log(str(self.debug_log))
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["input_task"]["query"], "test query")
 
-    @pytest.mark.skip(reason="Skipping optimize prompt test")
     def test_optimize_prompt(self):
+        # Create temporary files for tests
+        self.create_tmp_data()
         # Create mock LLMs with pre-defined responses for different steps
         mock_fast_llm = MockLLM(
             responses=[
@@ -154,6 +158,7 @@ class TestWorker(LLMTaskWorker):
         args.llm_opt_provider = None
         args.config = None
         args.output_config = None
+        args.output_dir = self.temp_dir
 
         # Run optimize_prompt with our mock LLMs
         optimize_prompt(mock_fast_llm, mock_reason_llm, args, debug=True)
@@ -166,12 +171,6 @@ class TestWorker(LLMTaskWorker):
         content = output_files[0].read_text()
         self.assertIn("Score:", content)
         self.assertIn("prompt", content.lower())
-
-    def tearDown(self):
-        # Clean up temporary files
-        for file in Path(self.temp_dir).glob("*"):
-            file.unlink()
-        Path(self.temp_dir).rmdir()
 
 
 if __name__ == "__main__":
