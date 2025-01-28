@@ -13,7 +13,11 @@ function createMessageBus() {
         thinkingUpdate: (message) => set({ type: 'thinkingUpdate', payload: message }),
         error: (message) => set({ type: 'error', payload: message }),
         resetMessages: () => set({ type: 'resetMessages', payload: null }),
-        cleanup: () => set({ type: 'cleanup', payload: null })
+        cleanup: () => set({ type: 'cleanup', payload: null }),
+        settingsLoaded: (settings) => set({ type: 'settingsLoaded', payload: settings }),
+        settingsSaved: (status) => set({ type: 'settingsSaved', payload: status }),
+        loadSettings: () => set({ type: 'loadSettings', payload: null }),
+        saveSettings: (settings) => set({ type: 'saveSettings', payload: settings })
     };
 }
 

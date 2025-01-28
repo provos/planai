@@ -18,6 +18,17 @@
         sessionState.sessionId = id;
     }
 
+    $effect(() => {
+        const unsubscribe = messageBus.subscribe(({ type, payload }) => {
+            if (type === 'loadSettings' && sessionState.socket) {
+                sessionState.socket.emit('load_settings');
+            } else if (type === 'saveSettings' && sessionState.socket) {
+                sessionState.socket.emit('save_settings', payload);
+            }
+        });
+        return () => unsubscribe();
+    });
+
     function initializeSocket() {
         const storedSessionId = loadStoredSession();
         if (storedSessionId) {
@@ -81,6 +92,14 @@
 
         socket.on('thinking_update', (update) => {
             messageBus.thinkingUpdate(update);
+        });
+
+        socket.on('settings_loaded', (settings) => {
+            messageBus.settingsLoaded(settings);
+        });
+
+        socket.on('settings_saved', (status) => {
+            messageBus.settingsSaved(status);
         });
 
         socket.on('error', (err) => {

@@ -368,6 +368,30 @@ def patch_notify_functions():
         notify_planai = debug_saver.capture("notify_planai")(notify_planai)
 
 
+@socketio.on("load_settings")
+def handle_load_settings():
+    # Retrieve or mock existing settings
+    settings = {
+        "serperApiKey": "",
+        "openAiApiKey": None,
+        "anthropicApiKey": None,
+        "provider": "Ollama",
+        "modelName": "llama2",
+    }
+    emit("settings_loaded", settings)
+
+
+@socketio.on("save_settings")
+def handle_save_settings(data):
+    # Persist settings to environment or config
+    try:
+        # TODO: Implement actual settings persistence
+        print(f"Saving settings: {data}")
+        emit("settings_saved", {"status": "ok"})
+    except Exception as e:
+        emit("error", f"Failed to save settings: {str(e)}")
+
+
 def main():
     import argparse
 
