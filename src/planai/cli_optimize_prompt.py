@@ -48,9 +48,9 @@ Note: This tool requires a comprehensive debug log with diverse examples for eff
 """
 
 import argparse
-import logging
 import hashlib
 import json
+import logging
 import random
 import re
 import sys
@@ -673,7 +673,7 @@ def optimize_prompt(
 
     setup_logging(level=logging.DEBUG if debug else logging.INFO)
 
-    graph = Graph(name="Prompt Optimization Graph")
+    graph = Graph(name="Prompt Optimization Graph", strict_mode=True)
     generation = PromptGenerationWorker(llm=llm_reason)
 
     prepare_input = PrepareInputWorker(
@@ -832,11 +832,7 @@ def sanitize_prompt(original_template: str, prompt_template: str) -> str:
 
 
 def inject_prompt_awareness(llm_class: LLMTaskWorker):
-    if not hasattr(llm_class, "extra_cache_key"):
-        return
-
     original_format_prompt = llm_class.format_prompt
-    original_extra_cache_key = llm_class.extra_cache_key
 
     def new_format_prompt(task: Task) -> str:
         input_prompt: Optional[ImprovedPrompt] = task.find_input_task(ImprovedPrompt)
@@ -846,15 +842,21 @@ def inject_prompt_awareness(llm_class: LLMTaskWorker):
             llm_class.prompt = input_prompt.prompt_template
             return original_format_prompt(task)
 
-    def new_extra_cache_key(task: Task) -> str:
-        input_prompt: Optional[ImprovedPrompt] = task.find_input_task(ImprovedPrompt)
-        if input_prompt is None:
-            raise ValueError("No input task found")
-        return original_extra_cache_key(task) + input_prompt.prompt_template
+    if hasattr(llm_class, "extra_cache_key"):
+        original_extra_cache_key = llm_class.extra_cache_key
+
+        def new_extra_cache_key(task: Task) -> str:
+            input_prompt: Optional[ImprovedPrompt] = task.find_input_task(
+                ImprovedPrompt
+            )
+            if input_prompt is None:
+                raise ValueError("No input task found")
+            return original_extra_cache_key(task) + input_prompt.prompt_template
+
+        llm_class.__dict__["extra_cache_key"] = new_extra_cache_key
 
     # we need to use brute-force because of pydantic's checks
     llm_class.__dict__["format_prompt"] = new_format_prompt
-    llm_class.__dict__["extra_cache_key"] = new_extra_cache_key
 
 
 def create_input_task(module: Any, class_name: str, data: Dict[str, Any]) -> Task:
