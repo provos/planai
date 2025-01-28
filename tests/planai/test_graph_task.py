@@ -346,7 +346,7 @@ class TestGraphTask(unittest.TestCase):
                     self.publish_work(new_task, input_task=tasks[0])
 
         # Create subgraph with branching and multiple output workers
-        subgraph = Graph(name="ComplexSubGraph")
+        subgraph = Graph(name="ComplexSubGraph", strict=True)
         branch_worker = BranchingWorker()
         multi_worker = MultiOutputWorker()
         subgraph.add_workers(branch_worker, multi_worker)
