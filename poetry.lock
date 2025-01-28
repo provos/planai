@@ -1030,14 +1030,14 @@ files = [
 
 [[package]]
 name = "llm-interface"
-version = "0.1.3"
+version = "0.1.4"
 description = "A flexible interface for working with various LLM providers"
 optional = false
 python-versions = "<4.0,>=3.10"
 groups = ["main"]
 files = [
-    {file = "llm_interface-0.1.3-py3-none-any.whl", hash = "sha256:ed04ffec9c4b31e37be9e3052db3547190f77e9f621f77dc6c0ee074c21e0096"},
-    {file = "llm_interface-0.1.3.tar.gz", hash = "sha256:6ede74f98d2e8a40fdae2ccd2d159f5fc54056366a52ba358c5c29c9f17378c4"},
+    {file = "llm_interface-0.1.4-py3-none-any.whl", hash = "sha256:00bae009c1ef5bfe733dc97ad642002e384d30402b2786eafe241301ac4466a5"},
+    {file = "llm_interface-0.1.4.tar.gz", hash = "sha256:ec7f577f0f18baca85394f54c9dca8b29f84577b9af85bf0c2feecc80d47fd75"},
 ]
 
 [package.dependencies]
