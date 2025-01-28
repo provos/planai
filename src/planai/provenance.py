@@ -179,6 +179,9 @@ class ProvenanceTracker:
         return None
 
     def _add_provenance(self, task: Task):
+        logging.info(
+            "%s: Adding provenance for %s with %s", self, task.name, task._provenance
+        )
         for prefix in self._generate_prefixes(task):
             with self.provenance_lock:
                 self.provenance[prefix] = self.provenance.get(prefix, 0) + 1
@@ -202,7 +205,7 @@ class ProvenanceTracker:
                     )
 
     def _remove_provenance(self, task: Task, worker: TaskWorker):
-        logging.debug(
+        logging.info(
             "%s: Removing provenance for %s with %s", self, task.name, task._provenance
         )
         to_notify = set()
