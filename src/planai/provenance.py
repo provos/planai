@@ -204,6 +204,9 @@ class ProvenanceTracker:
                     )
 
     def _remove_provenance(self, task: Task, worker: TaskWorker):
+        logging.debug(
+            "%s: Removing provenance for %s with %s", self, task.name, task._provenance
+        )
         to_notify = set()
         for prefix in self._generate_prefixes(task):
             with self.provenance_lock:
