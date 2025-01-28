@@ -78,13 +78,14 @@ class SubGraphWorkerInternal(TaskWorker):
                         raise ValueError(
                             f"Task {provenance} does not have any associated state: {graph_task._state}"
                         )
-                    logging.debug(
-                        "Subgraph is removing provenance for %s in %s",
-                        provenance,
-                        self.name,
-                    )
                     task, remove_provenance = graph_task._state.get(provenance)
                     if remove_provenance:
+                        logging.debug(
+                            "Subgraph is removing provenance for %s in %s for subgraph provenance %s",
+                            task._provenance,
+                            self.name,
+                            provenance,
+                        )
                         graph_task._graph._provenance_tracker._remove_provenance(
                             task, self
                         )
@@ -115,7 +116,7 @@ class SubGraphWorkerInternal(TaskWorker):
         new_task.add_private_state(PRIVATE_STATE_KEY, old_task)
 
         # artificially increase the provenance
-        logging.debug("Adding additional provenance for %s", task._provenance)
+        logging.debug("Adding additional provenance for %s", old_task._provenance)
         self._graph._provenance_tracker._add_provenance(old_task)
 
         # get any associated state and re-inject it
