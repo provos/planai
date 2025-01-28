@@ -158,7 +158,7 @@ class TestTaskWorker(unittest.TestCase):
         self.assertIsNotNone(prefix)
         result = self.worker.watch(prefix)
         self.assertIsNotNone(prefix)
-        graph.watch.assert_called_once_with(prefix, self.worker, None)
+        graph.watch.assert_called_once_with(prefix, self.worker)
         self.assertEqual(result, graph.watch.return_value)
 
     def test_unwatch(self):

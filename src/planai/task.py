@@ -366,7 +366,7 @@ class TaskWorker(BaseModel, ABC):
         """
         self._graph.trace(prefix)
 
-    def watch(self, prefix: "ProvenanceChain", task: Optional[Task] = None) -> bool:
+    def watch(self, prefix: "ProvenanceChain") -> bool:
         """
         Watches for the completion of a specific provenance chain prefix in the task graph.
 
@@ -379,10 +379,6 @@ class TaskWorker(BaseModel, ABC):
         prefix : ProvenanceChain
             The prefix to watch. Must be a tuple representing a part of a task's provenance chain.
             This is the sequence of task identifiers leading up to (but not including) the current task.
-
-        task : Optional[Task], default=None
-            The task associated with this watch operation. This parameter is optional and may be
-            used for additional context or functionality in the underlying implementation.
 
         Returns:
         --------
@@ -397,7 +393,7 @@ class TaskWorker(BaseModel, ABC):
         """
         if not isinstance(prefix, tuple):
             raise ValueError("Prefix must be a tuple")
-        return self._graph.watch(prefix, self, task)
+        return self._graph.watch(prefix, self)
 
     def unwatch(self, prefix: "ProvenanceChain") -> bool:
         """

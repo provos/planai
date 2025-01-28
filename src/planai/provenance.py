@@ -173,11 +173,9 @@ class ProvenanceTracker:
             ProvenanceChain: A tuple containing the provenance chain elements corresponding to the specified worker type.
             None: If the worker type is not found in the task's provenance chain.
         """
-        # XXX - This should always be true - but I fear it might not be
-        assert len(task._provenance) == len(task.input_provenance)
-        for index, entry in enumerate(task.input_provenance):
+        for index, entry in enumerate(task._provenance):
             if entry[0] == worker_type.__name__:
-                return tuple(task.input_provenance[: index + 1])
+                return tuple(task._provenance[: index + 1])
         return None
 
     def _add_provenance(self, task: Task):
@@ -262,8 +260,9 @@ class ProvenanceTracker:
 
             if final_notify:
                 logging.info(
-                    "Re-adding provenance for %s - as we need to wait for the notification to complete before completely removing it",
+                    "Re-adding provenance for %s (%s) - as we need to wait for the notification to complete before completely removing it",
                     task.name,
+                    task._provenance,
                 )
                 self._add_provenance(task)
                 self._notify_task_completion(final_notify, worker, task)
@@ -280,7 +279,7 @@ class ProvenanceTracker:
         self,
         to_notify: List[Tuple[TaskWorker, ProvenanceChain]],
         worker: TaskWorker,
-        task: Optional[Task],
+        task: Task,
     ):
         if not to_notify:
             if task is not None:
@@ -309,7 +308,7 @@ class ProvenanceTracker:
 
         # Use a named function instead of a lambda to avoid closure issues
         def task_completed_callback(
-            future, worker=notifier, to_notify=sorted_to_notify, task=task
+            future, worker: TaskWorker = notifier, task: Task = task
         ):
             dispatcher: Dispatcher = worker._graph._dispatcher
             dispatcher._task_completed(worker, None, future)
@@ -340,9 +339,7 @@ class ProvenanceTracker:
         with self.provenance_lock:
             return self.provenance_trace
 
-    def watch(
-        self, prefix: ProvenanceChain, notifier: TaskWorker, task: Optional[Task] = None
-    ) -> bool:
+    def watch(self, prefix: ProvenanceChain, notifier: TaskWorker) -> bool:
         """
         Watches the given prefix and notifies the specified notifier when the prefix is no longer tracked
         as part of the provenance of all tasks.
@@ -360,9 +357,6 @@ class ProvenanceTracker:
         notifier : TaskWorker
             The object to be notified when the watched prefix is no longer in use.
             Its notify method will be called with the watched prefix as an argument.
-
-        task : Task
-            The task associated with this watch operation if it was called from consume_work.
 
         Returns:
         --------
@@ -383,15 +377,6 @@ class ProvenanceTracker:
             if notifier not in self.notifiers[prefix]:
                 self.notifiers[prefix].append(notifier)
                 added = True
-
-        if task is not None:
-            should_notify = False
-            with self.provenance_lock:
-                if self.provenance.get(prefix, 0) == 0:
-                    should_notify = True
-
-            if should_notify:
-                self._notify_task_completion([(notifier, prefix)], notifier, None)
 
         return added
 

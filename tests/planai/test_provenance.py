@@ -103,6 +103,39 @@ class TestProvenanceTracker(unittest.TestCase):
             mock_metadata, (("Task1", 1),), None, None, "Task removed"
         )
 
+    def test_get_prefix_by_type(self):
+        # Create a task with a multi-worker provenance chain
+        task = DummyTask(data="test")
+        task._provenance = [("Worker1", 1), ("Worker2", 2), ("Worker3", 3)]
+        task._input_provenance = []
+
+        # Define some test worker classes
+        class Worker1(TaskWorker):
+            def consume_work(self, task):
+                pass
+
+        class Worker2(TaskWorker):
+            def consume_work(self, task):
+                pass
+
+        class Worker3(TaskWorker):
+            def consume_work(self, task):
+                pass
+
+        # Test getting prefix for different worker types
+        prefix1 = self.provenance_tracker.get_prefix_by_type(task, Worker1)
+        prefix2 = self.provenance_tracker.get_prefix_by_type(task, Worker2)
+        prefix3 = self.provenance_tracker.get_prefix_by_type(task, Worker3)
+        prefix4 = self.provenance_tracker.get_prefix_by_type(
+            task, DummyTaskWorkerSimple
+        )
+
+        # Verify the correct prefixes are returned
+        self.assertEqual(prefix1, (("Worker1", 1),))
+        self.assertEqual(prefix2, (("Worker1", 1), ("Worker2", 2)))
+        self.assertEqual(prefix3, (("Worker1", 1), ("Worker2", 2), ("Worker3", 3)))
+        self.assertIsNone(prefix4)  # Should return None for worker type not in chain
+
 
 if __name__ == "__main__":
     unittest.main()
