@@ -58,9 +58,6 @@ class SubGraphWorkerInternal(TaskWorker):
                 # remove any metadata and callbacks before changing the provenance
                 self.remove_state(task)
 
-                # remember the provenance of the task
-                provenance = task.prefix(1)
-
                 task._add_input_provenance(old_task)
                 task._add_worker_provenance(graph_task)
 
@@ -69,27 +66,6 @@ class SubGraphWorkerInternal(TaskWorker):
                 assert graph_task.exit_worker._graph._dispatcher is not None
                 consumer = graph_task._get_consumer(task)
                 graph_task.exit_worker._graph._dispatcher.add_work(consumer, task)
-
-                # we need to make sure that we remove the extra provenance only once
-                # so we associated a refcount with the new task that was injected into
-                # the sub-graph and then get a reference back to it here
-                with graph_task.lock:
-                    if provenance not in graph_task._state:
-                        raise ValueError(
-                            f"Task {provenance} does not have any associated state: {graph_task._state}"
-                        )
-                    task, remove_provenance = graph_task._state.get(provenance)
-                    if remove_provenance:
-                        logging.debug(
-                            "Subgraph is removing provenance for %s in %s for subgraph provenance %s",
-                            task._provenance,
-                            self.name,
-                            provenance,
-                        )
-                        graph_task._graph._provenance_tracker._remove_provenance(
-                            task, self
-                        )
-                        graph_task._state[provenance] = (task, False)
 
         instance = AdapterSinkWorker()
         self.graph.add_workers(instance)
@@ -129,7 +105,7 @@ class SubGraphWorkerInternal(TaskWorker):
             # We inject True to indicate that extra provenance is still associated with the task
             logging.debug("Injecting state for %s in %s", provenance, self.name)
             with self.lock:
-                self._state[provenance] = (old_task, True)
+                self._state[provenance] = old_task
 
         # and dispatch it to the sub-graph. this also sets the task provenance to InitialTaskWorker
         self.graph._add_work(
@@ -141,30 +117,30 @@ class SubGraphWorkerInternal(TaskWorker):
         )
 
     def notify(self, prefix: str):
-        # if tasks of the sub-graph fail, it's possible that the SinkWorker never gets called
-        # so we need to remove additional provenance here and clean up state
-        logging.debug("Removing state for %s in %s", prefix, self.name)
+        # we don't know how many tasks a subgraph will produce. we need to hold on to
+        # the extra provenance as long as there is work for the initial provenance. this
+        # function will get called when all the work for the prefix is completed and
+        # then we can remove additional provenance here and clean up state
         self.graph.unwatch(prefix, self)
         with self.lock:
             if prefix not in self._state:
                 raise ValueError(
                     f"Task {prefix} does not have any associated state: {self._state}"
                 )
-            task, remove_provenance = self._state.pop(prefix)
+            task = self._state.pop(prefix)
 
-        if remove_provenance:
-            logging.info(
-                "Caught Subgraph execution error. Removing provenance for %s in %s",
-                prefix,
-                self.name,
-            )
-            self._graph._provenance_tracker._remove_provenance(task, self)
+        logging.info(
+            "Subgraph completed. Removing provenance for %s in %s",
+            prefix,
+            self.name,
+        )
+        self._graph._provenance_tracker._remove_provenance(task, self)
 
     def abort_work(self, provenance: ProvenanceChain):
         # map the provenance to the sub-graph provenance
         need_to_abort = []
         with self.lock:
-            for prefix, (task, _) in self._state.items():
+            for prefix, task in self._state.items():
                 if task._provenance[: len(provenance)] == list(provenance):
                     need_to_abort.append((prefix, provenance))
         # abort the mapped provenance in our graph
