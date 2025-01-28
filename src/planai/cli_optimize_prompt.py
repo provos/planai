@@ -676,7 +676,7 @@ def optimize_prompt(
 
     setup_logging(level=logging.DEBUG if debug else logging.INFO)
 
-    graph = Graph(name="Prompt Optimization Graph", strict_mode=True)
+    graph = Graph(name="Prompt Optimization Graph", strict=True)
     generation = PromptGenerationWorker(llm=llm_reason)
 
     prepare_input = PrepareInputWorker(
