@@ -29,13 +29,15 @@
 	let availableModels = $derived(config.provider ? providers[config.provider]?.models || [] : []);
 
 	let canSave = $derived(
-		config.serperApiKey &&
+		// Only require serperApiKey if we don't already have one stored
+		(hasSerperKey || config.serperApiKey) &&
 			config.provider &&
 			config.modelName &&
 			availableProviders.includes(config.provider)
 	);
 
 	async function validateProvider(provider, apiKey) {
+		console.log('Validating provider:', provider);
 		messageBus.validateProvider(provider, apiKey);
 	}
 
@@ -183,7 +185,7 @@
 					<label
 						for="serper-key"
 						class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
-						>Serper API Key <span class="text-red-500">*</span></label
+						>Serper API Key {#if !hasSerperKey}<span class="text-red-500">*</span>{/if}</label
 					>
 					<input
 						id="serper-key"
@@ -191,7 +193,7 @@
 						bind:value={config.serperApiKey}
 						placeholder={hasSerperKey ? 'Key stored' : 'Enter your Serper key'}
 						class="w-full rounded-md border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-						required
+						required={!hasSerperKey}
 					/>
 				</div>
 				<div>
