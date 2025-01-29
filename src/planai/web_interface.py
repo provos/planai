@@ -14,7 +14,7 @@
 import json
 import threading
 import time
-from typing import TYPE_CHECKING, Dict
+from typing import TYPE_CHECKING, Dict, Optional
 
 import psutil
 from flask import (
@@ -25,8 +25,11 @@ from flask import (
     request,
     send_from_directory,
 )
+from waitress import create_server
 
 if TYPE_CHECKING:
+    from waitress.server import WSGIServer
+
     from .dispatcher import Dispatcher
     from .graph import Graph
 
@@ -34,6 +37,7 @@ app = Flask(__name__, template_folder="templates", static_folder="static")
 
 dispatcher: "Dispatcher" = None
 quit_event = threading.Event()
+_server: Optional["WSGIServer"] = None
 
 
 class MemoryStats:
@@ -254,8 +258,17 @@ def set_dispatcher(disp: "Dispatcher"):
 
 
 def run_web_interface(disp: "Dispatcher", port=5000):
+    global _server, dispatcher
     set_dispatcher(disp)
-    app.run(debug=False, use_reloader=False, port=port)
+    _server = create_server(app, host="127.0.0.1", port=port)
+    _server.run()
+
+
+def shutdown_web_interface():
+    """Shutdown the Waitress web server."""
+    global _server
+    if _server:
+        _server.close()
 
 
 def is_quit_requested():

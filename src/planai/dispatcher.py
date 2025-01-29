@@ -69,7 +69,7 @@ from .provenance import ProvenanceChain
 from .stats import WorkerStat
 from .task import Task, TaskWorker
 from .user_input import UserInputRequest
-from .web_interface import is_quit_requested, run_web_interface
+from .web_interface import is_quit_requested, run_web_interface, shutdown_web_interface
 
 if TYPE_CHECKING:
     from .graph import Graph
@@ -98,6 +98,7 @@ class Dispatcher:
 
         self.graph = graph
         self.web_port = web_port
+        self._web_thread = None
 
         self.task_lock = Lock()
         # We have a default Queue for all tasks
@@ -605,14 +606,23 @@ class Dispatcher:
             logging.info("Thread pool shut down")
             self._thread_pool = None
 
+        if self._web_thread:
+            logging.info("Stopping web thread")
+            try:
+                shutdown_web_interface()
+            except Exception as e:
+                logging.warning(f"Error shutting down web interface: {e}")
+            self._web_thread.join(timeout=0.5)
+            self._web_thread = None
+
     def start_web_interface(self):
-        web_thread = threading.Thread(
+        self._web_thread = threading.Thread(
             target=run_web_interface, args=(self, self.web_port)
         )
-        web_thread.daemon = (
+        self._web_thread.daemon = (
             True  # This ensures the web thread will exit when the main thread exits
         )
-        web_thread.start()
+        self._web_thread.start()
 
     def request_user_input(
         self,
