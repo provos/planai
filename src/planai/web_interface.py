@@ -260,15 +260,18 @@ def set_dispatcher(disp: "Dispatcher"):
 def run_web_interface(disp: "Dispatcher", port=5000):
     global _server, dispatcher
     set_dispatcher(disp)
-    _server = create_server(app, host="127.0.0.1", port=port)
-    _server.run()
+    if _server is None:
+        _server = create_server(app, host="127.0.0.1", port=port)
+        _server.run()
 
 
 def shutdown_web_interface():
-    """Shutdown the Waitress web server."""
-    global _server
-    if _server:
-        _server.close()
+    """Pretend to shutdown the Waitress web server.
+
+    It's not possible to shutdown a Waitress web server. Instead, we are just setting the dispatcher to None.
+    """
+    global dispatcher
+    dispatcher = None
 
 
 def is_quit_requested():
