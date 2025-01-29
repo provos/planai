@@ -439,7 +439,10 @@ def validate_provider(provider: str, api_key: str = None) -> Tuple[bool, List[st
 
         return True, [model.model for model in response.models]
     except Exception as e:
-        print(f"Error validating provider {provider}: {e}")
+        if provider == "ollama":
+            print(f"Error validating provider {provider} with host {api_key}: {e}")
+        else:
+            print(f"Error validating provider {provider}: {e}")
         return False, []
 
 
@@ -450,15 +453,6 @@ def handle_validate_provider(data):
     value = data.get("apiKey")  # This could be either an API key or Ollama host
 
     is_valid, models = validate_provider(provider, value)
-    if is_valid and provider == "ollama":
-        # If Ollama validation succeeded, restart graph with new host
-        if graph:
-            stop_graph_thread()
-            start_graph_thread(
-                provider=current_settings["provider"],
-                model=current_settings["model"],
-                host=current_settings["ollamaHost"],
-            )
 
     emit(
         "provider_validated",

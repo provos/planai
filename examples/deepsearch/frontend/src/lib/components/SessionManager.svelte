@@ -104,6 +104,10 @@
 			messageBus.settingsSaved(status);
 		});
 
+		socket.on('provider_validated', (status) => {
+			messageBus.providerValidated(status);
+		});
+
 		socket.on('error', (err) => {
 			console.error('Chat error:', err);
 			messageBus.error(err);

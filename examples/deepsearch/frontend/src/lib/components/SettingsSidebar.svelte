@@ -37,10 +37,33 @@
 			availableProviders.includes(config.provider)
 	);
 
-	async function validateProvider(provider, apiKey) {
-		console.log('Validating provider:', provider);
-		messageBus.validateProvider(provider, apiKey);
+	// Add debounce helper
+	function debounce(func, wait) {
+		let timeout;
+		return function executedFunction(...args) {
+			const later = () => {
+				clearTimeout(timeout);
+				func(...args);
+			};
+			clearTimeout(timeout);
+			timeout = setTimeout(later, wait);
+		};
 	}
+
+	// Debounced validation functions
+	const debouncedValidateProvider = debounce((provider, apiKey) => {
+		if (apiKey) {
+			console.log('Validating provider:', provider, provider === 'ollama' ? apiKey : '********');
+			messageBus.validateProvider(provider, apiKey);
+		} else {
+			providers[provider] = {
+				...providers[provider],
+				available: false,
+				models: [],
+				hasKey: false
+			};
+		}
+	}, 500); // 500ms delay
 
 	$effect(() => {
 		const unsubscribe = messageBus.subscribe(({ type, payload }) => {
@@ -124,21 +147,12 @@
 	}
 
 	function onApiKeyChange(provider, apiKey) {
-		if (apiKey) {
-			validateProvider(provider, apiKey);
-		} else {
-			providers[provider] = {
-				...providers[provider],
-				available: false,
-				models: [],
-				hasKey: false
-			};
-		}
+		debouncedValidateProvider(provider, apiKey);
 	}
 
 	function onOllamaHostChange(event) {
 		if (config.ollamaHost) {
-			validateProvider('ollama', config.ollamaHost);
+			debouncedValidateProvider('ollama', config.ollamaHost);
 		}
 	}
 </script>
