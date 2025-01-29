@@ -1,8 +1,8 @@
 import logging
+import os
 import queue
 import re
 import threading
-import os
 from typing import Any, Dict, Tuple
 from urllib.parse import urlparse
 
@@ -382,6 +382,34 @@ def patch_notify_functions():
         notify_planai = debug_saver.capture("notify_planai")(notify_planai)
 
 
+def stop_graph_thread(timeout: float = 5.0) -> bool:
+    """Stop the graph thread gracefully.
+
+    Args:
+        timeout (float): Maximum time to wait for tasks to complete in seconds
+
+    Returns:
+        bool: True if shutdown was successful, False if timeout occurred
+    """
+    global graph, graph_thread
+
+    if graph and graph_thread and graph_thread.is_alive():
+        success = graph.shutdown(timeout=timeout)
+        if success:
+            graph_thread.join(timeout=1.0)
+            graph_thread = None
+            graph = None
+            return True
+        return False
+    return True
+
+
+def stop_threads():
+    """Stop all background threads gracefully."""
+    stop_worker_thread()
+    stop_graph_thread()
+
+
 @socketio.on("load_settings")
 def handle_load_settings():
     """Load current settings, masking API keys if they exist."""
@@ -428,14 +456,12 @@ def handle_save_settings(data):
         # Restart graph with new settings if provider or model changed
         global graph, entry_worker
         if graph:
-            stop_worker_thread()
+            stop_graph_thread()
             start_graph_thread(
                 provider=current_settings["provider"], model=current_settings["model"]
             )
-
-        emit("settings_saved", {"status": "ok"})
     except Exception as e:
-        emit("error", f"Failed to save settings: {str(e)}")
+        emit("error", str(e))
 
 
 def main():
