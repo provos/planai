@@ -15,7 +15,8 @@
 		openAiApiKey: '',
 		anthropicApiKey: '',
 		provider: '',
-		modelName: ''
+		modelName: '',
+		ollamaHost: 'localhost:11434' // Add default Ollama host
 	});
 
 	let hasSerperKey = $state(false);
@@ -48,6 +49,9 @@
 				config.serperApiKey = ''; // Don't load actual key value
 				config.openAiApiKey = ''; // Don't load actual key value
 				config.anthropicApiKey = ''; // Don't load actual key value
+				config.provider = payload.provider || '';
+				config.modelName = payload.modelName || '';
+				config.ollamaHost = payload.ollamaHost || 'localhost:11434'; // Load Ollama host
 				hasSerperKey = payload.serperApiKey; // Boolean indicating if key exists
 				providers = payload.providers;
 
@@ -129,6 +133,12 @@
 				models: [],
 				hasKey: false
 			};
+		}
+	}
+
+	function onOllamaHostChange(event) {
+		if (config.ollamaHost) {
+			validateProvider('ollama', config.ollamaHost);
 		}
 	}
 </script>
@@ -223,6 +233,21 @@
 						bind:value={config.anthropicApiKey}
 						oninput={(e) => onApiKeyChange('anthropic', e.target.value)}
 						placeholder={providers.anthropic?.hasKey ? 'Key stored' : 'Enter your Anthropic key'}
+						class="w-full rounded-md border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+					/>
+				</div>
+				<div>
+					<label
+						for="ollama-host"
+						class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
+						>Ollama Host</label
+					>
+					<input
+						id="ollama-host"
+						type="text"
+						bind:value={config.ollamaHost}
+						oninput={onOllamaHostChange}
+						placeholder="localhost:11434"
 						class="w-full rounded-md border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
 					/>
 				</div>

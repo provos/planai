@@ -49,6 +49,7 @@ current_settings = {
     "serperApiKey": os.environ.get("SERPER_API_KEY", ""),
     "openAiApiKey": os.environ.get("OPENAI_API_KEY", ""),
     "anthropicApiKey": os.environ.get("ANTHROPIC_API_KEY", ""),
+    "ollamaHost": "localhost:11434",  # Add default Ollama host
 }
 
 
@@ -141,7 +142,7 @@ def notify(metadata, message: Response):
 
 
 def start_graph_thread(
-    provider: str = "ollama", model: str = "llama2", ollama_port: int = 11434
+    provider: str = "ollama", model: str = "llama2", host: str = "localhost:11434"
 ):
     """Modified to use current settings."""
     global graph_thread, graph, entry_worker, debug_saver, current_settings
@@ -151,7 +152,7 @@ def start_graph_thread(
     current_settings["model"] = model
 
     graph, entry_worker = setup_graph(
-        provider=provider, model=model, ollama_port=ollama_port, notify=notify
+        provider=provider, model=model, host=host, notify=notify
     )
 
     def worker():
@@ -412,19 +413,29 @@ def stop_threads():
 
 
 def validate_provider(provider: str, api_key: str = None) -> Tuple[bool, List[str]]:
-    """Validate provider and return available models."""
+    """Validate provider and return available models.
+
+    For Ollama, api_key parameter is used to pass the host address.
+    For other providers, it's used as the API key.
+    """
     try:
-        # Skip validation for Serper as it's not an LLM provider
-        if provider == "serper":
-            return True, []
+        kwargs = {}
+        if provider == "ollama":
+            # For Ollama, use api_key as host if provided
+            kwargs["host"] = api_key or current_settings["ollamaHost"]
+        else:
+            # For other providers, set API key in environment
+            if api_key:
+                os.environ[f"{provider.upper()}_API_KEY"] = api_key
 
-        if api_key:
-            os.environ[f"{provider.upper()}_API_KEY"] = api_key
-
-        interface = llm_from_config(provider=provider)
+        interface = llm_from_config(provider=provider, **kwargs)
         response = interface.list()
         if not isinstance(response, ListResponse):
             return False, []
+
+        # If we successfully validated a new Ollama host, store it
+        if provider == "ollama" and api_key:
+            current_settings["ollamaHost"] = api_key
 
         return True, [model.model for model in response.models]
     except Exception as e:
@@ -434,11 +445,21 @@ def validate_provider(provider: str, api_key: str = None) -> Tuple[bool, List[st
 
 @socketio.on("validate_provider")
 def handle_validate_provider(data):
-    """Validate provider and API key, return available models."""
+    """Validate provider and API key/host, return available models."""
     provider = data.get("provider", "").lower()
-    api_key = data.get("apiKey")
+    value = data.get("apiKey")  # This could be either an API key or Ollama host
 
-    is_valid, models = validate_provider(provider, api_key)
+    is_valid, models = validate_provider(provider, value)
+    if is_valid and provider == "ollama":
+        # If Ollama validation succeeded, restart graph with new host
+        if graph:
+            stop_graph_thread()
+            start_graph_thread(
+                provider=current_settings["provider"],
+                model=current_settings["model"],
+                host=current_settings["ollamaHost"],
+            )
+
     emit(
         "provider_validated",
         {"provider": provider, "isValid": is_valid, "availableModels": models},
@@ -451,9 +472,8 @@ def handle_load_settings():
     settings = {
         "provider": current_settings["provider"],
         "modelName": current_settings["model"],
-        "serperApiKey": bool(
-            current_settings["serperApiKey"]
-        ),  # Just send boolean indicating if key exists
+        "serperApiKey": bool(current_settings["serperApiKey"]),
+        "ollamaHost": current_settings["ollamaHost"],  # Add Ollama host to settings
         "providers": {},
     }
 
@@ -491,6 +511,9 @@ def handle_save_settings(data):
         # Update current settings with lowercase provider
         current_settings["provider"] = data.get("provider", "ollama").lower()
         current_settings["model"] = data.get("modelName", "llama2")
+        current_settings["ollamaHost"] = data.get(
+            "ollamaHost", "localhost:11434"
+        )  # Save Ollama host
 
         # Update environment variables if new keys provided
         if data.get("serperApiKey"):
@@ -510,7 +533,9 @@ def handle_save_settings(data):
         if graph:
             stop_graph_thread()
             start_graph_thread(
-                provider=current_settings["provider"], model=current_settings["model"]
+                provider=current_settings["provider"],
+                model=current_settings["model"],
+                host=current_settings["ollamaHost"],
             )
 
         emit("settings_saved", {"status": "success"})
@@ -559,7 +584,7 @@ def main():
             debug_saver.load_replays()
 
     setup_logging(level=logging.DEBUG)
-    start_graph_thread(args.provider, args.model, args.ollama_port)
+    start_graph_thread(args.provider, args.model, host=f"localhost:{args.ollama_port}")
     setup_web_interface(port=args.port)
 
 

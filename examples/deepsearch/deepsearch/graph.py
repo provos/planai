@@ -316,13 +316,13 @@ class ResponsePublisher(TaskWorker):
 def setup_graph(
     provider: Literal["ollama", "remote_ollama", "openai"] = "ollama",
     model: str = "llama3.3:latest",
-    ollama_port: int = 11434,
+    host: str = "localhost:11434",
     notify: Optional[Callable[Dict[str, Any], None]] = None,
 ) -> Tuple[Graph, TaskWorker]:
     llm = llm_from_config(
         provider=provider,
         model_name=model,
-        host=f"localhost:{ollama_port}",
+        host=host,
         use_cache=False,
     )
 
