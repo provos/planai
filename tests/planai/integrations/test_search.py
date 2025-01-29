@@ -68,6 +68,32 @@ class TestSerperGoogleSearchTool(unittest.TestCase):
         # Assertions
         self.assertIsNone(results)
 
+    @patch("planai.integrations.search.requests.post")
+    def test_check_valid_api_key(self, mock_post):
+        # Mock successful response
+        mocked_response = MagicMock()
+        mocked_response.raise_for_status = MagicMock()
+        mock_post.return_value = mocked_response
+
+        # Test the check method
+        result = SerperGoogleSearchTool.check()
+
+        # Assertions
+        self.assertTrue(result)
+        mock_post.assert_called_once()
+
+    @patch("planai.integrations.search.requests.post")
+    def test_check_invalid_api_key(self, mock_post):
+        # Simulate an API error
+        mock_post.side_effect = Exception("Invalid API key")
+
+        # Test the check method
+        result = SerperGoogleSearchTool.check()
+
+        # Assertions
+        self.assertFalse(result)
+        mock_post.assert_called_once()
+
     def tearDown(self):
         # Clean up the environment variables, if necessary
         del os.environ["SERPER_API_KEY"]

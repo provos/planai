@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# src/planai/__init__.py
 import logging
 import os
 from typing import List, Literal, Optional
@@ -99,6 +98,32 @@ class SerperGoogleSearchTool:
             )
             return None
 
+    @staticmethod
+    def check() -> bool:
+        """
+        Checks if the Serper API key is valid by performing a test search.
+
+        Returns:
+            bool: True if the API key is valid and working, False otherwise.
+        """
+        if "SERPER_API_KEY" not in os.environ:
+            return False
+
+        try:
+            url = "https://google.serper.dev/search"
+            payload = {"q": "test", "num": 1}
+            headers = {
+                "X-API-KEY": os.environ["SERPER_API_KEY"],
+                "Content-Type": "application/json",
+            }
+
+            response = requests.post(url, json=payload, headers=headers)
+            response.raise_for_status()
+            return True
+        except Exception as e:
+            logging.error("Serper API key validation failed: %s", str(e))
+            return False
+
 
 def main():  # pragma: no cover
     import argparse
@@ -111,7 +136,12 @@ def main():  # pragma: no cover
     parser = argparse.ArgumentParser(
         description="Perform a Google search using Serper API"
     )
-    parser.add_argument("query", type=str, help="The search query")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Check if the Serper API key is valid",
+    )
+    parser.add_argument("query", type=str, help="The search query", nargs="?")
     parser.add_argument(
         "-n",
         "--num_results",
@@ -138,6 +168,17 @@ def main():  # pragma: no cover
     args = parser.parse_args()
 
     serper_search = SerperGoogleSearchTool()
+
+    if args.check:
+        if serper_search.check():
+            print("Serper API key is valid and working.")
+            return 0
+        print("Serper API key is invalid or not working.")
+        return 1
+
+    if not args.query:
+        parser.error("query is required when not using --check")
+
     results = serper_search.search_internet(
         args.query, num_results=args.num_results, start_index=args.start_index
     )
@@ -156,4 +197,6 @@ def main():  # pragma: no cover
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+
+    sys.exit(main())
