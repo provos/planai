@@ -3,7 +3,7 @@ import os
 import queue
 import re
 import threading
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Tuple
 from urllib.parse import urlparse
 
 from debug import DebugSaver
@@ -18,6 +18,7 @@ from graph import (
     SearchQuery,
     setup_graph,
 )
+from llm_interface import ListResponse, llm_from_config
 from session import SessionManager
 
 from planai import ProvenanceChain, Task, TaskWorker
@@ -410,24 +411,74 @@ def stop_threads():
     stop_graph_thread()
 
 
+def validate_provider(provider: str, api_key: str = None) -> Tuple[bool, List[str]]:
+    """Validate provider and return available models."""
+    try:
+        # Skip validation for Serper as it's not an LLM provider
+        if provider == "serper":
+            return True, []
+
+        if api_key:
+            os.environ[f"{provider.upper()}_API_KEY"] = api_key
+
+        interface = llm_from_config(provider=provider)
+        response = interface.list()
+        if not isinstance(response, ListResponse):
+            return False, []
+
+        return True, [model.model for model in response.models]
+    except Exception as e:
+        print(f"Error validating provider {provider}: {e}")
+        return False, []
+
+
+@socketio.on("validate_provider")
+def handle_validate_provider(data):
+    """Validate provider and API key, return available models."""
+    provider = data.get("provider", "").lower()
+    api_key = data.get("apiKey")
+
+    is_valid, models = validate_provider(provider, api_key)
+    emit(
+        "provider_validated",
+        {"provider": provider, "isValid": is_valid, "availableModels": models},
+    )
+
+
 @socketio.on("load_settings")
 def handle_load_settings():
-    """Load current settings, masking API keys if they exist."""
+    """Load current settings and validate all providers."""
     settings = {
         "provider": current_settings["provider"],
         "modelName": current_settings["model"],
-        "serperApiKey": "",  # Don't send actual keys
-        "openAiApiKey": "",
-        "anthropicApiKey": "",
+        "serperApiKey": bool(
+            current_settings["serperApiKey"]
+        ),  # Just send boolean indicating if key exists
+        "providers": {},
     }
 
-    # Just indicate if keys exist
-    if current_settings["serperApiKey"]:
-        settings["serperApiKey"] = "SET"
-    if current_settings["openAiApiKey"]:
-        settings["openAiApiKey"] = "SET"
-    if current_settings["anthropicApiKey"]:
-        settings["anthropicApiKey"] = "SET"
+    # Check Ollama
+    ollama_valid, ollama_models = validate_provider("ollama")
+    settings["providers"]["ollama"] = {
+        "available": ollama_valid,
+        "models": ollama_models,
+    }
+
+    # Check OpenAI
+    openai_valid, openai_models = validate_provider("openai")
+    settings["providers"]["openai"] = {
+        "available": openai_valid,
+        "models": openai_models,
+        "hasKey": bool(current_settings["openAiApiKey"]),
+    }
+
+    # Check Anthropic
+    anthropic_valid, anthropic_models = validate_provider("anthropic")
+    settings["providers"]["anthropic"] = {
+        "available": anthropic_valid,
+        "models": anthropic_models,
+        "hasKey": bool(current_settings["anthropicApiKey"]),
+    }
 
     emit("settings_loaded", settings)
 
@@ -435,6 +486,7 @@ def handle_load_settings():
 @socketio.on("save_settings")
 def handle_save_settings(data):
     """Save settings and update environment variables."""
+    logging.info(f"Received settings: {data.keys()}")
     try:
         # Update current settings with lowercase provider
         current_settings["provider"] = data.get("provider", "ollama").lower()
@@ -460,6 +512,8 @@ def handle_save_settings(data):
             start_graph_thread(
                 provider=current_settings["provider"], model=current_settings["model"]
             )
+
+        emit("settings_saved", {"status": "success"})
     except Exception as e:
         emit("error", str(e))
 

@@ -17,7 +17,9 @@ function createMessageBus() {
         settingsLoaded: (settings) => set({ type: 'settingsLoaded', payload: settings }),
         settingsSaved: (status) => set({ type: 'settingsSaved', payload: status }),
         loadSettings: () => set({ type: 'loadSettings', payload: null }),
-        saveSettings: (settings) => set({ type: 'saveSettings', payload: settings })
+        saveSettings: (settings) => set({ type: 'saveSettings', payload: settings }),
+        validateProvider: (provider, apiKey) => set({ type: 'validateProvider', payload: { provider, apiKey } }),
+        providerValidated: (result) => set({ type: 'providerValidated', payload: result })
     };
 }
 
