@@ -138,6 +138,8 @@ class Dispatcher:
         self._log_queue = deque(maxlen=1000)  # Keep last 1000 log messages
         self._log_lock = Lock()
 
+        self._shutdown_initiated = False
+
         logging.info(
             "Dispatcher initialized with %d threads",
             self._thread_pool._max_workers if self._thread_pool else 0,
@@ -195,6 +197,10 @@ class Dispatcher:
             self._per_worker_max_parallel_tasks[worker_class_name] = max_parallel_tasks
 
     def _dispatch_once(self) -> bool:
+        # Add check for shutdown at the start
+        if self._shutdown_initiated:
+            return False
+
         # Check if there are user input requests
         self._dispatch_user_requests()
 
@@ -287,7 +293,8 @@ class Dispatcher:
                     and self.work_queue.empty()
                     and all(q.empty() for q in self._per_worker_queue.values())
                     and self._num_active_tasks == 0
-                ):
+                ) or self._shutdown_initiated:
+                    logging.info("Stopping dispatcher")
                     break
             if self._dispatch_once():
                 continue
@@ -557,6 +564,9 @@ class Dispatcher:
             self._add_to_queue(worker, task)
 
     def _add_to_queue(self, worker: TaskWorker, task: Task):
+        if self._shutdown_initiated:
+            return
+
         inheritance_chain = get_inheritance_chain(worker.__class__)
         per_task_queue = self.work_queue
         with self.task_lock:
@@ -571,15 +581,29 @@ class Dispatcher:
     def stop(self):
         self.stop_event.set()
 
-    def wait_for_completion(self, wait_for_quit=False):
-        self.task_completion_event.wait()
+    def wait_for_completion(self, timeout: float = None, wait_for_quit=False):
+        """
+        Wait for all tasks to complete or timeout.
+
+        Args:
+            timeout (float): Maximum time to wait in seconds
+            wait_for_quit (bool): Whether to wait for quit request
+        """
+        completed = self.task_completion_event.wait(timeout=timeout)
+        if not completed:
+            logging.warning("Dispatcher wait_for_completion timed out")
+            wait_for_quit = False
 
         if wait_for_quit:
             while not is_quit_requested():
                 # Sleep for a short time to avoid busy waiting
                 time.sleep(0.1)
 
-        self._thread_pool.shutdown(wait=True)
+        if self._thread_pool:
+            logging.info("Shutting down thread pool")
+            self._thread_pool.shutdown(wait=True, cancel_futures=True)
+            logging.info("Thread pool shut down")
+            self._thread_pool = None
 
     def start_web_interface(self):
         web_thread = threading.Thread(
@@ -615,3 +639,9 @@ class Dispatcher:
             logs = list(self._log_queue)
             self._log_queue.clear()
             return logs
+
+    def initiate_shutdown(self):
+        """Initiates a graceful shutdown of the dispatcher."""
+        self._shutdown_initiated = True
+        self.task_completion_event.set()
+        logging.info("Dispatcher shutdown initiated")

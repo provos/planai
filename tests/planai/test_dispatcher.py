@@ -104,7 +104,7 @@ class SingleThreadedExecutor:
         self.tasks.append(future)
         return future
 
-    def shutdown(self, wait=True):
+    def shutdown(self, wait=True, cancel_futures=False):
         pass
 
 
@@ -271,6 +271,77 @@ class TestDispatcher(unittest.TestCase):
         self.dispatcher.start_web_interface()
         mock_run_web_interface.assert_called_once_with(self.dispatcher, 5000)
 
+    def test_shutdown(self):
+        """Test dispatcher shutdown functionality."""
+        graph = Graph(name="Test Shutdown Graph")
+        dispatcher = Dispatcher(graph)
+
+        # Create a slow worker for testing
+        class SlowWorker(TaskWorker):
+            def consume_work(self, task: DummyTask):
+                time.sleep(0.1)  # Simulate work
+
+        worker = SlowWorker()
+        worker._graph = graph
+
+        # Add some tasks
+        for i in range(5):
+            task = DummyTask(data=f"test-{i}")
+            dispatcher.add_work(worker, task)
+
+        # Start dispatch in a separate thread
+        dispatch_thread = threading.Thread(target=dispatcher.dispatch)
+        dispatch_thread.start()
+
+        # Give time for tasks to start processing
+        time.sleep(0.2)
+
+        # Test shutdown initiation
+        dispatcher.initiate_shutdown()
+        self.assertTrue(dispatcher._shutdown_initiated)
+
+        # Wait for completion with timeout
+        dispatcher.wait_for_completion(timeout=2.0)
+
+        # Verify dispatcher state
+        self.assertEqual(dispatcher.active_tasks, 0)
+        self.assertTrue(dispatcher.task_completion_event.is_set())
+
+    def test_shutdown_timeout(self):
+        """Test dispatcher shutdown with timeout."""
+        graph = Graph(name="Test Shutdown Timeout Graph")
+        dispatcher = Dispatcher(graph)
+
+        # Create a very slow worker
+        class VerySlowWorker(TaskWorker):
+            def consume_work(self, task: DummyTask):
+                time.sleep(0.5)  # Longer than our timeout
+
+        worker = VerySlowWorker()
+        worker._graph = graph
+
+        # Add some tasks
+        for i in range(3):
+            task = DummyTask(data=f"test-{i}")
+            dispatcher.add_work(worker, task)
+
+        # Start dispatch
+        dispatch_thread = threading.Thread(target=dispatcher.dispatch)
+        dispatch_thread.start()
+
+        # Give time for tasks to start
+        time.sleep(0.1)
+
+        # Initiate shutdown
+        dispatcher.initiate_shutdown()
+
+        # Test timeout
+        dispatcher.wait_for_completion(timeout=0.1)
+
+        # Clean up
+        dispatcher.stop()
+        dispatch_thread.join(timeout=1.0)
+
 
 class TestDispatcherThreading(unittest.TestCase):
     def setUp(self):
@@ -278,7 +349,8 @@ class TestDispatcherThreading(unittest.TestCase):
         self.dispatcher = Dispatcher(self.graph)
 
     def tearDown(self):
-        self.dispatcher._thread_pool.shutdown(wait=True)
+        if self.dispatcher._thread_pool:
+            self.dispatcher._thread_pool.shutdown(wait=True)
 
     def test_concurrent_add_work(self):
         num_threads = 10
@@ -690,8 +762,6 @@ class TestDispatcherConcurrent(unittest.TestCase):
             dispatcher.total_completed_tasks == total_processed
         ), f"Completed tasks {dispatcher.total_completed_tasks} should match total processed ({total_processed})"
 
-        dispatcher._thread_pool.shutdown(wait=False)
-
     def test_concurrent_success_and_failures(self):
         graph = Graph(name="Test Graph")
         dispatcher = Dispatcher(graph)
@@ -775,8 +845,6 @@ class TestDispatcherConcurrent(unittest.TestCase):
         # Verify that the work queue is empty and there are no active tasks
         self.assertEqual(dispatcher.work_queue.qsize(), 0, "Work queue should be empty")
         self.assertEqual(dispatcher.active_tasks, 0, "No active tasks should remain")
-
-        dispatcher._thread_pool.shutdown(wait=True)
 
 
 class TestDispatcherAbort(unittest.TestCase):

@@ -1,9 +1,12 @@
+import logging
+import threading
+import time
 import unittest
 from typing import Dict, List, Optional, Type
 
 from planai.graph import Graph
-from planai.task import Task, TaskWorker
 from planai.provenance import ProvenanceChain
+from planai.task import Task, TaskWorker
 
 # Dummy task and worker classes for testing
 
@@ -18,9 +21,12 @@ class AnotherDummyTask(Task):
 
 class DummyWorker(TaskWorker):
     output_types: List[Type[Task]] = [DummyTask]
+    should_wait: bool = False
 
     def consume_work(self, task: DummyTask):
         # Use copy_public() in case we're in strict mode
+        if self.should_wait:
+            time.sleep(0.1)
         self.publish_work(task.copy_public(), input_task=task)
 
 
@@ -321,6 +327,46 @@ class TestGraph(unittest.TestCase):
         self.assertTrue(
             success_flag, "publish_work() with copy_public() should have succeeded"
         )
+
+    def test_shutdown(self):
+        """Test graph shutdown functionality."""
+        # Set up graph with workers
+        worker1 = DummyWorker(should_wait=True)
+        worker2 = DummyWorker(should_wait=True)
+        self.graph.add_workers(worker1, worker2)
+        self.graph.set_dependency(worker1, worker2).sink(DummyTask)
+
+        # Prepare graph and add some work
+        self.graph.prepare(display_terminal=False, run_dashboard=False)
+        self.graph.set_entry(worker1)
+
+        # Add multiple tasks
+        for i in range(5):
+            self.graph.add_work(worker1, DummyTask(data=f"test-{i}"))
+
+        # Start execution in a separate thread
+        def wrapped_execute():
+            self.graph.execute([])
+            logging.info("Graph execution finished")
+
+        execution_thread = threading.Thread(target=wrapped_execute)
+        execution_thread.start()
+
+        # Give some time for tasks to start
+        time.sleep(0.1)
+
+        # Test shutdown with timeout
+        success = self.graph.shutdown(timeout=1.0)
+        self.assertTrue(success, "Shutdown should complete within timeout")
+
+        execution_thread.join(timeout=1.0)
+        self.assertFalse(
+            execution_thread.is_alive(), "Execution thread should be stopped"
+        )
+
+        # Verify cleanup
+        self.assertIsNone(self.graph._dispatch_thread)
+        self.assertEqual(self.graph._dispatcher._num_active_tasks, 0)
 
 
 if __name__ == "__main__":

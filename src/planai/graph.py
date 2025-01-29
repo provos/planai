@@ -493,6 +493,8 @@ class Graph(BaseModel):
         for worker in self.workers:
             worker.completed()
 
+        logging.info("All workers completed - execution finished")
+
     def init_workers(self):
         for worker in self.workers:
             worker.init()
@@ -726,6 +728,40 @@ class Graph(BaseModel):
 
     def __repr__(self) -> str:
         return self.__str__()
+
+    def shutdown(self, timeout: float = 5.0) -> bool:
+        """Gracefully shuts down the graph and all its components.
+
+        Args:
+            timeout (float): Maximum time to wait for tasks to complete in seconds
+
+        Returns:
+            bool: True if shutdown was successful, False if timeout occurred
+        """
+        logging.info("Initiating graph shutdown...")
+
+        if self._dispatcher:
+            # Signal dispatcher to stop accepting new work
+            self._dispatcher.initiate_shutdown()
+
+            # Wait for active tasks to complete or timeout
+            self._dispatcher.wait_for_completion(timeout=timeout, wait_for_quit=False)
+
+            # Stop the dispatcher
+            self._dispatcher.stop()
+            if self._dispatch_thread:
+                self._dispatch_thread.join(timeout=1.0)
+                self._dispatch_thread = None
+
+            # Stop terminal display if active
+            if self._has_terminal and self._terminal_thread:
+                self._stop_terminal_display_event.set()
+                self._terminal_thread.join(timeout=1.0)
+
+            logging.info("Graph shutdown completed successfully")
+            return True
+
+        return True  # If no dispatcher, nothing to shut down
 
 
 def main():  # pragma: no cover
