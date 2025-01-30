@@ -48,6 +48,20 @@ Outgoing Events (sent):
 	import { messageBus } from '../stores/messageBus.svelte.js';
 	import { FontAwesomeIcon } from '@fortawesome/svelte-fontawesome';
 	import { faPaperPlane, faStop } from '@fortawesome/free-solid-svg-icons';
+	import { configState } from '../stores/configStore.svelte.js';
+
+	// Declare state variables properly
+	let currentSocket = $state(null);
+	let currentSessionId = $state(null);
+	let currentConnectionStatus = $state('disconnected');
+
+	// Subscribe to sessionState store with proper state updates
+	sessionState.subscribe((state) => {
+		if (state.socket != currentSocket) currentSocket = state.socket;
+		if (state.sessionId != currentSessionId) currentSessionId = state.sessionId;
+		if (state.connectionStatus != currentConnectionStatus)
+			currentConnectionStatus = state.connectionStatus;
+	});
 
 	// Replace props with state
 	let messages = $state([]);
@@ -91,7 +105,7 @@ Outgoing Events (sent):
 							content: payload.message,
 							timestamp: new Date()
 						}
-					]
+					];
 					break;
 				case 'thinkingUpdate':
 					console.log('Thinking update:', payload);
@@ -116,8 +130,8 @@ Outgoing Events (sent):
 					isLoading = false;
 					break;
 				case 'cleanup':
-					if (sessionState.socket) {
-						sessionState.socket.disconnect();
+					if (currentSocket) {
+						currentSocket.disconnect();
 					}
 					break;
 			}
@@ -128,7 +142,7 @@ Outgoing Events (sent):
 
 	// Existing functions
 	function handleSendMessage(message) {
-		if (!sessionState.sessionId || sessionState.connectionStatus !== 'connected') return;
+		if (!currentSessionId || currentConnectionStatus !== 'connected') return;
 
 		isLoading = true;
 		error = null;
@@ -142,24 +156,33 @@ Outgoing Events (sent):
 		messages = [...messages, userMessage];
 
 		// Convert messages to simplified format for backend
-		const messageHistory = messages.map(msg => ({
+		const messageHistory = messages.map((msg) => ({
 			role: msg.role,
 			content: msg.content
 		}));
 
-		sessionState.socket?.emit('chat_message', {
-			session_id: sessionState.sessionId,
+		currentSocket?.emit('chat_message', {
+			session_id: currentSessionId,
 			messages: messageHistory
 		});
 	}
 
 	$effect(() => {
-		console.log('ChatInterface connection status:', sessionState.connectionStatus);
+		console.log('ChatInterface connection status:', currentConnectionStatus);
+	});
+
+	let currentConfig = $state(null);
+	configState.subscribe(state => {
+		currentConfig = state;
 	});
 
 	function handleSend() {
-		if (sessionState.connectionStatus !== 'connected') {
+		if (currentConnectionStatus !== 'connected') {
 			error = 'Cannot send message while disconnected';
+			return;
+		}
+		if (!currentConfig.isValid) {
+			error = 'Please configure valid provider settings first';
 			return;
 		}
 		if (messageInput.trim()) {
@@ -176,9 +199,9 @@ Outgoing Events (sent):
 
 	function handleAbort() {
 		console.log('Aborting current request...');
-		if (sessionState.socket) {
-			sessionState.socket.emit('abort', {
-				session_id: sessionState.sessionId
+		if (currentSocket) {
+			currentSocket.emit('abort', {
+				session_id: currentSessionId
 			});
 		}
 		isLoading = false;
@@ -191,11 +214,11 @@ Outgoing Events (sent):
 <div class="chat-wrapper">
 	<h1 class="chat-title">PlanAI Research</h1>
 
-	{#if sessionState.connectionStatus !== 'connected'}
-		<div class="connection-status {sessionState.connectionStatus}">
-			{sessionState.connectionStatus === 'reconnecting'
+	{#if currentConnectionStatus !== 'connected'}
+		<div class="connection-status {currentConnectionStatus}">
+			{currentConnectionStatus === 'reconnecting'
 				? 'Reconnecting...'
-				: sessionState.connectionStatus === 'failed'
+				: currentConnectionStatus === 'failed'
 					? 'Connection failed'
 					: 'Disconnected'}
 		</div>
@@ -208,9 +231,9 @@ Outgoing Events (sent):
 					<div
 						class="message-bubble {message.role === 'user'
 							? 'message-bubble-user'
-								: message.role === 'error'
-									? 'message-bubble-error'
-									: 'message-bubble-assistant'}"
+							: message.role === 'error'
+								? 'message-bubble-error'
+								: 'message-bubble-assistant'}"
 					>
 						{#if message.isMarkdown}
 							<div class="message-text prose prose-sm dark:prose-invert">
@@ -251,13 +274,13 @@ Outgoing Events (sent):
 					placeholder="Type your message..."
 					class="input-field"
 					onkeydown={handleKeyDown}
-					disabled={isLoading || sessionState.connectionStatus !== 'connected'}
+					disabled={isLoading || currentConnectionStatus !== 'connected'}
 				/>
 				<button
 					onclick={isLoading ? handleAbort : handleSend}
-					disabled={sessionState.connectionStatus !== 'connected'}
+					disabled={currentConnectionStatus !== 'connected' || !currentConfig.isValid}
 					class="{isLoading ? 'stop-button' : 'send-button'} {!isLoading &&
-					sessionState.connectionStatus !== 'connected'
+					(currentConnectionStatus !== 'connected' || !currentConfig.isValid)
 						? 'send-button-disabled'
 						: isLoading
 							? ''

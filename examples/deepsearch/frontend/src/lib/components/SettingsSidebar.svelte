@@ -14,6 +14,8 @@ See the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International 
 	import { FontAwesomeIcon } from '@fortawesome/svelte-fontawesome';
 	import { faPaperPlane, faStop } from '@fortawesome/free-solid-svg-icons';
 	import { messageBus } from '../stores/messageBus.svelte.js';
+	import { configState } from '../stores/configStore.svelte.js';
+	import { sessionState } from '../stores/sessionStore.svelte.js';
 
 	let showSettings = $state(false);
 	let providers = $state({
@@ -49,6 +51,8 @@ See the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International 
 			availableProviders.includes(config.provider)
 	);
 
+	let settingsLoaded = false;
+
 	// Add debounce helper
 	function debounce(func, wait) {
 		let timeout;
@@ -77,50 +81,83 @@ See the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International 
 		}
 	}, 500); // 500ms delay
 
+	let currentConnectionStatus;
+
+	// Subscribe to the store changes
+	sessionState.subscribe((state) => {
+		currentConnectionStatus = state.connectionStatus;
+	});
+
+	$effect(() => {
+		// Use the local variable instead of store directly
+		if (currentConnectionStatus === 'connected' && !settingsLoaded) {
+			console.log('Loading settings on initial connection');
+			loadSettings();
+			settingsLoaded = true;
+		}
+	});
+
+	// Reset the settingsLoaded flag if we disconnect
+	$effect(() => {
+		if (currentConnectionStatus === 'disconnected') {
+			settingsLoaded = false;
+		}
+	});
+
 	$effect(() => {
 		const unsubscribe = messageBus.subscribe(({ type, payload }) => {
 			if (type === 'settingsLoaded') {
 				console.log('Settings loaded:', payload);
-				config.serperApiKey = ''; // Don't load actual key value
-				config.openAiApiKey = ''; // Don't load actual key value
-				config.anthropicApiKey = ''; // Don't load actual key value
-				config.provider = payload.provider || '';
-				config.modelName = payload.modelName || '';
-				config.ollamaHost = payload.ollamaHost || 'localhost:11434'; // Load Ollama host
-				hasSerperKey = payload.serperApiKey; // Boolean indicating if key exists
+
+				// First update the providers state
 				providers = payload.providers;
 
-				// Wait for providers to be set and availableProviders to be computed
+				// Then update the config state atomically
+				const updates = {
+					serperApiKey: '', // Don't load actual key value
+					openAiApiKey: '', // Don't load actual key value
+					anthropicApiKey: '', // Don't load actual key value
+					ollamaHost: payload.ollamaHost || 'localhost:11434',
+					provider: '', // Start with empty provider
+					modelName: '' // Start with empty model
+				};
+
+				hasSerperKey = payload.serperApiKey;
+
+				// Verify the saved provider is actually available
 				const savedProvider = payload.provider;
 				const savedModel = payload.modelName;
 
-				// Check if the saved provider is actually available
-				const isProviderAvailable = Object.entries(payload.providers).some(
-					([name, info]) => name === savedProvider && info.available
-				);
+				const isProviderAvailable =
+					savedProvider &&
+					payload.providers[savedProvider]?.available &&
+					payload.providers[savedProvider]?.models.includes(savedModel);
 
-				if (isProviderAvailable && savedProvider && savedModel) {
+				if (isProviderAvailable) {
 					console.log('Restoring valid saved provider/model:', savedProvider, savedModel);
-					config.provider = savedProvider;
-					config.modelName = savedModel;
+					updates.provider = savedProvider;
+					updates.modelName = savedModel;
 				} else {
-					// Find the first available provider
+					// Find first available provider
 					const firstProvider = Object.entries(payload.providers).find(
 						([_, info]) => info.available
 					)?.[0];
 
 					if (firstProvider) {
 						console.log('Auto-selecting first available provider:', firstProvider);
-						config.provider = firstProvider;
-						// Auto-select first model if available
+						updates.provider = firstProvider;
 						const models = payload.providers[firstProvider].models;
 						if (models && models.length > 0) {
 							console.log('Auto-selecting first model:', models[0]);
-							config.modelName = models[0];
+							updates.modelName = models[0];
 						}
 					}
 				}
+
+				// Update config state all at once
+				config = { ...config, ...updates };
 			} else if (type === 'settingsSaved') {
+				console.log('Settings saved:', payload);
 				showSettings = false;
 			} else if (type === 'providerValidated') {
 				console.log('Provider validated:', payload);
@@ -144,11 +181,35 @@ See the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International 
 		return () => unsubscribe();
 	});
 
+	$effect(() => {
+		const snapshot = $state.snapshot(config);
+		const providerSnapshot = $state.snapshot(providers);
+		const isValid =
+			(hasSerperKey || snapshot.serperApiKey) &&
+			snapshot.provider &&
+			snapshot.modelName &&
+			providerSnapshot[snapshot.provider]?.available;
+
+		configState.update(state => ({
+			...state,
+			isValid,
+			provider: snapshot.provider,
+			modelName: snapshot.modelName
+		}));
+
+		console.log('Config state updated:', {
+			isValid,
+			provider: snapshot.provider,
+			modelName: snapshot.modelName
+		});
+	});
+
 	async function loadSettings() {
 		messageBus.loadSettings();
 	}
 
 	async function saveSettings() {
+		console.log('Saving settings:', config.provider, config.modelName);
 		messageBus.saveSettings(config);
 	}
 
