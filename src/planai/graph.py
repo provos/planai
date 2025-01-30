@@ -482,7 +482,8 @@ class Graph(BaseModel):
         self._dispatcher.wait_for_completion(wait_for_quit=self._has_dashboard)
         logging.info("Graph %s completed", self.name)
         self._dispatcher.stop()
-        self._dispatch_thread.join()
+        if self._dispatch_thread:
+            self._dispatch_thread.join()
         logging.info("Dispatcher stopped")
 
         if self._has_terminal:
