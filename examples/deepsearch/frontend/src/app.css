@@ -4,7 +4,7 @@
 
 @layer components {
     .chat-container {
-        @apply min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col;
+        @apply min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col pb-[88px]; /* Add padding for audio player */
     }
 
     .chat-wrapper {
@@ -16,7 +16,7 @@
     }
 
     .chat-box {
-        @apply bg-white dark:bg-gray-800 rounded-lg shadow-lg dark:shadow-gray-900/50 flex flex-col h-[calc(100vh-8rem)];
+        @apply bg-white dark:bg-gray-800 rounded-lg shadow-lg dark:shadow-gray-900/50 flex flex-col h-[calc(100vh-8rem-88px)]; /* Subtract audio player height */
     }
 
     .messages-area {
@@ -141,5 +141,81 @@
 
     .connection-status.failed {
         @apply bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 font-semibold;
+    }
+
+    .audio-player-wrapper {
+        @apply fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4;
+    }
+
+    .audio-player {
+        @apply max-w-4xl mx-auto flex items-center gap-4;
+    }
+
+    .player-button {
+        @apply w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white flex items-center justify-center focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-colors duration-200;
+    }
+
+    .player-timeline {
+        @apply flex-1 flex items-center gap-4;
+    }
+
+    .timeline-slider {
+        @apply flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full cursor-pointer relative overflow-hidden;
+    }
+
+    .timeline-progress {
+        @apply absolute left-0 top-0 bottom-0 bg-blue-600 dark:bg-blue-500 transition-all duration-100;
+    }
+
+    .time-display {
+        @apply text-sm text-gray-600 dark:text-gray-400 min-w-[3em];
+    }
+
+    .track-selector {
+        @apply w-64;
+    }
+
+    .track-select {
+        @apply w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none;
+    }
+
+    .player-controls {
+        @apply flex-1 flex items-center gap-4;
+    }
+
+    .track-info {
+        @apply flex-1 min-w-0;
+    }
+
+    .track-title {
+        @apply text-sm font-medium text-gray-900 dark:text-white truncate;
+    }
+
+    .track-artist {
+        @apply text-xs text-gray-500 dark:text-gray-400 truncate;
+    }
+
+    .track-info-wrapper {
+        @apply relative flex-1 min-w-0;
+    }
+
+    .track-info-button {
+        @apply w-full text-left flex flex-col hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-md px-3 py-1 transition-colors duration-200;
+    }
+
+    .track-selector-icon {
+        @apply w-4 h-4 absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500;
+    }
+
+    .track-menu {
+        @apply absolute bottom-full left-0 right-0 mb-1 bg-white dark:bg-gray-800 shadow-lg rounded-md border border-gray-200 dark:border-gray-700 py-1 z-50;
+    }
+
+    .track-menu-item {
+        @apply w-full px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors duration-200;
+    }
+
+    .track-menu-item.active {
+        @apply bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400;
     }
 }
