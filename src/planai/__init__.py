@@ -16,17 +16,22 @@
 from llm_interface import LLMInterface, llm_from_config
 
 from .cached_task import CachedTaskWorker
+from .chat_task import ChatMessage, ChatTask, ChatTaskWorker
 from .graph import Graph
 from .graph_task import SubGraphWorker
 from .joined_task import InitialTaskWorker, JoinedTaskWorker
-from .llm_task import CachedLLMTaskWorker, LLMTaskWorker
+from .llm_task import BaseLLMTaskWorker, CachedLLMTaskWorker, LLMTaskWorker
 from .provenance import ProvenanceChain
 from .task import Task, TaskWorker
 from .utils import PydanticDictWrapper
 
-# If you want to control what gets imported with "from planai import *"
+# Limit what gets imported with "from planai import *"
 __all__ = [
     "Graph",
+    "BaseLLMTaskWorker",
+    "ChatTaskWorker",
+    "ChatTask",
+    "ChatMessage",
     "InitialTaskWorker",
     "llm_from_config",
     "LLMInterface",

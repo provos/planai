@@ -37,8 +37,20 @@ PROMPT_TEMPLATE = dedent(
 PROMPT_FORMAT_INSTRUCTIONS = "\n\n{format_instructions}"
 
 
-class LLMTaskWorker(TaskWorker):
+class BaseLLMTaskWorker(TaskWorker):
+    """Base class for all TaskWorkers that use LLMs. This can be used to limit the amount of parallel LLM calls. It is not meant to be used directly."""
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
+    llm: LLMInterface = Field(
+        ..., title="LLM", description="The LLM to use for the task"
+    )
+    system_prompt: str = Field(
+        "You are a helpful AI assistant. Please help the user with the following task and produce output in JSON.",
+        description="The system prompt to use for the task",
+    )
+
+
+class LLMTaskWorker(BaseLLMTaskWorker):
     llm_output_type: Optional[Type[Task]] = Field(
         None,
         description="The output type of the LLM if it differs from the task output type",
@@ -48,15 +60,8 @@ class LLMTaskWorker(TaskWorker):
         description="The input type of the LLM can be provided here instead of consume_work",
     )
 
-    llm: LLMInterface = Field(
-        ..., title="LLM", description="The LLM to use for the task"
-    )
     prompt: str = Field(
         ..., title="Prompt", description="The prompt to use for the task"
-    )
-    system_prompt: str = Field(
-        "You are a helpful AI assistant. Please help the user with the following task and produce output in JSON.",
-        description="The system prompt to use for the task",
     )
     debug_mode: bool = Field(
         False,
