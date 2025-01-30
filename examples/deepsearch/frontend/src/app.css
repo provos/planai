@@ -16,7 +16,7 @@
     }
 
     .chat-box {
-        @apply bg-white dark:bg-gray-800 rounded-lg shadow-lg dark:shadow-gray-900/50 flex flex-col h-[calc(100vh-8rem-88px)]; /* Subtract audio player height */
+        @apply bg-white dark:bg-gray-800 rounded-lg shadow-lg dark:shadow-gray-900/50 flex flex-col h-[calc(100vh-9rem-88px)]; /* Subtract audio player height */
     }
 
     .messages-area {
