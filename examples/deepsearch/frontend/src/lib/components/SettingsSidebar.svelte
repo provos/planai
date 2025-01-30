@@ -155,6 +155,12 @@
 			debouncedValidateProvider('ollama', config.ollamaHost);
 		}
 	}
+
+	// Helper to determine if key is invalid (has content but provider not available)
+	let hasInvalidKey = $derived({
+		openai: config.openAiApiKey && !providers.openai.available,
+		anthropic: config.anthropicApiKey && !providers.anthropic.available
+	});
 </script>
 
 <div
@@ -232,8 +238,15 @@
 						bind:value={config.openAiApiKey}
 						oninput={(e) => onApiKeyChange('openai', e.target.value)}
 						placeholder={providers.openai?.hasKey ? 'Key stored' : 'Enter your OpenAI key'}
-						class="w-full rounded-md border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+						class="w-full rounded-md border px-3 py-2 text-gray-900 focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+						class:border-red-500={hasInvalidKey.openai}
+						class:border-gray-300={!hasInvalidKey.openai}
+						class:dark:border-red-500={hasInvalidKey.openai}
+						class:dark:border-gray-600={!hasInvalidKey.openai}
 					/>
+					{#if hasInvalidKey.openai}
+						<p class="mt-1 text-sm text-red-500">Invalid API key</p>
+					{/if}
 				</div>
 				<div>
 					<label
@@ -247,8 +260,14 @@
 						bind:value={config.anthropicApiKey}
 						oninput={(e) => onApiKeyChange('anthropic', e.target.value)}
 						placeholder={providers.anthropic?.hasKey ? 'Key stored' : 'Enter your Anthropic key'}
-						class="w-full rounded-md border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+p						class:border-red-500={hasInvalidKey.anthropic}
+						class:border-gray-300={!hasInvalidKey.anthropic}
+						class:dark:border-red-500={hasInvalidKey.anthropic}
+						class:dark:border-gray-600={!hasInvalidKey.anthropic}
 					/>
+					{#if hasInvalidKey.anthropic}
+						<p class="mt-1 text-sm text-red-500">Invalid API key</p>
+					{/if}
 				</div>
 				<div>
 					<label
