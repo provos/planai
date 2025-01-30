@@ -148,10 +148,9 @@ poetry run python deepsearch/deepsearch.py --debug --replay --replay-delay 0.5
 
 ## Testing
 
-To run the unit tests for session management:
+To run the at the moment limited unit tests:
 
 ```bash
-cd ..
 poetry run pytest
 ```
 
