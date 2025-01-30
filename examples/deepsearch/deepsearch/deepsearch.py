@@ -32,7 +32,7 @@ from graph import (
 from llm_interface import ListResponse, llm_from_config
 from session import SessionManager
 
-from planai import ProvenanceChain, Task, TaskWorker
+from planai import ChatTask, ProvenanceChain, Task, TaskWorker
 from planai.utils import setup_logging
 
 app = Flask(__name__)
@@ -51,7 +51,8 @@ worker_thread = None
 graph_thread = None
 should_stop = False
 graph = None
-entry_worker = None
+entry_worker: TaskWorker = None  # Executes the whole plan
+chat_worker: TaskWorker = None  # Allows the user to just chat with the AI assistant
 
 # Add new global settings variable
 current_settings = {
@@ -156,13 +157,13 @@ def start_graph_thread(
     provider: str = "ollama", model: str = "llama2", host: str = "localhost:11434"
 ):
     """Modified to use current settings."""
-    global graph_thread, graph, entry_worker, debug_saver, current_settings
+    global graph_thread, graph, entry_worker, chat_worker, debug_saver, current_settings
 
     # Update current settings
     current_settings["provider"] = provider
     current_settings["model"] = model
 
-    graph, entry_worker = setup_graph(
+    graph, entry_worker, chat_worker = setup_graph(
         provider=provider, model=model, host=host, notify=notify
     )
 
@@ -272,7 +273,7 @@ def handle_abort(data):
 @socketio.on("chat_message")
 def handle_message(data):
     session_id = data.get("session_id")
-    message = data.get("message")
+    messages = data.get("messages", [])  # Get full message history
 
     if not session_id or session_manager.get_session(session_id) is None:
         print(f"Invalid session ID: {session_id}")
@@ -286,15 +287,32 @@ def handle_message(data):
         emit("error", "Session ID does not match current connection")
         return
 
-    print(f'Received message: "{message}" from session: {session_id}')
+    print(f'Received messages: "{messages}" from session: {session_id}')
 
     # Capture the request.sid (SocketIO SID)
     sid = request.sid
     current_metadata = {"session_id": session_id, "sid": sid}
 
+    # Update session timestamp on activity
+    session_manager.update_session_timestamp(session_id)
+
     # record that we started
     session_metadata = session_manager.metadata(session_id)
     session_metadata["started"] = True
+
+    # XXX - this is a hack
+    if len(messages) > 1:
+        global chat_worker
+        task = ChatTask(messages=messages)
+        provenance = chat_worker.add_work(
+            task,
+            metadata={"session_id": session_id, "sid": sid},
+        )
+        session_metadata["provenance"] = provenance
+        return
+
+    # there is only one message:
+    message = messages[0].get("content", "")
 
     # If in replay mode, trigger replay with current session
     global debug_saver
@@ -304,9 +322,6 @@ def handle_message(data):
             return
         else:
             debug_saver.save_prompt(session_id, message.strip())
-
-    # Update session timestamp on activity
-    session_manager.update_session_timestamp(session_id)
 
     def wrapped_notify_planai(*args, **kwargs):
         return notify_planai(*args, **kwargs)

@@ -16,6 +16,8 @@ from pydantic import Field
 
 from planai import (
     CachedLLMTaskWorker,
+    ChatMessage,
+    ChatTaskWorker,
     Graph,
     InitialTaskWorker,
     JoinedTaskWorker,
@@ -315,6 +317,17 @@ class FinalNarrativeWorker(CachedLLMTaskWorker):
         )
 
 
+class UserChat(ChatTaskWorker):
+    pass
+
+
+class ChatAdapter(TaskWorker):
+    output_types: List[Type[Task]] = [Response]
+
+    def consume_work(self, task: ChatMessage):
+        self.publish_work(Response(response_type="final", message=task.content), task)
+
+
 class ResponsePublisher(TaskWorker):
     """Re-iterates the response to the user, so that we can use a sink to notify the user on thinking updates"""
 
@@ -329,13 +342,22 @@ def setup_graph(
     model: str = "llama3.3:latest",
     host: str = "localhost:11434",
     notify: Optional[Callable[Dict[str, Any], None]] = None,
-) -> Tuple[Graph, TaskWorker]:
+) -> Tuple[Graph, TaskWorker, TaskWorker]:
     llm = llm_from_config(
         provider=provider,
         model_name=model,
         host=host,
         use_cache=False,
     )
+
+    llm_chat = llm_from_config(
+        provider=provider,
+        model_name=model,
+        host=host,
+        use_cache=False,
+    )
+    llm_chat.support_json_mode = False
+    llm_chat.support_structured_outputs = False
 
     graph = Graph(name="Plan Graph")
     plan_worker = PlanWorker(llm=llm)
@@ -345,6 +367,10 @@ def setup_graph(
     analysis_worker = SearchSummarizer(llm=llm)
     analysis_joiner = AnalysisJoiner()
     final_narrative_worker = FinalNarrativeWorker(llm=llm)
+
+    chat_worker = UserChat(llm=llm_chat)
+    chat_adapter = ChatAdapter()
+
     response_publisher = ResponsePublisher()
     graph.add_workers(
         plan_worker,
@@ -355,6 +381,8 @@ def setup_graph(
         analysis_worker,
         analysis_joiner,
         final_narrative_worker,
+        chat_worker,
+        chat_adapter,
     )
     graph.set_dependency(plan_worker, response_publisher)
     graph.set_dependency(plan_worker, search_worker).next(split_worker).next(
@@ -362,9 +390,11 @@ def setup_graph(
     ).next(analysis_worker).next(analysis_joiner).next(final_narrative_worker).next(
         response_publisher
     )
+    graph.set_dependency(chat_worker, chat_adapter).next(response_publisher)
     graph.set_entry(plan_worker)
+    graph.set_entry(chat_worker)
     graph.set_sink(response_publisher, Response, notify=notify)
 
     # limit the amount of LLM calls we will do in parallel
     graph.set_max_parallel_tasks(LLMTaskWorker, 2 if provider == "ollama" else 6)
-    return graph, plan_worker
+    return graph, plan_worker, chat_worker

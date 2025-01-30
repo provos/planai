@@ -140,9 +140,16 @@ Outgoing Events (sent):
 		};
 
 		messages = [...messages, userMessage];
+
+		// Convert messages to simplified format for backend
+		const messageHistory = messages.map(msg => ({
+			role: msg.role,
+			content: msg.content
+		}));
+
 		sessionState.socket?.emit('chat_message', {
 			session_id: sessionState.sessionId,
-			message: message
+			messages: messageHistory
 		});
 	}
 

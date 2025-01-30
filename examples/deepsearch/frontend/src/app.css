@@ -144,7 +144,7 @@
     }
 
     .audio-player-wrapper {
-        @apply fixed bottom-0 left-16 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4; /* Adjust left position */
+        @apply fixed bottom-0 left-16 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4;
     }
 
     .audio-player {
