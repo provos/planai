@@ -1,3 +1,17 @@
+"""Provides chat-based interaction capabilities for PlanAI workflows.
+
+This module enables the integration of traditional chat-based interactions with PlanAI's
+complex graph-based workflows. The ChatTaskWorker allows developers to create interactive
+sessions where users can:
+- Engage with results from complex graph executions
+- Trigger new workflow branches based on their inputs
+- Maintain contextual conversations while leveraging PlanAI's advanced features
+
+The chat functionality serves as a bridge between automated workflows and user-driven
+processes, making it ideal for applications that require human oversight or
+interactive decision-making within larger automated systems.
+"""
+
 # Copyright 2025 Niels Provos
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
