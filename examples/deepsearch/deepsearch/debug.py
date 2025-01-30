@@ -9,6 +9,8 @@
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 # See the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License for more details.
 
+# TODO: allow a mixed mode where we replay known sessions but allow unknown sessions to be captured
+
 import logging
 import pickle
 import threading
@@ -227,8 +229,15 @@ class DebugSaver:
         for session_id in session_ids:
             self.abort_replay(session_id)
 
-    def start_replay_session(self, prompt: str, current_metadata: dict):
+    def start_replay_session(
+        self, prompt: str, current_metadata: dict, allow_unknown: bool = True
+    ) -> bool:
         """Start a new replay session with given metadata in a separate thread."""
+
+        if not self._replay_data.get(prompt, None) and not allow_unknown:
+            # we will support a mixed mode where we replay known sessions but allow unknown sessions to be captured
+            return False
+
         session_id = current_metadata["session_id"]
 
         # Stop existing replay if any
@@ -247,6 +256,7 @@ class DebugSaver:
         )
         self._replay_threads[session_id] = thread
         thread.start()
+        return True
 
     def load_replay_session(self, session_id: str):
         """Load replay data into memory."""

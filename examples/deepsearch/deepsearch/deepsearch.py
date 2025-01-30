@@ -300,7 +300,20 @@ def handle_message(data):
     session_metadata = session_manager.metadata(session_id)
     session_metadata["started"] = True
 
-    # XXX - this is a hack
+    # get the last message:
+    message = messages[-1].get("content", "")
+
+    # If in replay mode, trigger replay with current session
+    global debug_saver
+    if debug_saver:
+        if debug_saver.mode == "replay":
+            if debug_saver.start_replay_session(message.strip(), current_metadata):
+                return
+            # Fall through and allow the session to proceed
+        else:
+            debug_saver.save_prompt(session_id, message.strip())
+
+    # XXX - this is a hack to create the chat interaction capability
     if len(messages) > 1:
         global chat_worker
         task = ChatTask(messages=messages)
@@ -311,28 +324,13 @@ def handle_message(data):
         session_metadata["provenance"] = provenance
         return
 
-    # there is only one message:
-    message = messages[0].get("content", "")
-
-    # If in replay mode, trigger replay with current session
-    global debug_saver
-    if debug_saver:
-        if debug_saver.mode == "replay":
-            debug_saver.start_replay_session(message.strip(), current_metadata)
-            return
-        else:
-            debug_saver.save_prompt(session_id, message.strip())
-
-    def wrapped_notify_planai(*args, **kwargs):
-        return notify_planai(*args, **kwargs)
-
     # Add the task to the graph
     global graph, entry_worker
     user_request = Request(user_input=message)
     provenance = entry_worker.add_work(
         user_request,
         metadata={"session_id": session_id, "sid": sid},
-        status_callback=wrapped_notify_planai,
+        status_callback=notify_planai,
     )
     # Remember the provenance for this session, so that we can abort it if needed
     session_metadata["provenance"] = provenance
@@ -603,7 +601,7 @@ def main():
             # Load replay data
             debug_saver.load_replays()
 
-    setup_logging(level=logging.DEBUG)
+    setup_logging(level=logging.DEBUG if args.debug else logging.ERROR)
     start_graph_thread(args.provider, args.model, host=f"localhost:{args.ollama_port}")
     setup_web_interface(port=args.port)
 
