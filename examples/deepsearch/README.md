@@ -2,58 +2,61 @@
 
 [![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
 
-This is an example project for PlanAI that aims to create a similar experience as demonstrated by Google's Gemini DeepResearch experiment. DeepSearch is designed to be an intelligent research assistant capable of understanding complex queries, formulating comprehensive research plans, executing web searches, synthesizing information from multiple sources, and delivering well-structured, insightful answers to users.
+DeepSearch is an intelligent research assistant designed to understand complex queries, formulate comprehensive research plans, execute web searches, synthesize information from multiple sources, and deliver well-structured, insightful answers. This project leverages **PlanAI** for graph-based processing, **Flask** for backend communication, and **Svelte** for a modern, reactive frontend.
+
+## Features
+
+- **Intelligent Research Planning:** Automatically generates multi-phase research plans based on user queries.
+- **Web Search Integration:** Performs targeted web searches for each phase of the research plan.
+- **Information Synthesis:** Summarizes and synthesizes information from multiple sources into a coherent narrative.
+- **Real-time Feedback:** Provides users with thinking/progress updates during processing.
+- **Markdown Support:** Delivers final responses in well-formatted Markdown.
+- **Session Management:** Supports restoring previous sessions and automatic cleanup of stale sessions.
+- **Debugging and Replay:** Includes tools for capturing and replaying sessions for development and testing.
+- **Multiple LLM Support:** Supports OpenAI, Anthropic, and Ollama (local models) with dynamic validation and model selection.
+- **Audio Player:** Includes a built-in audio player (currently playing classical music - a placeholder for future functionality).
 
 ## Project Structure
 
-The project is organized into several key components:
+The project consists of the following main components:
 
--   **`deepsearch/`**: Contains the core backend logic, including the graph-based processing, session management, and debugging tools.
--   **`frontend/`**: Houses the Svelte-based frontend application, providing a user-friendly chat interface for interaction.
--   **`tests/`**: Includes unit tests to ensure the reliability and correctness of the session management functionality.
-
-### Backend (`deepsearch/`)
-
-The backend is built using Python and leverages the Flask framework for communication with the frontend. It utilizes **PlanAI** as a graph-based processing system to manage the complex workflow of research tasks.
-
-#### Key Files:
-
--   **`debug.py`**: Implements debugging functionalities, allowing for capturing and replaying sessions for development and testing.
--   **`deepsearch.py`**: The main backend file. It sets up the Flask application, handles WebSocket connections, manages the task queue, and orchestrates the interaction between the frontend and the research graph.
--   **`graph.py`**: Defines the task graph and workers responsible for plan creation, search query generation, information retrieval, and response synthesis.
-
-### Frontend (`frontend/`)
-
-The frontend is a Svelte application that provides a clean and intuitive chat interface. It communicates with the backend via WebSockets to send user queries and receive real-time updates and responses.
-
-#### Key Components:
-
--   **`lib/components/`**:
-    -   **`ChatInterface.svelte`**: Implements the chat interface, message display, loading indicators, and markdown rendering.
-    -   **`SessionManager.svelte`**: Manages the WebSocket connection, session restoration, and communication with the backend.
--   **`lib/stores/`**:
-    -   **`messageBus.svelte.js`**: A central message bus for handling events and updates within the frontend.
-    -   **`sessionStore.svelte.js`**: Stores session-related state, such as the current session ID and connection status.
--   **`routes/`**:
-    -   **`+layout.svelte`**: Defines the main layout of the application.
-    -   **`+page.svelte`**: The main page component, integrating the `SessionManager` and `ChatInterface`.
+- **`deepsearch/`**: Backend logic (Python, Flask, PlanAI).
+  - **`debug.py`**: Debugging utilities (capture/replay sessions).
+  - **`deepsearch.py`**: Main backend application, Flask setup, WebSocket handling, task queue management.
+  - **`graph.py`**: Definition of the research task graph and workers (plan creation, search, summarization, response generation).
+  - **`session.py`**: Session management (creation, retrieval, update, deletion, SID mapping, metadata handling).
+- **`frontend/`**: Frontend application (Svelte, JavaScript).
+  - **`lib/components/`**:
+    - **`AudioPlayer.svelte`**:  Component for playing and controlling audio tracks.
+    - **`ChatInterface.svelte`**: Chat interface, message display, loading indicators, markdown rendering.
+    - **`SessionManager.svelte`**: WebSocket connection management, session restoration, backend communication.
+    - **`SettingsSidebar.svelte`**: Sidebar component to configure API keys, select LLM providers/models, and persist settings.
+  - **`lib/stores/`**:
+    - **`messageBus.svelte.js`**: Centralized event bus for frontend communication.
+    - **`sessionStore.svelte.js`**: Stores session ID and connection status.
+    - **`trackStore.js`**: Manages the playlist and current track for the audio player.
+  - **`routes/`**:
+    - **`+layout.svelte`**: Main application layout.
+    - **`+page.svelte`**: Main page, integrates `SessionManager`, `ChatInterface`, and `AudioPlayer`.
+- **`tests/`**: Unit tests for session management (`test_session.py`).
 
 ## Getting Started
 
 ### Prerequisites
 
--   Python 3.10+
--   Node.js 18+
--   npm or yarn
+- Python 3.10+
+- Node.js 18+
+- npm or yarn
+- [Playwright](https://playwright.dev/docs/intro) (for web scraping):
 
 ### Installation
 
-1.  **Clone the repository:**
+1. **Clone the repository:**
 
-    ```bash
-    git clone https://github.com/provos/planai.git
-    cd planai/examples/deepsearch
-    ```
+   ```bash
+   git clone [https://github.com/provos/planai.git](https://github.com/provos/planai.git)
+   cd planai/examples/deepsearch
+   ```
 
 2.  **Install backend dependencies:**
 
@@ -69,13 +72,27 @@ The frontend is a Svelte application that provides a clean and intuitive chat in
     npm install
     ```
 
+4.  **Configure API Keys (Optional):**
+
+      - Create a `.env.local` file in the root of the `deepsearch` directory.
+      - Add your API keys for Serper, OpenAI, and/or Anthropic (see `.env.local` example).
+      - **Note:** Serper API key is required for web search functionality unless you already have a key stored in your settings (persisted across sessions). OpenAI and Anthropic keys are optional, required only if you want to use their respective LLMs.
+
+    <!-- end list -->
+
+    ```
+    OPENAI_API_KEY=your_openai_api_key
+    ANTHROPIC_API_KEY=your_anthropic_api_key
+    SERPER_API_KEY=your_serper_api_key
+    ```
+
 ### Running the Application
 
 1.  **Start the backend server:**
 
     ```bash
-    cd ..
-    python deepsearch/deepsearch.py
+    cd .. # (If you're in the `frontend` directory)
+    poetry run python deepsearch/deepsearch.py
     ```
 
 2.  **Start the frontend development server:**
@@ -89,15 +106,63 @@ The frontend is a Svelte application that provides a clean and intuitive chat in
 
     Open your web browser and navigate to `http://localhost:5173`.
 
+## Usage
+
+1.  **Enter a research query** in the chat input field and press Enter or click the Send button.
+2.  **Observe the research process:** DeepSearch will generate a research plan, perform web searches, and synthesize the results. You'll see real-time updates in the chat interface.
+3.  **Receive the final response:** Once the research is complete, you'll receive a well-structured answer in Markdown format.
+4.  **Configure Settings (Optional):** Click the gear icon to open the settings sidebar. Here you can:
+      - Enter API keys for Serper, OpenAI, and Anthropic.
+      - Specify the Ollama host address if you are running a local model.
+      - Select your preferred LLM provider and model from the available options.
+      - Save your settings, which will be persisted across sessions.
+
 ## Debugging and Replay
 
-The `debug.py` module provides tools for capturing and replaying sessions.
+DeepSearch includes tools for capturing and replaying sessions, useful for development and testing.
 
--   **Capture mode:** Records all interactions and function calls for a session, allowing for detailed analysis and debugging.
--   **Replay mode:** Simulates a previously captured session, replaying the events with configurable delays. This is useful for testing and development.
+  - **Capture mode:** Records interactions and function calls for a session.
+  - **Replay mode:** Simulates a previously captured session.
 
-To enable debugging, run the backend with the `--debug` flag. To enable replay mode, also include the `--replay` flag.
+**Enable debugging:**
 
 ```bash
-python deepsearch/deepsearch.py --debug --replay
+poetry run python deepsearch/deepsearch.py --debug
 ```
+
+**Enable replay mode (with debugging):**
+
+```bash
+poetry run python deepsearch/deepsearch.py --debug --replay
+```
+
+**Adjust replay delay:**
+
+```bash
+poetry run python deepsearch/deepsearch.py --debug --replay --replay-delay 0.5
+```
+
+(This sets a 0.5-second delay between replayed events).
+
+**Debug Output:** Captured sessions are stored in the `debug_output/` directory.
+
+## Testing
+
+To run the unit tests for session management:
+
+```bash
+cd ..
+poetry run pytest
+```
+
+## License
+
+This project is licensed under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License. See the [LICENSE](LICENSE) file for details.
+
+## Acknowledgements
+
+  - **PlanAI:** [https://github.com/provos/planai](https://github.com/provos/planai)
+  - **Flask:** [https://flask.palletsprojects.com/](https://www.google.com/url?sa=E&source=gmail&q=https://flask.palletsprojects.com/)
+  - **Svelte:** [https://svelte.dev/](https://svelte.dev/)
+  - **Socket.IO:** [https://socket.io/](https://socket.io/)
+  - **Marked:** [https://marked.js.org/](https://www.google.com/url?sa=E&source=gmail&q=https://marked.js.org/)
