@@ -1,5 +1,7 @@
 # DeepSearch: An AI-Powered Research Assistant
 
+[![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
+
 This is an example project for PlanAI that aims to create a similar experience as demonstrated by Google's Gemini DeepResearch experiment. DeepSearch is designed to be an intelligent research assistant capable of understanding complex queries, formulating comprehensive research plans, executing web searches, synthesizing information from multiple sources, and delivering well-structured, insightful answers to users.
 
 ## Project Structure

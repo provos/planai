@@ -130,8 +130,22 @@ Full documentation for PlanAI is available at [https://docs.getplanai.com/](http
 
 We welcome contributions to PlanAI! Please see our [Contributing Guide](CONTRIBUTING.md) for more details on how to get started.
 
-## License
+## Licensing
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+The PlanAI framework is licensed under the **Apache License 2.0**. See the [LICENSE](LICENSE) file for the full license text.
+
+**Example Applications:**
+
+The `examples/` directory contains standalone applications that demonstrate the use of the PlanAI framework. These applications have their own independent licenses:
+
+*   `examples/deepsearch`: Licensed under **CC BY-NC-SA 4.0** ([LICENSE](examples/deepsearch/LICENSE))
+*   `examples/social` and `examples/textbook`: Licensed under **Apache License 2.0** ([LICENSE](LICENSE))
+
+**Understanding the Licensing Structure:**
+
+*   The PlanAI framework (Apache 2.0) can be used in both commercial and non-commercial applications, can be modified, and can be distributed, providing significant flexibility for developers.
+*   Example applications are independent implementations that use PlanAI as a dependency.
+*   Each example application's license applies only to that specific implementation and does not affect the core framework.
+*   You can create your own applications using PlanAI under any license compatible with Apache 2.0.
 
 For any questions or support, please open an issue on our [GitHub issue tracker](https://github.com/provos/planai/issues).
