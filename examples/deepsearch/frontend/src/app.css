@@ -144,7 +144,7 @@
     }
 
     .audio-player-wrapper {
-        @apply fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4;
+        @apply fixed bottom-0 left-16 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4; /* Adjust left position */
     }
 
     .audio-player {
@@ -217,5 +217,74 @@
 
     .track-menu-item.active {
         @apply bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400;
+    }
+
+    /* New SettingsSidebar styles */
+    .settings-sidebar {
+        @apply fixed left-0 top-0 flex h-full w-16 flex-col items-center bg-gray-200 shadow-lg dark:bg-gray-800;
+    }
+
+    .settings-button {
+        @apply relative mt-4 text-gray-700 transition-colors hover:text-blue-600 dark:text-gray-200 dark:hover:text-blue-400;
+    }
+
+    .settings-dialog {
+        @apply fixed inset-0 z-50 flex h-full w-full bg-black bg-opacity-50;
+    }
+
+    .settings-overlay {
+        @apply absolute inset-0 h-full w-full cursor-default;
+    }
+
+    .settings-panel {
+        @apply absolute left-20 top-4 w-96 rounded-lg bg-white p-6 shadow-lg dark:bg-gray-800;
+    }
+
+    .settings-title {
+        @apply mb-4 text-xl font-semibold text-gray-900 dark:text-white;
+    }
+
+    .settings-form {
+        @apply space-y-4;
+    }
+
+    .form-group {
+        @apply space-y-1;
+    }
+
+    .form-label {
+        @apply block text-sm font-medium text-gray-700 dark:text-gray-300;
+    }
+
+    .form-input {
+        @apply w-full rounded-md border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white;
+    }
+
+    .form-input-error {
+        @apply border-red-500 dark:border-red-500;
+    }
+
+    .error-text {
+        @apply mt-1 text-sm text-red-500;
+    }
+
+    .form-actions {
+        @apply mt-4 flex justify-end space-x-2;
+    }
+
+    .button-cancel {
+        @apply rounded-md bg-gray-200 px-4 py-2 text-gray-800 transition-colors hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600;
+    }
+
+    .button-save {
+        @apply rounded-md px-4 py-2 transition-colors;
+    }
+
+    .button-save-enabled {
+        @apply bg-blue-600 hover:bg-blue-700 text-white;
+    }
+
+    .button-save-disabled {
+        @apply bg-gray-400 cursor-not-allowed text-white;
     }
 }

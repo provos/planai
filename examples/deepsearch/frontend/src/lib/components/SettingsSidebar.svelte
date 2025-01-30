@@ -163,186 +163,167 @@
 	});
 </script>
 
-<div
-	class="fixed left-0 top-0 flex h-screen w-16 flex-col items-center bg-gray-200 shadow-lg dark:bg-gray-800"
->
-	<!-- Gear Icon -->
-	<button
-		class="relative mt-4 text-gray-700 transition-colors hover:text-blue-600 dark:text-gray-200 dark:hover:text-blue-400"
-		onclick={() => {
-			showSettings = true;
-			loadSettings();
-		}}
-		aria-label="Open Settings"
-	>
-		<!-- <FontAwesomeIcon icon={faCog} class="w-6 h-6" /> -->
-		<span class="text-xl">&#9881;</span>
-	</button>
-	<!-- ...any additional nav items... -->
+<div class="settings-sidebar">
+    <button
+        class="settings-button"
+        onclick={() => {
+            showSettings = true;
+            loadSettings();
+        }}
+        aria-label="Open Settings"
+    >
+        <span class="text-xl">&#9881;</span>
+    </button>
 </div>
 
 {#if showSettings}
-	<dialog
-		class="fixed inset-0 z-50 flex h-full w-full bg-black bg-opacity-50"
-		aria-labelledby="settings-title"
-		open
-	>
-		<button
-			class="absolute inset-0 h-full w-full cursor-default"
-			onclick={() => (showSettings = false)}
-			onkeydown={(e) => {
-				if (e.key === 'Escape') showSettings = false;
-			}}
-		>
-			<span class="sr-only">Close settings</span>
-		</button>
+    <dialog class="settings-dialog" aria-labelledby="settings-title" open>
+        <button
+            class="settings-overlay"
+            onclick={() => (showSettings = false)}
+            onkeydown={(e) => {
+                if (e.key === 'Escape') showSettings = false;
+            }}
+        >
+            <span class="sr-only">Close settings</span>
+        </button>
 
-		<section
-			class="absolute left-20 top-4 w-96 rounded-lg bg-white p-6 shadow-lg dark:bg-gray-800"
-			role="document"
-		>
-			<h2 id="settings-title" class="mb-4 text-xl font-semibold text-gray-900 dark:text-white">
-				Settings
-			</h2>
-			<form
-				onsubmit={(e) => {
-					e.preventDefault();
-					saveSettings();
-				}}
-				class="space-y-4"
-			>
-				<div>
-					<label
-						for="serper-key"
-						class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
-						>Serper API Key {#if !hasSerperKey}<span class="text-red-500">*</span>{/if}</label
-					>
-					<input
-						id="serper-key"
-						type="password"
-						bind:value={config.serperApiKey}
-						placeholder={hasSerperKey ? 'Key stored' : 'Enter your Serper key'}
-						class="w-full rounded-md border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-						required={!hasSerperKey}
-					/>
-				</div>
-				<div>
-					<label
-						for="openai-key"
-						class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
-						>OpenAI API Key</label
-					>
-					<input
-						id="openai-key"
-						type="password"
-						bind:value={config.openAiApiKey}
-						oninput={(e) => onApiKeyChange('openai', e.target.value)}
-						placeholder={providers.openai?.hasKey ? 'Key stored' : 'Enter your OpenAI key'}
-						class="w-full rounded-md border px-3 py-2 text-gray-900 focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-						class:border-red-500={hasInvalidKey.openai}
-						class:border-gray-300={!hasInvalidKey.openai}
-						class:dark:border-red-500={hasInvalidKey.openai}
-						class:dark:border-gray-600={!hasInvalidKey.openai}
-					/>
-					{#if hasInvalidKey.openai}
-						<p class="mt-1 text-sm text-red-500">Invalid API key</p>
-					{/if}
-				</div>
-				<div>
-					<label
-						for="anthropic-key"
-						class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
-						>Anthropic API Key</label
-					>
-					<input
-						id="anthropic-key"
-						type="password"
-						bind:value={config.anthropicApiKey}
-						oninput={(e) => onApiKeyChange('anthropic', e.target.value)}
-						placeholder={providers.anthropic?.hasKey ? 'Key stored' : 'Enter your Anthropic key'}
-p						class:border-red-500={hasInvalidKey.anthropic}
-						class:border-gray-300={!hasInvalidKey.anthropic}
-						class:dark:border-red-500={hasInvalidKey.anthropic}
-						class:dark:border-gray-600={!hasInvalidKey.anthropic}
-					/>
-					{#if hasInvalidKey.anthropic}
-						<p class="mt-1 text-sm text-red-500">Invalid API key</p>
-					{/if}
-				</div>
-				<div>
-					<label
-						for="ollama-host"
-						class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
-						>Ollama Host</label
-					>
-					<input
-						id="ollama-host"
-						type="text"
-						bind:value={config.ollamaHost}
-						oninput={onOllamaHostChange}
-						placeholder="localhost:11434"
-						class="w-full rounded-md border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-					/>
-				</div>
-				<div>
-					<label
-						for="provider-select"
-						class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Provider</label
-					>
-					<select
-						id="provider-select"
-						bind:value={config.provider}
-						onchange={onProviderChange}
-						class="w-full rounded-md border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-					>
-						<option value="">Select Provider</option>
-						{#each availableProviders as provider}
-							<option value={provider}
-								>{provider.charAt(0).toUpperCase() + provider.slice(1)}</option
-							>
-						{/each}
-					</select>
-				</div>
-				{#if config.provider && providers[config.provider]?.models.length > 0}
-					<div>
-						<label
-							for="model-name"
-							class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
-							>Model Name</label
-						>
-						<select
-							id="model-name"
-							bind:value={config.modelName}
-							class="w-full rounded-md border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-						>
-							<option value="">Select Model</option>
-							{#each availableModels as model}
-								<option value={model}>{model}</option>
-							{/each}
-						</select>
-					</div>
-				{/if}
-				<div class="mt-4 flex justify-end space-x-2">
-					<button
-						type="button"
-						class="rounded-md bg-gray-200 px-4 py-2 text-gray-800 transition-colors hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
-						onclick={() => (showSettings = false)}
-					>
-						Cancel
-					</button>
-					<button
-						type="submit"
-						class="rounded-md px-4 py-2 transition-colors"
-						class:bg-blue-600={canSave}
-						class:hover:bg-blue-700={canSave}
-						class:bg-gray-400={!canSave}
-						class:cursor-not-allowed={!canSave}
-						disabled={!canSave}
-					>
-						Save
-					</button>
-				</div>
-			</form>
-		</section>
-	</dialog>
+        <section class="settings-panel" role="document">
+            <h2 id="settings-title" class="settings-title">Settings</h2>
+            <form
+                onsubmit={(e) => {
+                    e.preventDefault();
+                    saveSettings();
+                }}
+                class="settings-form"
+            >
+                <!-- Form groups -->
+                <div class="form-group">
+                    <label for="serper-key" class="form-label">
+                        Serper API Key {#if !hasSerperKey}<span class="text-red-500">*</span>{/if}
+                    </label>
+                    <input
+                        id="serper-key"
+                        type="password"
+                        bind:value={config.serperApiKey}
+                        placeholder={hasSerperKey ? 'Key stored' : 'Enter your Serper key'}
+                        class="form-input"
+                        required={!hasSerperKey}
+                    />
+                </div>
+
+                <div class="form-group">
+                    <label for="openai-key" class="form-label">
+                        OpenAI API Key
+                    </label>
+                    <input
+                        id="openai-key"
+                        type="password"
+                        bind:value={config.openAiApiKey}
+                        oninput={(e) => onApiKeyChange('openai', e.target.value)}
+                        placeholder={providers.openai?.hasKey ? 'Key stored' : 'Enter your OpenAI key'}
+                        class="form-input"
+                        class:border-red-500={hasInvalidKey.openai}
+                        class:border-gray-300={!hasInvalidKey.openai}
+                        class:dark:border-red-500={hasInvalidKey.openai}
+                        class:dark:border-gray-600={!hasInvalidKey.openai}
+                    />
+                    {#if hasInvalidKey.openai}
+                        <p class="mt-1 text-sm text-red-500">Invalid API key</p>
+                    {/if}
+                </div>
+
+                <div class="form-group">
+                    <label for="anthropic-key" class="form-label">
+                        Anthropic API Key
+                    </label>
+                    <input
+                        id="anthropic-key"
+                        type="password"
+                        bind:value={config.anthropicApiKey}
+                        oninput={(e) => onApiKeyChange('anthropic', e.target.value)}
+                        placeholder={providers.anthropic?.hasKey ? 'Key stored' : 'Enter your Anthropic key'}
+                        class="form-input"
+                        class:border-red-500={hasInvalidKey.anthropic}
+                        class:border-gray-300={!hasInvalidKey.anthropic}
+                        class:dark:border-red-500={hasInvalidKey.anthropic}
+                        class:dark:border-gray-600={!hasInvalidKey.anthropic}
+                    />
+                    {#if hasInvalidKey.anthropic}
+                        <p class="mt-1 text-sm text-red-500">Invalid API key</p>
+                    {/if}
+                </div>
+
+                <div class="form-group">
+                    <label for="ollama-host" class="form-label">
+                        Ollama Host
+                    </label>
+                    <input
+                        id="ollama-host"
+                        type="text"
+                        bind:value={config.ollamaHost}
+                        oninput={onOllamaHostChange}
+                        placeholder="localhost:11434"
+                        class="form-input"
+                    />
+                </div>
+
+                <div class="form-group">
+                    <label for="provider-select" class="form-label">
+                        Provider
+                    </label>
+                    <select
+                        id="provider-select"
+                        bind:value={config.provider}
+                        onchange={onProviderChange}
+                        class="form-input"
+                    >
+                        <option value="">Select Provider</option>
+                        {#each availableProviders as provider}
+                            <option value={provider}>
+                                {provider.charAt(0).toUpperCase() + provider.slice(1)}
+                            </option>
+                        {/each}
+                    </select>
+                </div>
+
+                {#if config.provider && providers[config.provider]?.models.length > 0}
+                    <div class="form-group">
+                        <label for="model-name" class="form-label">
+                            Model Name
+                        </label>
+                        <select
+                            id="model-name"
+                            bind:value={config.modelName}
+                            class="form-input"
+                        >
+                            <option value="">Select Model</option>
+                            {#each availableModels as model}
+                                <option value={model}>{model}</option>
+                            {/each}
+                        </select>
+                    </div>
+                {/if}
+
+                <div class="form-actions">
+                    <button
+                        type="button"
+                        class="button-cancel"
+                        onclick={() => (showSettings = false)}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="submit"
+                        class="button-save"
+                        class:button-save-enabled={canSave}
+                        class:button-save-disabled={!canSave}
+                        disabled={!canSave}
+                    >
+                        Save
+                    </button>
+                </div>
+            </form>
+        </section>
+    </dialog>
 {/if}
