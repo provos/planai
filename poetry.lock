@@ -209,14 +209,14 @@ files = [
 
 [[package]]
 name = "certifi"
-version = "2024.12.14"
+version = "2025.1.31"
 description = "Python package for providing Mozilla's CA Bundle."
 optional = false
 python-versions = ">=3.6"
 groups = ["main", "dev", "docs"]
 files = [
-    {file = "certifi-2024.12.14-py3-none-any.whl", hash = "sha256:1275f7a45be9464efc1173084eaa30f866fe2e47d389406136d332ed4967ec56"},
-    {file = "certifi-2024.12.14.tar.gz", hash = "sha256:b650d30f370c2b724812bee08008be0c4163b163ddaec3f2546c1caf65f191db"},
+    {file = "certifi-2025.1.31-py3-none-any.whl", hash = "sha256:ca78db4565a652026a4db2bcdf68f2fb589ea80d0be70e03929ed730746b84fe"},
+    {file = "certifi-2025.1.31.tar.gz", hash = "sha256:3d5da6925056f6f18f119200434a4780a94263f10d1c21d032a6f6b2baa20651"},
 ]
 
 [[package]]
@@ -1030,14 +1030,14 @@ files = [
 
 [[package]]
 name = "llm-interface"
-version = "0.1.5"
+version = "0.1.6"
 description = "A flexible interface for working with various LLM providers"
 optional = false
 python-versions = "<4.0,>=3.10"
 groups = ["main"]
 files = [
-    {file = "llm_interface-0.1.5-py3-none-any.whl", hash = "sha256:84506e02c8449cf506d8a8baede84dd2dc700a14486a401d3339b30d2de099fa"},
-    {file = "llm_interface-0.1.5.tar.gz", hash = "sha256:5d003130c790627ba9e7b9cf061c399573824632cfe829cd8e583c6b311f891b"},
+    {file = "llm_interface-0.1.6-py3-none-any.whl", hash = "sha256:bc34e0f29349af8fd118802d79f55c8b6f2ed6ebabef71e498422789f528e396"},
+    {file = "llm_interface-0.1.6.tar.gz", hash = "sha256:36d70754ca3450b8b1053e2e6fc6e192f4ff29455a59a05c8aaa36ed268a0c7c"},
 ]
 
 [package.dependencies]
