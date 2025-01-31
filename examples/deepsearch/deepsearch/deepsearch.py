@@ -31,8 +31,9 @@ from graph import (
 )
 from llm_interface import ListResponse, llm_from_config
 from session import SessionManager
+from user_session import UserSessionManager
 
-from planai import ChatTask, ProvenanceChain, Task, TaskWorker
+from planai import ChatMessage, ChatTask, ProvenanceChain, Task, TaskWorker
 from planai.utils import setup_logging
 
 app = Flask(__name__)
@@ -41,6 +42,7 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 
 
 session_manager = SessionManager()
+user_sessions = UserSessionManager("saved_sessions")
 debug_saver = None
 
 # Create a queue to hold tasks
@@ -104,6 +106,14 @@ def start_worker_thread():
                     break
 
                 try:
+                    if message and message.response_type == "chat_response":
+                        global user_sessions
+                        user_sessions.add_message(
+                            session_id,
+                            ChatMessage(role="assistant", content=message.message),
+                        )
+                        user_sessions.save_session(session_id)
+
                     print(f"Sending response: {message} to session: {session_id}")
                     message.message = format_message(message.message)
                     response_mapping = {
@@ -303,11 +313,17 @@ def handle_message(data):
     # get the last message:
     message = messages[-1].get("content", "")
 
+    global user_sessions
+    user_sessions.add_message(session_id, ChatMessage(role="user", content=message))
+    user_sessions.save_session(session_id)
+
     # If in replay mode, trigger replay with current session
     global debug_saver
     if debug_saver:
         if debug_saver.mode == "replay":
-            if debug_saver.start_replay_session(message.strip(), current_metadata):
+            if debug_saver.start_replay_session(
+                message.strip(), current_metadata, allow_unknown=True
+            ):
                 return
             # Fall through and allow the session to proceed
         else:
@@ -559,6 +575,33 @@ def handle_save_settings(data):
         emit("settings_saved", {"status": "success"})
     except Exception as e:
         emit("error", str(e))
+
+
+@socketio.on("list_sessions")
+def handle_list_sessions():
+    """List all past user sessions."""
+    logging.info("Listing user sessions")
+    global user_sessions
+    sessions = user_sessions.list_sessions()
+    emit("sessions_listed", {"sessions": sessions})
+
+
+@socketio.on("get_session")
+def handle_get_session(data):
+    """Retrieve a specific user session."""
+    logging.info("Retrieving user session: %s", data)
+    session_id = data.get("session_id")
+    if not session_id:
+        emit("error", "Invalid session ID")
+        return
+
+    global user_sessions
+    session = user_sessions.get_session(session_id)
+    if not session:
+        emit("error", "Session not found")
+        return
+
+    emit("session_retrieved", session.model_dump())
 
 
 def main():
