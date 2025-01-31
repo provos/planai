@@ -83,7 +83,7 @@ See the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International 
 		}
 	}, 500); // 500ms delay
 
-	let currentConnectionStatus;
+	let currentConnectionStatus = $state('disconnected');
 
 	// Subscribe to the store changes
 	sessionState.subscribe((state) => {

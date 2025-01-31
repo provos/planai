@@ -492,7 +492,7 @@ def handle_validate_provider(data):
     provider = data.get("provider", "").lower()
     value = data.get("apiKey")  # This could be either an API key or Ollama host
 
-    is_valid, models = validate_provider(provider, value)
+    is_valid, models = validate_provider(provider, api_key=value)
 
     emit(
         "provider_validated",
