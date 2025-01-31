@@ -12,12 +12,13 @@ See the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International 
 -->
 <script>
 	import { FontAwesomeIcon } from '@fortawesome/svelte-fontawesome';
-	import { faPaperPlane, faStop } from '@fortawesome/free-solid-svg-icons';
+	import { faPaperPlane, faStop, faBars } from '@fortawesome/free-solid-svg-icons';
 	import { messageBus } from '../stores/messageBus.svelte.js';
 	import { configState } from '../stores/configStore.svelte.js';
 	import { sessionState } from '../stores/sessionStore.svelte.js';
 
 	let showSettings = $state(false);
+	let showSessionHistory = $state(false);
 	let providers = $state({
 		ollama: { available: false, models: [] },
 		openai: { available: false, models: [], hasKey: false },
@@ -34,6 +35,7 @@ See the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International 
 	});
 
 	let hasSerperKey = $state(false);
+	let sessions = $state([]);
 
 	let availableProviders = $derived(
 		Object.entries(providers)
@@ -176,6 +178,17 @@ See the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International 
 					console.log('Resetting model due to invalid provider');
 					config.modelName = '';
 				}
+			} else if (type === 'sessionsListed') {
+				// Fix: ensure payload has the correct structure
+				console.log('Received sessions:', payload);
+				if (payload && payload.sessions) {
+					sessions = payload.sessions;
+				} else {
+					console.error('Invalid sessions payload:', payload);
+					sessions = [];
+				}
+			} else if (type === 'sessionRetrieved') {
+				messageBus.loadSession(payload);
 			}
 		});
 		return () => unsubscribe();
@@ -190,7 +203,7 @@ See the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International 
 			snapshot.modelName &&
 			providerSnapshot[snapshot.provider]?.available;
 
-		configState.update(state => ({
+		configState.update((state) => ({
 			...state,
 			isValid,
 			provider: snapshot.provider,
@@ -211,6 +224,17 @@ See the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International 
 	async function saveSettings() {
 		console.log('Saving settings:', config.provider, config.modelName);
 		messageBus.saveSettings(config);
+	}
+
+	async function loadSessions() {
+		console.log('Loading sessions');
+		messageBus.listSessions();
+	}
+
+	async function loadSession(sessionId) {
+		console.log('Loading session:', sessionId);
+		messageBus.getSession(sessionId);
+		showSessionHistory = false;
 	}
 
 	function onProviderChange(event) {
@@ -240,6 +264,17 @@ See the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International 
 	<button
 		class="settings-button"
 		onclick={() => {
+			showSessionHistory = true;
+			loadSessions();
+		}}
+		aria-label="Session History"
+	>
+		<FontAwesomeIcon icon={faBars} />
+	</button>
+
+	<button
+		class="settings-button"
+		onclick={() => {
 			showSettings = true;
 			loadSettings();
 		}}
@@ -248,6 +283,28 @@ See the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International 
 		<span class="text-xl">&#9881;</span>
 	</button>
 </div>
+
+{#if showSessionHistory}
+	<dialog class="settings-dialog" aria-labelledby="sessions-title" open>
+		<button class="settings-overlay" onclick={() => (showSessionHistory = false)}>
+			<span class="sr-only">Close sessions</span>
+		</button>
+
+		<section class="settings-panel" role="document">
+			<div class="sessions-list">
+				{#if sessions.length === 0}
+					<div class="session-empty">No previous sessions found</div>
+				{:else}
+					{#each sessions as session}
+						<button class="session-item" onclick={() => loadSession(session.id)}>
+							<p class="session-message">{session.first_message}</p>
+						</button>
+					{/each}
+				{/if}
+			</div>
+		</section>
+	</dialog>
+{/if}
 
 {#if showSettings}
 	<dialog class="settings-dialog" aria-labelledby="settings-title" open>

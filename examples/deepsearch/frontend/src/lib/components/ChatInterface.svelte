@@ -134,6 +134,13 @@ Outgoing Events (sent):
 						currentSocket.disconnect();
 					}
 					break;
+				case 'loadSession':
+					messages = payload.messages.map(msg => ({
+						...msg,
+						timestamp: new Date(),
+						isMarkdown: msg.role === 'assistant'
+					}));
+					break;
 			}
 		});
 

@@ -18,9 +18,9 @@ See the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International 
 
 	// Subscribe to sessionState to get socket updates
 	let currentSocket = $state(null);
-    sessionState.subscribe(state => {
-        currentSocket = state.socket;
-    });
+	sessionState.subscribe((state) => {
+		currentSocket = state.socket;
+	});
 
 	function loadStoredSession() {
 		const storedId = localStorage.getItem('chatSessionId');
@@ -33,7 +33,7 @@ See the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International 
 
 	function saveSessionId(id) {
 		localStorage.setItem('chatSessionId', id);
-		sessionState.update(state => ({ ...state, sessionId: id }));
+		sessionState.update((state) => ({ ...state, sessionId: id }));
 	}
 
 	$effect(() => {
@@ -44,6 +44,10 @@ See the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International 
 				currentSocket.emit('save_settings', payload);
 			} else if (type === 'validateProvider' && currentSocket) {
 				currentSocket.emit('validate_provider', payload);
+			} else if (type === 'listSessions' && currentSocket) {
+				currentSocket.emit('list_sessions');
+			} else if (type === 'retrieveSession' && currentSocket) {
+				currentSocket.emit('get_session', payload);
 			}
 		});
 		return () => unsubscribe();
@@ -52,7 +56,7 @@ See the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International 
 	function initializeSocket() {
 		const storedSessionId = loadStoredSession();
 		if (storedSessionId) {
-			sessionState.update(state => ({ ...state, sessionId: storedSessionId }));
+			sessionState.update((state) => ({ ...state, sessionId: storedSessionId }));
 		}
 
 		const socket = io('http://localhost:5050', {
@@ -66,7 +70,7 @@ See the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International 
 
 		socket.on('connect', () => {
 			console.log('Connected to chat server');
-			sessionState.update(state => ({ ...state, connectionStatus: 'connected' }));
+			sessionState.update((state) => ({ ...state, connectionStatus: 'connected' }));
 			messageBus.error(null);
 			// Load settings on initial connection
 			socket.emit('load_settings');
@@ -84,17 +88,17 @@ See the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International 
 
 		socket.on('disconnect', () => {
 			console.log('Disconnected from server');
-			sessionState.update(state => ({ ...state, connectionStatus: 'disconnected' }));
+			sessionState.update((state) => ({ ...state, connectionStatus: 'disconnected' }));
 			messageBus.error('Connection lost. Attempting to reconnect...');
 		});
 
 		socket.on('reconnecting', (attemptNumber) => {
-			sessionState.update(state => ({ ...state, connectionStatus: 'reconnecting' }));
+			sessionState.update((state) => ({ ...state, connectionStatus: 'reconnecting' }));
 			messageBus.error(`Reconnecting... Attempt ${attemptNumber}`);
 		});
 
 		socket.on('reconnect_failed', () => {
-			sessionState.update(state => ({ ...state, connectionStatus: 'failed' }));
+			sessionState.update((state) => ({ ...state, connectionStatus: 'failed' }));
 			messageBus.error('Failed to reconnect. Please refresh the page.');
 		});
 
@@ -128,6 +132,14 @@ See the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International 
 			messageBus.providerValidated(status);
 		});
 
+		socket.on('sessions_listed', (sessions) => {
+			messageBus.sessionsListed(sessions);
+		});
+
+		socket.on('session_retrieved', (session) => {
+			messageBus.sessionRetrieved(session);
+		});
+
 		socket.on('error', (err) => {
 			console.error('Chat error:', err);
 			messageBus.error(err);
@@ -139,7 +151,7 @@ See the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International 
 			}
 		});
 
-		sessionState.update(state => ({ ...state, socket }));
+		sessionState.update((state) => ({ ...state, socket }));
 	}
 
 	onMount(() => {

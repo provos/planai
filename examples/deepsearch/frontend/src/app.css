@@ -4,7 +4,8 @@
 
 @layer components {
     .chat-container {
-        @apply min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col pb-[88px]; /* Add padding for audio player */
+        @apply min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col pb-[88px];
+        /* Add padding for audio player */
     }
 
     .chat-wrapper {
@@ -16,7 +17,8 @@
     }
 
     .chat-box {
-        @apply bg-white dark:bg-gray-800 rounded-lg shadow-lg dark:shadow-gray-900/50 flex flex-col h-[calc(100vh-9rem-88px)]; /* Subtract audio player height */
+        @apply bg-white dark:bg-gray-800 rounded-lg shadow-lg dark:shadow-gray-900/50 flex flex-col h-[calc(100vh-9rem-88px)];
+        /* Subtract audio player height */
     }
 
     .messages-area {
@@ -286,5 +288,22 @@
 
     .button-save-disabled {
         @apply bg-gray-400 cursor-not-allowed text-white;
+    }
+
+    .session-item {
+        @apply w-full px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200;
+        @apply border-b border-gray-100 dark:border-gray-700;
+    }
+
+    .session-message {
+        @apply text-sm text-gray-600 dark:text-gray-300 line-clamp-2;
+    }
+
+    .session-empty {
+        @apply px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400;
+    }
+
+    .sessions-list {
+        @apply flex flex-col max-h-[60vh] overflow-y-auto rounded-md bg-white dark:bg-gray-800;
     }
 }
