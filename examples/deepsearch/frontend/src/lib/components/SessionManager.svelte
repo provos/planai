@@ -46,7 +46,7 @@ See the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International 
 				currentSocket.emit('validate_provider', payload);
 			} else if (type === 'listSessions' && currentSocket) {
 				currentSocket.emit('list_sessions');
-			} else if (type === 'retrieveSession' && currentSocket) {
+			} else if (type === 'getSession' && currentSocket) {
 				currentSocket.emit('get_session', payload);
 			}
 		});

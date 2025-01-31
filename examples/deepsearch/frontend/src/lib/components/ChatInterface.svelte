@@ -134,7 +134,8 @@ Outgoing Events (sent):
 						currentSocket.disconnect();
 					}
 					break;
-				case 'loadSession':
+				case 'sessionRetrieved':
+					console.log('Session retrieved:', payload);
 					messages = payload.messages.map(msg => ({
 						...msg,
 						timestamp: new Date(),

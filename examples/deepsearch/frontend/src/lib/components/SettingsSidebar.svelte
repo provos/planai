@@ -187,8 +187,6 @@ See the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International 
 					console.error('Invalid sessions payload:', payload);
 					sessions = [];
 				}
-			} else if (type === 'sessionRetrieved') {
-				messageBus.loadSession(payload);
 			}
 		});
 		return () => unsubscribe();

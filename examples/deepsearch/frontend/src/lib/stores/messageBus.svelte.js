@@ -20,7 +20,6 @@ function createMessageBus() {
         saveSettings: (settings) => set({ type: 'saveSettings', payload: settings }),
         validateProvider: (provider, apiKey) => set({ type: 'validateProvider', payload: { provider, apiKey } }),
         providerValidated: (result) => set({ type: 'providerValidated', payload: result }),
-        loadSession: (session) => set({ type: 'loadSession', payload: session }),
         listSessions: () => set({ type: 'listSessions', payload: null }),
         sessionsListed: (sessions) => set({ type: 'sessionsListed', payload: sessions }),
         sessionRetrieved: (session) => set({ type: 'sessionRetrieved', payload: session }),
