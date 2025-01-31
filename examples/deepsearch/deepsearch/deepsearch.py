@@ -474,6 +474,19 @@ def validate_provider(provider: str, api_key: str = None) -> Tuple[bool, List[st
         if not isinstance(response, ListResponse):
             return False, []
 
+        # for anthropic, only return models that just with claude
+        # for openai, only return models that start with gpt or o
+        if provider == "anthropic":
+            response.models = [
+                model for model in response.models if model.model.startswith("claude")
+            ]
+        elif provider == "openai":
+            response.models = [
+                model
+                for model in response.models
+                if model.model.startswith(("gpt", "o"))
+            ]
+
         # If we successfully validated a new Ollama host, store it
         if provider == "ollama" and api_key:
             current_settings["ollamaHost"] = api_key
