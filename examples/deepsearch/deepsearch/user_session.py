@@ -26,8 +26,8 @@ class UserSessionManager:
 
     def load_sessions(self):
         for path in Path(self.directory).rglob("*.json"):
-            data = path.read_text
-            session = Session.model_validate(data)
+            data = path.read_text()
+            session = Session.model_validate_json(data)
             with self.lock:
                 self.sessions[session.id] = session
 
