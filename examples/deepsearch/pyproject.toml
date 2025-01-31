@@ -1,6 +1,7 @@
 [tool.poetry]
 name = "textbook"
 version = "0.1.0"
+packages = [{include = "deepsearch"}]
 description = "An example to use PlanAI to do deep research on the web."
 authors = ["Niels Provos"]
 readme = "README.md"
