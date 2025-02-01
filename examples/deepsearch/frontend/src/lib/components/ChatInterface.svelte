@@ -220,8 +220,6 @@ Outgoing Events (sent):
 <!-- Remove svelte:window events -->
 
 <div class="chat-wrapper">
-	<h1 class="chat-title">PlanAI Research</h1>
-
 	{#if currentConnectionStatus !== 'connected'}
 		<div class="connection-status {currentConnectionStatus}">
 			{currentConnectionStatus === 'reconnecting'

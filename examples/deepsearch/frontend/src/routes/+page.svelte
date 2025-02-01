@@ -25,7 +25,17 @@
 <main class="chat-container">
 	<SettingsSidebar />
 	<SessionManager />
-	<ChatInterface />
+	<div class="chat-wrapper">
+		<div class="header-group">
+			<h1 class="chat-title">PlanAI Research</h1>
+			<div class="header-links">
+				<a href="https://getplanai.com" class="brand-link">Powered by PlanAI</a>
+				<span class="header-divider">•</span>
+				<a href="https://www.provos.org/" class="copyright-link">© 2024 Niels Provos</a>
+			</div>
+		</div>
+		<ChatInterface />
+	</div>
 	<div class="audio-player-wrapper">
 		<AudioPlayer />
 	</div>
