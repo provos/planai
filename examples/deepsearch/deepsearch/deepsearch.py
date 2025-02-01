@@ -211,7 +211,7 @@ def setup_web_interface(port=5050):
     start_worker_thread()
 
     try:
-        socketio.run(app, port=port, debug=False, use_reloader=False)
+        socketio.run(app, host="0.0.0.0", port=port, debug=False, use_reloader=False)
     except (KeyboardInterrupt, SystemExit):
         stop_worker_thread()
     finally:
