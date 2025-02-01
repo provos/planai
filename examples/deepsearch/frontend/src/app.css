@@ -4,7 +4,7 @@
 
 @layer components {
     .chat-container {
-        @apply min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col pb-[88px];
+        @apply min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 pb-[88px];
         /* Add padding for audio player */
     }
 
@@ -13,11 +13,11 @@
     }
 
     .chat-title {
-        @apply mb-8 text-center text-4xl font-bold text-gray-900 dark:text-white;
+        @apply mb-8 text-center text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent;
     }
 
     .chat-box {
-        @apply bg-white dark:bg-gray-800 rounded-lg shadow-lg dark:shadow-gray-900/50 flex flex-col h-[calc(100vh-9rem-88px)];
+        @apply bg-white/80 dark:bg-gray-800/80 backdrop-blur-lg rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 flex flex-col h-[calc(100vh-9rem-88px)];
         /* Subtract audio player height */
     }
 
@@ -26,15 +26,15 @@
     }
 
     .message-bubble {
-        @apply max-w-[70%] rounded-lg p-3 transition-colors duration-200;
+        @apply max-w-[70%] rounded-lg p-3 transition-all duration-200;
     }
 
     .message-bubble-user {
-        @apply bg-blue-600 text-white dark:bg-blue-500;
+        @apply bg-gradient-to-br from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 text-white shadow-sm;
     }
 
     .message-bubble-assistant {
-        @apply bg-gray-100 text-gray-900 dark:bg-gray-700 dark:text-white;
+        @apply bg-gray-100 dark:bg-gray-700/80 text-gray-900 dark:text-white shadow-sm;
     }
 
     .message-bubble-error {
@@ -50,15 +50,15 @@
     }
 
     .input-area {
-        @apply border-t border-gray-100 dark:border-gray-700 p-4;
+        @apply border-t border-gray-200 dark:border-gray-700 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm p-4 rounded-b-lg p-4;
     }
 
     .input-field {
-        @apply flex-1 rounded-md border-0 px-4 py-3 text-gray-900 dark:text-white bg-white dark:bg-gray-700 ring-1 ring-gray-200 dark:ring-gray-600 focus:ring-2 focus:ring-blue-500 placeholder:text-gray-400 dark:placeholder:text-gray-500 disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:text-gray-500 dark:disabled:text-gray-400;
+        @apply flex-1 rounded-md border-0 px-4 py-3 text-gray-900 dark:text-white bg-white dark:bg-gray-700 ring-1 ring-gray-200 dark:ring-gray-600 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 placeholder:text-gray-400 dark:placeholder:text-gray-500 disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:text-gray-500 dark:disabled:text-gray-400;
     }
 
     .send-button {
-        @apply rounded-md px-6 py-3 font-medium text-white focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 transition-colors duration-200;
+        @apply rounded-md px-6 py-3 font-medium text-white shadow-sm transition-all duration-200 ease-in-out focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800;
     }
 
     .stop-button {
@@ -82,7 +82,7 @@
     }
 
     .send-button-enabled {
-        @apply bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600;
+        @apply bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 dark:from-blue-600 dark:to-blue-700 dark:hover:from-blue-700 dark:hover:to-blue-800;
     }
 
     .send-button-disabled {
@@ -102,7 +102,7 @@
     }
 
     .prose {
-        @apply text-gray-900 dark:text-white transition-colors duration-200;
+        @apply text-gray-900 dark:text-gray-100;
     }
 
     .prose strong {
@@ -122,7 +122,7 @@
     }
 
     .prose :where(pre):not(:where([class~="not-prose"] *)) {
-        @apply bg-gray-800 text-gray-100 dark:bg-black dark:text-white p-3 rounded-md my-2 overflow-x-auto;
+        @apply bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white p-3 rounded-md my-2 overflow-x-auto border border-gray-200 dark:border-gray-700;
     }
 
     .error-message {
@@ -130,15 +130,15 @@
     }
 
     .connection-status {
-        @apply p-2 text-center mb-4 rounded-md text-sm font-medium transition-colors duration-200;
+        @apply p-2 text-center mb-4 rounded-md text-sm font-medium backdrop-blur-sm transition-all duration-200;
     }
 
     .connection-status.disconnected {
-        @apply bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400;
+        @apply bg-red-50/80 dark:bg-red-900/20 text-red-600 dark:text-red-400;
     }
 
     .connection-status.reconnecting {
-        @apply bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-400;
+        @apply bg-yellow-50/80 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-400;
     }
 
     .connection-status.failed {
