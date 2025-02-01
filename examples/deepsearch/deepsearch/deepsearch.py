@@ -107,7 +107,7 @@ def start_worker_thread():
                     break
 
                 try:
-                    if message and message.response_type == "chat_response":
+                    if message and message.response_type == "final":
                         global user_sessions
                         user_sessions.add_message(
                             session_id,
