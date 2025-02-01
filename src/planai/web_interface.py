@@ -261,7 +261,7 @@ def run_web_interface(disp: "Dispatcher", port=5000):
     global _server, dispatcher
     set_dispatcher(disp)
     if _server is None:
-        _server = create_server(app, host="127.0.0.1", port=port)
+        _server = create_server(app, host="0.0.0.0", port=port)
         _server.run()
 
 
