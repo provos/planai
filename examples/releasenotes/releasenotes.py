@@ -19,6 +19,13 @@ from planai import (
 from planai.utils import setup_logging
 
 
+class InitialCommit(Task):
+    """Task containing the initial repository information"""
+
+    repo_path: str = Field(description="Path to the git repository")
+    from_tag: Optional[str] = Field(None, description="Starting tag for commit range")
+
+
 class CommitDiff(Task):
     """Task containing the diff for a commit"""
 
@@ -45,6 +52,17 @@ class ReleaseNotes(Task):
     """Task containing the final release notes"""
 
     notes: str = Field(description="The generated release notes in markdown format")
+
+
+class CommitCollector(TaskWorker):
+    """Worker that collects all commits from a repository"""
+
+    output_types: List[Type[Task]] = [CommitDiff]
+
+    def consume_work(self, task: InitialCommit):
+        commits = get_commits(task.repo_path, task.from_tag)
+        for commit in commits:
+            self.publish_work(CommitDiff(commit_hash=commit, diff=""), input_task=task)
 
 
 class DiffWorker(CachedTaskWorker):
@@ -166,26 +184,28 @@ def main():
         provider=args.provider, model_name=args.model, host=args.ollama_host
     )
 
+    commit_collector = CommitCollector()
     diff_worker = DiffWorker(repo_path=args.repo)
     analyzer = DiffAnalyzer(llm=llm)
     collector = ChangeCollector()
     generator = ReleaseNotesGenerator(llm=llm)
 
     # Set up the processing pipeline
-    graph.add_workers(diff_worker, analyzer, collector, generator)
-    graph.set_dependency(diff_worker, analyzer).next(collector).next(generator)
+    graph.add_workers(commit_collector, diff_worker, analyzer, collector, generator)
+    graph.set_dependency(commit_collector, diff_worker).next(analyzer).next(
+        collector
+    ).next(generator)
     graph.set_sink(generator, ReleaseNotes)
 
-    # Get commits and create initial tasks
-    commits = get_commits(args.repo, args.tag)
-    initial_tasks = [
-        (diff_worker, CommitDiff(commit_hash=commit, diff="")) for commit in commits
+    # Create initial task with repository information
+    initial_task = [
+        (commit_collector, InitialCommit(repo_path=args.repo, from_tag=args.tag))
     ]
 
     setup_logging()
 
     # Run the graph
-    graph.run(initial_tasks=initial_tasks, run_dashboard=False, display_terminal=True)
+    graph.run(initial_tasks=initial_task, run_dashboard=False, display_terminal=True)
 
     # Get the release notes from the final task
     notes_task: ReleaseNotes = graph.get_output_tasks()[0]
