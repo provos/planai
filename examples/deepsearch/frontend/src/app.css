@@ -166,11 +166,11 @@
     }
 
     .audio-player-wrapper {
-        @apply fixed bottom-0 left-16 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4;
+        @apply fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4;
     }
 
     .audio-player {
-        @apply max-w-4xl mx-auto flex items-center gap-4;
+        @apply max-w-6xl mx-auto flex items-center gap-2 md:gap-4;
     }
 
     .player-button {
@@ -202,7 +202,7 @@
     }
 
     .player-controls {
-        @apply flex-1 flex items-center gap-4;
+        @apply flex-1 flex items-center gap-2 md:gap-4 min-w-0;
     }
 
     .track-info {
@@ -218,7 +218,7 @@
     }
 
     .track-info-wrapper {
-        @apply relative flex-1 min-w-0;
+        @apply relative flex-1 min-w-0 max-w-[30%] md:max-w-[40%];
     }
 
     .track-info-button {
@@ -328,7 +328,7 @@
     }
 
     .track-info-panel {
-        @apply flex-1 text-right px-4 border-l border-gray-200 dark:border-gray-700;
+        @apply hidden sm:flex flex-1 flex-col justify-center text-right px-2 md:px-4 border-l border-gray-200 dark:border-gray-700 min-w-[100px] max-w-[30%];
     }
 
     .track-info-text {
@@ -336,6 +336,6 @@
     }
 
     .track-info-link {
-        @apply text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors inline-flex items-center;
+        @apply text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors inline-flex items-center justify-end whitespace-nowrap;
     }
 }
