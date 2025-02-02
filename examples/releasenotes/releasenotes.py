@@ -30,7 +30,7 @@ class CommitDiff(Task):
     """Task containing the diff for a commit"""
 
     commit_hash: str = Field(description="The commit hash")
-    diff: str = Field(description="The git diff output")
+    diff: str = Field(description="The complete git show output")
 
 
 class DiffAnalysis(Task):
@@ -62,7 +62,13 @@ class CommitCollector(TaskWorker):
     def consume_work(self, task: InitialCommit):
         commits = get_commits(task.repo_path, task.from_tag)
         for commit in commits:
-            self.publish_work(CommitDiff(commit_hash=commit, diff=""), input_task=task)
+            self.publish_work(
+                CommitDiff(
+                    commit_hash=commit,
+                    diff="",
+                ),
+                input_task=task,
+            )
 
 
 class DiffWorker(CachedTaskWorker):
@@ -78,23 +84,34 @@ class DiffWorker(CachedTaskWorker):
         repo = Repo(self.repo_path)
         self._empty_tree_hash = repo.git.hash_object("-t", "tree", "/dev/null")
 
-    def consume_work(self, task: CommitDiff):
+    def show_commit(self, commit_hash: str) -> str:
+        """Generate git-show like output for a commit"""
         repo = Repo(self.repo_path)
-        commit = repo.commit(task.commit_hash)
-        # Get the parent commit to generate the diff
-        parent = commit.parents[0] if commit.parents else None
-        if parent:
-            # Compare parent (old) with commit (new) to show actual changes
-            diff = parent.diff(commit, create_patch=True)
-        else:
-            # For initial commit, compare empty tree with commit
-            diff = repo.tree(self._empty_tree_hash).diff(commit, create_patch=True)
 
-        # Convert the diff to a string representation
-        diff_text = "\n".join(d.diff.decode("utf-8") for d in diff)
+        # Use git.show() directly which gives us the complete diff output
+        try:
+            # The -U option ensures we get the full unified diff
+            # --no-prefix removes a/ and b/ prefixes from filenames
+            show_output = repo.git.show(
+                commit_hash,
+                "--no-prefix",
+                "-U10",  # Include 10 lines of context
+                no_color=True,
+            )
+            return show_output
+        except Exception as e:
+            print(f"Error getting diff for {commit_hash}: {e}")
+            return ""
+
+    def consume_work(self, task: CommitDiff):
+        diff_text = self.show_commit(task.commit_hash)
 
         self.publish_work(
-            CommitDiff(commit_hash=task.commit_hash, diff=diff_text), input_task=task
+            CommitDiff(
+                commit_hash=task.commit_hash,
+                diff=diff_text,
+            ),
+            input_task=task,
         )
 
 
@@ -119,6 +136,13 @@ class DiffAnalyzer(CachedLLMTaskWorker):
         }
     """
     ).strip()
+
+    def post_process(self, response: DiffAnalysis, input_task: Task):
+        commit: CommitDiff = input_task.find_input_task(CommitDiff)
+        if commit is None:
+            raise ValueError("Input task not found")
+        response.commit_hash = commit.commit_hash
+        return super().post_process(response, input_task)
 
 
 class ChangeCollector(JoinedTaskWorker):
@@ -197,7 +221,9 @@ def main():
         collector
     ).next(generator)
     graph.set_sink(generator, ReleaseNotes)
-    graph.set_max_parallel_tasks(CachedLLMTaskWorker, 2)
+    graph.set_max_parallel_tasks(
+        CachedLLMTaskWorker, 2 if args.provider == "ollama" else 4
+    )
 
     # Create initial task with repository information
     initial_task = [
