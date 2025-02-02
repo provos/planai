@@ -196,6 +196,7 @@ def main():
         collector
     ).next(generator)
     graph.set_sink(generator, ReleaseNotes)
+    graph.set_max_parallel_tasks(CachedLLMTaskWorker, 2)
 
     # Create initial task with repository information
     initial_task = [
