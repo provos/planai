@@ -211,7 +211,14 @@ def setup_web_interface(port=5050):
     start_worker_thread()
 
     try:
-        socketio.run(app, host="0.0.0.0", port=port, debug=False, use_reloader=False)
+        socketio.run(
+            app,
+            host="0.0.0.0",
+            port=port,
+            debug=False,
+            use_reloader=False,
+            allow_unsafe_werkzeug=True,
+        )
     except (KeyboardInterrupt, SystemExit):
         stop_worker_thread()
     finally:
@@ -656,7 +663,7 @@ def main():
     parser.add_argument("--port", type=int, default=5050)
     parser.add_argument("--provider", type=str, default="ollama")
     parser.add_argument("--model", type=str, default="llama3.3:latest")
-    parser.add_argument("--ollama-port", type=int, default=11434)
+    parser.add_argument("--ollama-host", type=str, default="localhost:11434")
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--replay", action="store_true")
     parser.add_argument(
@@ -671,7 +678,7 @@ def main():
     global current_settings
     current_settings["provider"] = args.provider
     current_settings["model"] = args.model
-    current_settings["ollamaHost"] = f"localhost:{args.ollama_port}"
+    current_settings["ollamaHost"] = args.ollama_host
     guess_model(current_settings)
     print(
         f"Starting with settings: {current_settings['provider']} {current_settings['model']}"
