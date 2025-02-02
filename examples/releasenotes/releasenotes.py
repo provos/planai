@@ -84,10 +84,11 @@ class DiffWorker(CachedTaskWorker):
         # Get the parent commit to generate the diff
         parent = commit.parents[0] if commit.parents else None
         if parent:
-            diff = commit.diff(parent, create_patch=True)
+            # Compare parent (old) with commit (new) to show actual changes
+            diff = parent.diff(commit, create_patch=True)
         else:
-            # For initial commit with no parent, use the generated empty tree hash
-            diff = commit.diff(self._empty_tree_hash, create_patch=True)
+            # For initial commit, compare empty tree with commit
+            diff = repo.tree(self._empty_tree_hash).diff(commit, create_patch=True)
 
         # Convert the diff to a string representation
         diff_text = "\n".join(d.diff.decode("utf-8") for d in diff)
