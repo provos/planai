@@ -717,7 +717,7 @@ class Graph(BaseModel):
     def print(self, *args):
         message = " ".join(str(arg) for arg in args)
         logging.info("Application: %s", message)
-        if self._dispatcher is not None and self._has_dashboard:
+        if self._dispatcher is not None and self._dispatcher.has_dashboard():
             self._dispatcher.add_log(message)
         if self._has_terminal:
             self._log_lines.append(message)

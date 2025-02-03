@@ -58,9 +58,9 @@ class SearchExecutor(CachedTaskWorker):
 
     def pre_consume_work(self, task: SearchQuery):
         self.notify_status(task, f"Searching for: {task.query}")
+        self.print(f"Executing search for: {task.query}")
 
     def consume_work(self, task: SearchQuery):
-        self.print(f"Executing search for: {task.query}")
         results = SerperGoogleSearchTool.search_internet(
             task.query, num_results=self.max_results, print_func=self.print
         )
@@ -94,10 +94,9 @@ class PageFetcher(CachedTaskWorker):
 
     def pre_consume_work(self, task):
         self.notify_status(task, f"Fetching content from: {task.link}")
-
-    def consume_work(self, task: SearchResult):
         self.print(f"Fetching content from: {task.link}")
 
+    def consume_work(self, task: SearchResult):
         content = WebBrowser.get_markdown_from_page(
             task.link,
             extract_markdown_from_pdf=self.extract_pdf_func,

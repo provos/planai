@@ -615,6 +615,15 @@ class Dispatcher:
             self._web_thread.join(timeout=0.5)
             self._web_thread = None
 
+    def has_dashboard(self):
+        """
+        Check if the dashboard web thread is running.
+
+        Returns:
+            bool: True if the dashboard web thread is running, False otherwise.
+        """
+        return self._web_thread is not None
+
     def start_web_interface(self):
         self._web_thread = threading.Thread(
             target=run_web_interface, args=(self, self.web_port)
