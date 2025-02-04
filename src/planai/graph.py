@@ -71,7 +71,7 @@ class Graph(BaseModel):
 
     _max_parallel_tasks: Dict[Type[TaskWorker], int] = PrivateAttr(default_factory=dict)
     _sink_tasks: List[TaskType] = PrivateAttr(default_factory=list)
-    _sink_worker: Optional[TaskWorker] = PrivateAttr(default=None)
+    _sink_workers: List[TaskWorker] = PrivateAttr(default_factory=list)
     _initial_worker: TaskWorker = PrivateAttr(default=None)
     _subgraph_workers: Set[TaskWorker] = PrivateAttr(default_factory=set)
 
@@ -220,8 +220,8 @@ class Graph(BaseModel):
                 won't be stored in the sink's collection.
 
         Raises:
-            ValueError: If the specified worker doesn't have exactly one output type.
-            RuntimeError: If a sink worker has already been set for this graph.
+            ValueError: If the specified worker doesn't have the correct output type.
+            ValueError: If the specifier output type has already been registered as an output
 
         Note:
             - The sink worker is automatically added to the graph and set as a dependency of the specified worker.
@@ -236,9 +236,6 @@ class Graph(BaseModel):
             >>> graph.run(initial_tasks=[(worker, SomeTask())])
             >>> results = graph.get_output_tasks()
         """
-        if self._sink_worker is not None:
-            raise RuntimeError("A sink worker has already been set for this graph.")
-
         if output_type not in worker.output_types:
             raise ValueError(
                 f"Worker {worker.name} does not have output type {output_type.__name__} to use for a sink"
@@ -267,7 +264,7 @@ class Graph(BaseModel):
         self.set_dependency(worker, instance)
 
         # Set this as the sink worker for the graph
-        self._sink_worker = instance
+        self._sink_workers.append(instance)
         logging.info(
             "Sink on worker %s set for output type %s",
             worker.name,
@@ -364,7 +361,7 @@ class Graph(BaseModel):
             >>> graph.execute(initial_tasks)
         """
         # Empty the sink tasks
-        if self._sink_worker:
+        if self._sink_workers:
             self._sink_tasks = []
             if run_dashboard:
                 logging.warning(

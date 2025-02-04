@@ -76,10 +76,10 @@ class TestGraph(unittest.TestCase):
             self.graph.set_sink(worker, Task)
 
         self.graph.set_sink(worker, DummyTask)
-        self.assertIsNotNone(self.graph._sink_worker)
+        self.assertTrue(len(self.graph._sink_workers) > 0)
 
         # Set the same sink again should raise RuntimeError
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(ValueError):
             self.graph.set_sink(worker, DummyTask)
 
     def test_graph_run(self):
