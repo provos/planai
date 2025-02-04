@@ -20,6 +20,16 @@ complex task processing pipelines.
 # limitations under the License.
 # src/planai/__init__.py
 
-from .search_fetch import ConsolidatedPages, SearchQuery, create_search_fetch_worker
+from .search_fetch import (
+    ConsolidatedPages,
+    SearchQuery,
+    SearchResult,
+    create_search_fetch_worker,
+)
 
-__all__ = ["create_search_fetch_worker", "SearchQuery", "ConsolidatedPages"]
+__all__ = [
+    "create_search_fetch_worker",
+    "SearchQuery",
+    "SearchResult",
+    "ConsolidatedPages",
+]
