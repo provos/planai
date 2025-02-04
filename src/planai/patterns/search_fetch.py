@@ -76,10 +76,25 @@ class SearchExecutor(CachedTaskWorker):
 
 
 class SearchResultSplitter(TaskWorker):
-    output_types: List[Type[Task]] = [SearchResult]
+    """Splits search results into individual tasks for further processing.
+
+    An optional filter function can be provided to exclude certain results.
+    It should return True to include a result.
+    """
+
+    output_types: List[Type[Task]] = [SearchResult, ConsolidatedPages]
+    filter_func: Optional[Callable[[SearchResult], bool]] = None
 
     def consume_work(self, task: SearchResults):
-        for result in task.results:
+        results = task.results
+        if self.filter_func:
+            results = [r for r in results if self.filter_func(r)]
+        if not results:
+            # it's possible that all results were filtered out
+            # we need to publish an empty ConsolidatedPages task to indicate failure
+            self.publish_work(ConsolidatedPages(pages=[]), input_task=task)
+            return
+        for result in results:
             self.publish_work(task=result, input_task=task)
 
 
@@ -184,36 +199,55 @@ class PageConsolidator(JoinedTaskWorker):
         )
 
 
+class FinalCollector(TaskWorker):
+    output_types: List[Type[Task]] = [ConsolidatedPages]
+
+    def consume_work(self, task: ConsolidatedPages):
+        self.publish_work(task=task.copy_public(), input_task=task)
+
+
 def create_search_fetch_graph(
     *,
     llm: LLMInterface,
     name: str = "SearchFetchWorker",
+    filter_func: Optional[Callable[[SearchResult], bool]] = None,
     extract_pdf_func: Optional[Callable] = None,
 ) -> Tuple[Graph, TaskWorker, TaskWorker]:
     graph = Graph(name=f"{name}Graph", strict=True)
 
     search = SearchExecutor()
-    splitter = SearchResultSplitter()
+    splitter = SearchResultSplitter(filter_func=filter_func)
     fetcher = PageFetcher(extract_pdf_func=extract_pdf_func)
     relevance = PageRelevanceFilter(llm=llm)
     analysis_consumer = PageAnalysisConsumer()
     consolidator = PageConsolidator()
+    final_collector = FinalCollector()
 
     graph.add_workers(
-        search, splitter, fetcher, relevance, analysis_consumer, consolidator
+        search,
+        splitter,
+        fetcher,
+        relevance,
+        analysis_consumer,
+        consolidator,
+        final_collector,
     )
     graph.set_dependency(search, splitter).next(fetcher).next(relevance).next(
         analysis_consumer
-    ).next(consolidator)
+    ).next(consolidator).next(final_collector)
     # if we can't fetch the content, we will bypass the relevance filter
     graph.set_dependency(fetcher, analysis_consumer)
-    return graph, search, consolidator
+    # if we filter out all results, we will bypass the consolidator
+    graph.set_dependency(splitter, final_collector)
+
+    return graph, search, final_collector
 
 
 def create_search_fetch_worker(
     *,
     llm: LLMInterface,
     name: str = "SearchFetchWorker",
+    filter_func: Optional[Callable[[SearchResult], bool]] = None,
     extract_pdf_func: Optional[Callable] = None,
 ) -> TaskWorker:
     """Creates a SubGraphWorker that searches and fetches web content.
@@ -227,6 +261,7 @@ def create_search_fetch_worker(
     Args:
         llm: LLM interface for content analysis
         name: Name for the worker
+        filter_func: Optional function to filter search results - should return True to include a result
         extract_pdf_func: Optional function to extract text from PDFs
 
     Input Task:
@@ -238,11 +273,13 @@ def create_search_fetch_worker(
             - title: Page title
             - content: Extracted page content (if successfully fetched)
 
+        In case of failure, the ConsolidatedPages task will contain an empty list.
+
     Returns:
         A SubGraphWorker that implements the search and fetch pattern
     """
     graph, search, consolidator = create_search_fetch_graph(
-        llm=llm, name=name, extract_pdf_func=extract_pdf_func
+        llm=llm, name=name, filter_func=filter_func, extract_pdf_func=extract_pdf_func
     )
 
     return SubGraphWorker(

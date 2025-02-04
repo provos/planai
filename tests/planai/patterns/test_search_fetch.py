@@ -7,6 +7,9 @@ from planai.patterns.search_fetch import (
     PageAnalysis,
     PageResult,
     SearchQuery,
+    SearchResult,
+    SearchResults,
+    SearchResultSplitter,
     create_search_fetch_graph,
     create_search_fetch_worker,
 )
@@ -258,6 +261,97 @@ class TestSearchFetch(unittest.TestCase):
             1,
             "Expected PageConsolidator to be at distance 1 from PageAnalysisConsumer",
         )
+
+    def test_search_result_splitter_filtering(self):
+        # Create a filter function that only accepts results with snippets
+        def filter_has_snippet(result: SearchResult) -> bool:
+            return result.snippet is not None
+
+        # Create test results
+        results = SearchResults(
+            results=[
+                SearchResult(
+                    title="Test Result 1",
+                    link="https://example.com/1",
+                    snippet="Test snippet 1",
+                ),
+                SearchResult(
+                    title="Test Result 2",
+                    link="https://example.com/2",
+                    snippet=None,
+                ),
+                SearchResult(
+                    title="Test Result 3",
+                    link="https://example.com/3",
+                    snippet="Test snippet 3",
+                ),
+            ]
+        )
+
+        # Create graph with filter
+        graph = Graph(name="TestGraph")
+        splitter = SearchResultSplitter(filter_func=filter_has_snippet)
+        graph.add_workers(splitter)
+        graph.set_sink(splitter, ConsolidatedPages)
+        graph.set_sink(splitter, SearchResult)
+
+        # Run the graph
+        initial_work = [(splitter, results)]
+        graph.run(
+            initial_tasks=initial_work, run_dashboard=False, display_terminal=False
+        )
+
+        # Get output tasks
+        output_tasks = graph.get_output_tasks()
+
+        # Should have 2 SearchResult tasks (with snippets)
+        search_results = [t for t in output_tasks if isinstance(t, SearchResult)]
+        self.assertEqual(len(search_results), 2)
+        for result in search_results:
+            self.assertIsNotNone(result.snippet)
+
+    def test_search_result_splitter_all_filtered(self):
+        # Create a filter function that rejects all results
+        def filter_none(result: SearchResult) -> bool:
+            return False
+
+        # Create test results
+        results = SearchResults(
+            results=[
+                SearchResult(
+                    title="Test Result 1",
+                    link="https://example.com/1",
+                    snippet="Test snippet 1",
+                ),
+                SearchResult(
+                    title="Test Result 2",
+                    link="https://example.com/2",
+                    snippet="Test snippet 2",
+                ),
+            ]
+        )
+
+        # Create graph with filter
+        graph = Graph(name="TestGraph")
+        splitter = SearchResultSplitter(filter_func=filter_none)
+        graph.add_workers(splitter)
+        graph.set_sink(splitter, ConsolidatedPages)
+
+        # Run the graph
+        initial_work = [(splitter, results)]
+        graph.run(
+            initial_tasks=initial_work, run_dashboard=False, display_terminal=False
+        )
+
+        # Get output tasks
+        output_tasks = graph.get_output_tasks()
+
+        # Should have only one ConsolidatedPages task with empty pages
+        consolidated_pages = [
+            t for t in output_tasks if isinstance(t, ConsolidatedPages)
+        ]
+        self.assertEqual(len(consolidated_pages), 1)
+        self.assertEqual(len(consolidated_pages[0].pages), 0)
 
 
 if __name__ == "__main__":
