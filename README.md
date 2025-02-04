@@ -14,6 +14,7 @@
 - [Installation](#installation)
 - [Usage](#usage)
 - [Example: Textbook Q&A Generation](#example-textbook-qa-generation)
+- [Example: Deep Research](#example-deep-research)
 - [Monitoring Dashboard](#monitoring-dashboard)
 - [Advanced Features](#advanced-features)
 - [Documentation](#documentation)
@@ -89,6 +90,25 @@ graph.run(initial_tasks=[(data_processor, initial_data)])
 
 PlanAI has been used to create a system for generating high-quality question and answer pairs from textbook content. This example demonstrates PlanAI's capability to manage complex, multi-step workflows involving AI-powered text processing and content generation. The application processes textbook content through a series of steps including text cleaning, relevance filtering, question generation and evaluation, and answer generation and selection. For a detailed walkthrough of this example, including code and explanation, please see the [examples/textbook](examples/textbook) directory. The resulting dataset, generated from "World History Since 1500: An Open and Free Textbook," is available in our [World History 1500 Q&A repository](https://github.com/provos/world-history-1500-qa), showcasing the practical application of PlanAI in educational content processing and dataset creation.
 
+## Example: Deep Research
+A Deep Research tech demo built on top of PlanAI that allows in-depth research using public web sources. It can run locally using Ollama leading to better privacy than cloud
+services.
+
+To try DeepSearch, save the following configuration as ```docker-compose.yml``` and run ```docker-compose up```:
+```yml
+services:
+  deepsearch:
+    image: nielsprovos/deepsearch-container:latest
+    ports:
+      - "3000:3000"
+      - "5050:5050"
+      - "8080:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+```
+
+Once started, open [http://localhost:3000](http://localhost:3000) in your browser.
+
 ## Monitoring Dashboard
 
 PlanAI includes a built-in web-based monitoring dashboard that provides real-time insights into your graph execution. This feature can be enabled by setting `run_dashboard=True` when calling the `graph.run()` method.
@@ -139,7 +159,7 @@ The PlanAI framework is licensed under the **Apache License 2.0**. See the [LICE
 The `examples/` directory contains standalone applications that demonstrate the use of the PlanAI framework. These applications have their own independent licenses:
 
 *   `examples/deepsearch`: Licensed under **CC BY-NC-SA 4.0** ([LICENSE](examples/deepsearch/LICENSE))
-*   `examples/social` and `examples/textbook`: Licensed under **Apache License 2.0** ([LICENSE](LICENSE))
+*   `examples/social`, `examples/textbook` and `examples/releasenotes`: Licensed under **Apache License 2.0** ([LICENSE](LICENSE))
 
 **Understanding the Licensing Structure:**
 
