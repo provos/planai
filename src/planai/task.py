@@ -186,6 +186,18 @@ class Task(BaseModel):
             self._input_provenance = []
         return self
 
+    def inject_input(self, input_task: Task) -> Task:
+        """Can be used to inject an input task into the provenance chain.
+
+        Args:
+            input_task (Task): The input task to inject.
+
+        Returns:
+            Task: The task with the input task injected into the provenance
+        """
+        self._input_provenance.append(input_task.copy_public())
+        return self
+
     def add_private_state(self, key: str, value: Any) -> None:
         self._private_state[key] = value
 
