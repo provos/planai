@@ -20,6 +20,7 @@ complex task processing pipelines.
 # limitations under the License.
 # src/planai/__init__.py
 
+from .planner import FinalPlan, PlanRequest, create_planning_worker
 from .search_fetch import (
     ConsolidatedPages,
     SearchQuery,
@@ -32,4 +33,7 @@ __all__ = [
     "SearchQuery",
     "SearchResult",
     "ConsolidatedPages",
+    "create_planning_worker",
+    "PlanRequest",
+    "FinalPlan",
 ]
