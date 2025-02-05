@@ -1,6 +1,12 @@
 from llm_interface.testing.mock_llm import MockLLM, MockLLMResponse
 
-from .helpers import InvokeTaskWorker, MockCache, TestTaskContext, inject_mock_cache
+from .helpers import (
+    InvokeTaskWorker,
+    MockCache,
+    TestTaskContext,
+    inject_mock_cache,
+    unregister_output_type,
+)
 
 __all__ = [
     "MockLLM",
@@ -9,4 +15,5 @@ __all__ = [
     "TestTaskContext",
     "InvokeTaskWorker",
     "inject_mock_cache",
+    "unregister_output_type",
 ]

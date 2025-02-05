@@ -182,3 +182,17 @@ def inject_mock_cache(graph: Graph, mock_cache: MockCache):
             worker._cache = mock_cache
         elif isinstance(worker, SubGraphWorkerInternal):
             inject_mock_cache(worker.graph, mock_cache)
+
+
+def unregister_output_type(worker: TaskWorker, output_type: Type[Task]):
+    """
+    Remove a task output type from the worker's consumers.
+
+    Args:
+        worker (TaskWorker): The worker instance from which to remove the output type.
+        output_type (Type[Task]): The task type to be unregistered from the worker's consumers.
+
+    Raises:
+        KeyError: If the output_type is not registered in the worker's consumers.
+    """
+    worker._consumers.pop(output_type)
