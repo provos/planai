@@ -82,12 +82,44 @@ class PydanticDictWrapper(BaseModel):
         return dict_dump_xml(self.data, root=root)
 
 
+def _sanitize_for_xml(obj: Any) -> Any:
+    """Recursively sanitize values in a dictionary or list for XML compatibility."""
+    if isinstance(obj, dict):
+        return {_sanitize_for_xml(k): _sanitize_for_xml(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_sanitize_for_xml(item) for item in obj]
+    elif isinstance(obj, str):
+        # Remove surrogate characters and other invalid Unicode first
+        try:
+            # Try encoding/decoding to handle surrogate pairs
+            cleaned = obj.encode("utf-8", errors="ignore").decode("utf-8")
+        except UnicodeError:
+            cleaned = "".join(c for c in obj if ord(c) < 0xD800 or ord(c) > 0xDFFF)
+
+        # Then filter for XML-valid characters
+        return "".join(
+            char
+            for char in cleaned
+            if (
+                ord(char) in (0x9, 0xA, 0xD)
+                or (0x20 <= ord(char) <= 0xD7FF)
+                or (0xE000 <= ord(char) <= 0xFFFD)
+                or (0x10000 <= ord(char) <= 0x10FFFF)
+            )
+        )
+    return obj
+
+
 def dict_dump_xml(dict: Dict[Any, Any], root: str = "root") -> str:
-    """Formats the task as XML."""
-    xml = dicttoxml.dicttoxml(dict, custom_root=root, attr_type=False)
+    """Formats the task as XML with sanitization and error handling."""
+    # Sanitize the dictionary before conversion
+    sanitized_dict = _sanitize_for_xml(dict)
+    xml = dicttoxml.dicttoxml(sanitized_dict, custom_root=root, attr_type=False)
     # Decode bytes to string with utf-8 encoding
     xml_str = xml.decode("utf-8")
+
     xml_string = parseString(xml_str).toprettyxml(indent="  ")
+
     # Remove the XML declaration efficiently
     if xml_string.startswith("<?xml"):
         newline_index = xml_string.find("\n")
