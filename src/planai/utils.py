@@ -117,16 +117,29 @@ def _sanitize_key_for_xml(key: str) -> str:
 
 
 def _sanitize_value_for_xml(value: Any) -> Any:
-    """Sanitizes XML values (content) - replaces invalid chars with '?'"""
-    value = str(value)  # Convert to string for sanitization
-
-    cleaned_string = ""
-    for char in value:
-        if _is_valid_xml_char(char):
-            cleaned_string += char
-        else:
-            cleaned_string += "?"
-    return cleaned_string
+    """Sanitizes XML values while preserving type information."""
+    if value is None or isinstance(value, (int, float, bool)):
+        return value
+    elif isinstance(value, (dict, list, tuple, set)):
+        return _sanitize_for_xml(value)
+    elif isinstance(value, bytes):
+        try:
+            value = value.decode("utf-8")
+        except UnicodeDecodeError:
+            value = str(value)
+        return _sanitize_value_for_xml(value)
+    elif isinstance(value, datetime):
+        return value.isoformat()
+    else:
+        # Convert to string and sanitize only string values
+        value = str(value)
+        cleaned_string = ""
+        for char in value:
+            if _is_valid_xml_char(char):
+                cleaned_string += char
+            else:
+                cleaned_string += "?"
+        return cleaned_string
 
 
 def _sanitize_for_xml(obj: Any) -> Any:
@@ -135,17 +148,19 @@ def _sanitize_for_xml(obj: Any) -> Any:
         return {
             _sanitize_key_for_xml(k): _sanitize_value_for_xml(v) for k, v in obj.items()
         }
-    elif isinstance(obj, list) or isinstance(obj, tuple) or isinstance(obj, set):
+    elif isinstance(obj, (list, tuple, set)):
         return [_sanitize_for_xml(item) for item in obj]
     else:
-        return _sanitize_value_for_xml(obj)  # Sanitize non-dict/list items as values
+        return _sanitize_value_for_xml(obj)
 
 
 def dict_dump_xml(dict: Dict[Any, Any], root: str = "root") -> str:
     """Formats the task as XML with sanitization and error handling."""
     # Sanitize the dictionary before conversion
     sanitized_dict = _sanitize_for_xml(dict)
-    xml = dicttoxml.dicttoxml(sanitized_dict, custom_root=root, attr_type=False)
+    xml = dicttoxml.dicttoxml(
+        sanitized_dict, custom_root=root, attr_type=False, item_func=lambda x: x
+    )
     # Decode bytes to string with utf-8 encoding
     xml_str = xml.decode("utf-8")
 
