@@ -676,7 +676,8 @@ def optimize_prompt(
 
     setup_logging(level=logging.DEBUG if debug else logging.INFO)
 
-    graph = Graph(name="Prompt Optimization Graph", strict=True)
+    # strict needs to be false because we are injecting false provenance
+    graph = Graph(name="Prompt Optimization Graph", strict=False)
     generation = PromptGenerationWorker(llm=llm_reason)
 
     prepare_input = PrepareInputWorker(
