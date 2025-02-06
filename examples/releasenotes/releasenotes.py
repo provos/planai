@@ -120,20 +120,13 @@ class DiffAnalyzer(CachedLLMTaskWorker):
 
     output_types: List[Type[Task]] = [DiffAnalysis]
     llm_input_type: Type[Task] = CommitDiff
-    use_xml: bool = True
+    use_xml: bool = False
+    debug_mode: bool = True
     prompt: str = dedent(
         """
-        Analyze the provided git diff and describe what the changes accomplished.
-        Focus on the functional changes and their purpose, not on technical details.
-        Be concise but comprehensive.
-        Ignore files changed or statistics.
-
-        The description should be 1-2 sentences that clearly explain what was changed and why.
-
-        Provide your response in JSON format:
-        {
-            "description": "A clear description of what the changes accomplished"
-        }
+        Analyze the provided git diff and produce a 1-2 sentence description that clearly explains what was changed and why.
+        Focus on the component affected and the primary purpose of the change, ensuring that the description is self-contained and easily understood in isolation.
+        Do not include file statistics or non-functional details.
     """
     ).strip()
 
@@ -162,19 +155,13 @@ class ReleaseNotesGenerator(CachedLLMTaskWorker):
     output_types: List[Type[Task]] = [ReleaseNotes]
     llm_input_type: Type[Task] = ChangeCollection
     use_xml: bool = True
+    debug_mode: bool = True
     prompt: str = dedent(
         """
-        Generate comprehensive release notes from the provided changes.
-        Group the changes into relevant categories (e.g., Features, Bug Fixes, Documentation).
-        Use GitHub-style markdown formatting.
-
-        Follow these guidelines:
-        1. Start with a brief summary of the key changes
-        2. Group changes into logical categories
-        3. Use bullet points for each change
-        4. Format as proper markdown
-
-        Provide your response directly in markdown format suitable for GitHub.
+        Generate clear and concise release notes suitable for GitHub. Start with a brief summary of the key changes that covers all major updates.
+        Then, using GitHub-style markdown, organize the release notes by grouping changes into bullet-point lists under clearly defined categories such as Features, Bug Fixes, and Documentation.
+        For each bullet point, provide a succinct, factual, and matter-of-fact description of the change and its significance without including commit hashes or hyperbolic language.
+        Ensure that every change is accurately represented and, if relevant, note any impact or further implications concisely.
     """
     ).strip()
 
