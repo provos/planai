@@ -41,7 +41,11 @@ class CachedTaskWorker(TaskWorker):
             self.pre_consume_work(task)
 
             cache_key = self._get_cache_key(task)
-            result = self._cache.get(cache_key)
+            try:
+                result = self._cache.get(cache_key)
+            except Exception as e:
+                logging.error("Error getting cache key %s: %s", cache_key, str(e))
+                result = None
 
             if result is not None:
                 cached_results, _ = result
