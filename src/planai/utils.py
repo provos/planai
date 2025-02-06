@@ -82,32 +82,63 @@ class PydanticDictWrapper(BaseModel):
         return dict_dump_xml(self.data, root=root)
 
 
-def _sanitize_for_xml(obj: Any) -> Any:
-    """Recursively sanitize values in a dictionary or list for XML compatibility."""
-    if isinstance(obj, dict):
-        return {_sanitize_for_xml(k): _sanitize_for_xml(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [_sanitize_for_xml(item) for item in obj]
-    elif isinstance(obj, str):
-        # Remove surrogate characters and other invalid Unicode first
-        try:
-            # Try encoding/decoding to handle surrogate pairs
-            cleaned = obj.encode("utf-8", errors="ignore").decode("utf-8")
-        except UnicodeError:
-            cleaned = "".join(c for c in obj if ord(c) < 0xD800 or ord(c) > 0xDFFF)
+def _is_valid_xml_char(char):
+    """Checks if a character is valid in XML 1.0 (content)."""
+    ord_val = ord(char)
+    return (
+        ord_val == 0x9  # Tab
+        or ord_val == 0xA  # Line Feed
+        or ord_val == 0xD  # Carriage Return
+        or (0x20 <= ord_val <= 0xD7FF)
+        or (0xE000 <= ord_val <= 0xFFFD)
+        or (0x10000 <= ord_val <= 0x10FFFF)
+    )
 
-        # Then filter for XML-valid characters
-        return "".join(
-            char
-            for char in cleaned
-            if (
-                ord(char) in (0x9, 0xA, 0xD)
-                or (0x20 <= ord(char) <= 0xD7FF)
-                or (0xE000 <= ord(char) <= 0xFFFD)
-                or (0x10000 <= ord(char) <= 0x10FFFF)
-            )
-        )
-    return obj
+
+def _sanitize_key_for_xml(key: str) -> str:
+    """Sanitizes dictionary keys to be valid XML tag names.
+    Replaces invalid characters with '_'. Ensures key starts with a letter or underscore.
+    """
+    sanitized_key = ""
+    for char in key:
+        if char.isalnum() or char == "_":  # Allow alphanumeric and underscore
+            sanitized_key += char
+        else:
+            sanitized_key += "_"  # Replace invalid key chars with underscore
+
+    # Ensure key starts with a letter or underscore (XML tag requirement)
+    if not (sanitized_key and (sanitized_key[0].isalpha() or sanitized_key[0] == "_")):
+        sanitized_key = "_" + sanitized_key  # Prepend underscore if needed
+
+    if not sanitized_key:
+        return "_"  # Fallback if key becomes empty after sanitization
+
+    return sanitized_key
+
+
+def _sanitize_value_for_xml(value: Any) -> Any:
+    """Sanitizes XML values (content) - replaces invalid chars with '?'"""
+    value = str(value)  # Convert to string for sanitization
+
+    cleaned_string = ""
+    for char in value:
+        if _is_valid_xml_char(char):
+            cleaned_string += char
+        else:
+            cleaned_string += "?"
+    return cleaned_string
+
+
+def _sanitize_for_xml(obj: Any) -> Any:
+    """Recursively sanitize keys and values in a dictionary or list for XML."""
+    if isinstance(obj, dict):
+        return {
+            _sanitize_key_for_xml(k): _sanitize_value_for_xml(v) for k, v in obj.items()
+        }
+    elif isinstance(obj, list) or isinstance(obj, tuple) or isinstance(obj, set):
+        return [_sanitize_for_xml(item) for item in obj]
+    else:
+        return _sanitize_value_for_xml(obj)  # Sanitize non-dict/list items as values
 
 
 def dict_dump_xml(dict: Dict[Any, Any], root: str = "root") -> str:
