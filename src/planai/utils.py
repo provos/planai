@@ -159,7 +159,10 @@ def dict_dump_xml(dict: Dict[Any, Any], root: str = "root") -> str:
     # Sanitize the dictionary before conversion
     sanitized_dict = _sanitize_for_xml(dict)
     xml = dicttoxml.dicttoxml(
-        sanitized_dict, custom_root=root, attr_type=False, item_func=lambda x: x
+        sanitized_dict,
+        custom_root=root,
+        attr_type=False,
+        item_func=lambda _: "item",  # Use "item" for all list items
     )
     # Decode bytes to string with utf-8 encoding
     xml_str = xml.decode("utf-8")
