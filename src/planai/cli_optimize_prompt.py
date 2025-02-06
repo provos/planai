@@ -57,7 +57,7 @@ import sys
 from operator import attrgetter
 from pathlib import Path
 from textwrap import dedent
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional, Tuple, Type
 
 from llm_interface import LLMInterface
 from pydantic import Field, PrivateAttr
@@ -87,6 +87,10 @@ class PromptInput(Task):
     optimization_goal: str = Field(description="The goal of the optimization")
     prompt_template: str = Field(description="The prompt template to optimize")
     id: Optional[int] = Field(0, description="The id of the input task")
+
+
+class PromptInputs(Task):
+    inputs: List[PromptInput] = Field(description="The list of prompt inputs")
 
 
 class PromptPerformanceInput(Task):
@@ -138,6 +142,14 @@ class ImprovedPrompt(Task):
 
 
 # optmization worker classes
+
+
+class PromptDistributor(TaskWorker):
+    output_types: List[Type[Task]] = [PromptInput]
+
+    def consume_work(self, task: PromptInputs):
+        for input_task in task.inputs:
+            self.publish_work(input_task, input_task=task)
 
 
 class PromptGenerationWorker(CachedLLMTaskWorker):
@@ -678,6 +690,7 @@ def optimize_prompt(
 
     # strict needs to be false because we are injecting false provenance
     graph = Graph(name="Prompt Optimization Graph", strict=False)
+    distributor = PromptDistributor()
     generation = PromptGenerationWorker(llm=llm_reason)
 
     prepare_input = PrepareInputWorker(
@@ -697,6 +710,7 @@ def optimize_prompt(
     )  # need a more powerful LLM here
 
     graph.add_workers(
+        distributor,
         generation,
         prepare_input,
         llm_class,
@@ -708,9 +722,11 @@ def optimize_prompt(
     )
 
     # we will inject the llm_class into the graph
-    graph.set_dependency(generation, prepare_input).next(llm_class).next(
-        adapt_output
-    ).next(prompt_analysis).next(joined_worker).next(accumulate_critique).next(
+    graph.set_dependency(distributor, generation).next(prepare_input).next(
+        llm_class
+    ).next(adapt_output).next(prompt_analysis).next(joined_worker).next(
+        accumulate_critique
+    ).next(
         improvement_worker
     ).next(
         prepare_input
@@ -724,7 +740,7 @@ def optimize_prompt(
         inject_mock_cache(graph, MockCache())
 
     # create two new prompts
-    input_tasks = []
+    prompts = []
     for i, example in enumerate(data[:2]):
         # test whether we can create the input task before we spin up the whole graph
         if i == 0:
@@ -744,16 +760,17 @@ def optimize_prompt(
                 exit(1)
 
         prompt_template = llm_class.prompt
-        input_tasks.append(
-            (
-                generation,
-                PromptInput(
-                    optimization_goal=goal_prompt,
-                    prompt_template=prompt_template,
-                    id=i,
-                ),
+        prompts.append(
+            PromptInput(
+                optimization_goal=goal_prompt,
+                prompt_template=prompt_template,
+                id=i,
             )
         )
+
+    input_tasks: List[Tuple[TaskWorker, Task]] = [
+        (distributor, PromptInputs(inputs=prompts))
+    ]
 
     # we are creating one special task for the original prompt
     # this requires that we fake the provenance so that JoinPromptPerformanceOutput can find it
@@ -793,6 +810,9 @@ def write_results(
         class_name (str): The name of the worker class for which the prompt was optimized.
         output (List[Task]): A list of Task objects containing the prompt data and scores.
     """
+
+    # when we run multiple iterations, we will get a list of PromptCritique objects
+    output = sorted(output, key=attrgetter("score"), reverse=True)
 
     def get_available_filename(base_name, ext):
         """
