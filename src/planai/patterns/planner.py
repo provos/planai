@@ -123,7 +123,9 @@ class PlanCritiqueWorker(CachedLLMTaskWorker):
         # weight goal achievement more heavily
         response.overall_score = (0.4 * comp + 0.4 * detail + 0.6 * goal) / 3.0
 
-        self.print(f"Plan Critique scored: {response.overall_score:.2f}")
+        self.print(
+            f"Plan Critique scored: {response.overall_score:.2f} - {response.improvement_suggestions}"
+        )
 
         return super().post_process(response, input_task)
 
