@@ -44,6 +44,11 @@ To use the optimize-prompt tool, you can run a command like this:
 planai --llm-provider openai --llm-model gpt-4o-mini --llm-reason-model gpt-4o optimize-prompt --python-file your_app.py --class-name YourLLMTaskWorker --search-path . --debug-log debug/YourLLMTaskWorker.json --goal-prompt "Your optimization goal here"
 ```
 
+Here is an example of improving the DiffAnalyzer prompt of the releasenotes.py example application:
+```bash
+poetry run planai --llm-provider openai --llm-model gpt-4o --llm-reason-model o3-mini optimize-prompt --python-file releasenotes.py --class-name DiffAnalyzer --debug-log debug/DiffAnalyzer.json --search-path . --llm-opt-provider openai --llm-opt-model gpt-4o --goal-prompt "We need a change list description that accurately captures the change and can be understood in isolation. it should be clear about the component being changed and the main purpose of the code changes."
+```
+
 ### Parameters Explained
 
 - `--llm-provider`, `--llm-model`, `--llm-reason-model`: Specify the LLM provider and models to use for optimization.
