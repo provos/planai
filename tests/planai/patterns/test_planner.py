@@ -37,7 +37,7 @@ class TestPlanner(unittest.TestCase):
                 ),
                 # PlanCritiqueWorker responses
                 MockLLMResponse(
-                    pattern="Evaluate the following plan.*",
+                    pattern=".*Score each criterion from 0 .worst. to 1 .best.*",
                     response=PlanCritique(
                         comprehensiveness=0.8,
                         detail_orientation=0.7,

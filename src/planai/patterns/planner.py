@@ -1,5 +1,5 @@
 from textwrap import dedent
-from typing import List, Tuple, Type
+from typing import List, Optional, Tuple, Type
 
 from llm_interface import LLMInterface
 from pydantic import Field
@@ -14,6 +14,9 @@ from ..task import Task, TaskWorker
 
 class PlanRequest(Task):
     request: str = Field(..., description="The original request to create a plan for")
+    request_context: Optional[str] = Field(
+        None, description="Additional context for understanding the purpose of the plan"
+    )
 
 
 class PlanDraft(Task):
@@ -54,6 +57,10 @@ class PlanEntryWorker(CachedTaskWorker):
     output_types: List[Type[Task]] = [PlanRequest]
     num_variations: int = Field(3, description="Number of plan variations to generate")
 
+    def pre_consume_work(self, task):
+        self.notify_status(task, "Creating a comprehensive plan")
+        self.print(f"Creating plan for: {task.request}")
+
     def consume_work(self, task: PlanRequest):
         for _ in range(self.num_variations):
             self.publish_work(task=task.copy_public(), input_task=task)
@@ -62,15 +69,15 @@ class PlanEntryWorker(CachedTaskWorker):
 class PlanCreator(CachedLLMTaskWorker):
     output_types: List[Type[Task]] = [PlanDraft]
     llm_input_type: Type[Task] = PlanRequest
+    use_xml: bool = True
     prompt: str = dedent(
         """
-        Create a detailed plan in markdown format based on the following request:
-        {request}
+        Create a detailed plan in markdown format based on the provided request and context.
 
         The plan should be:
         - Comprehensive and well-structured
         - Detailed and actionable
-        - Realistic and feasible
+        - Achieving the goals of the original request
 
         Provide the plan in markdown format using appropriate headers, lists, and sections.
     """
@@ -80,15 +87,13 @@ class PlanCreator(CachedLLMTaskWorker):
 class PlanCritiqueWorker(CachedLLMTaskWorker):
     output_types: List[Type[Task]] = [PlanCritique]
     llm_input_type: Type[Task] = PlanDraft
+    use_xml: bool = True
     prompt: str = dedent(
         """
-        Evaluate the following plan based on these criteria:
+        Evaluate the above plan based on these criteria and the following original request.
 
-        Plan to evaluate:
-        {plan}
-
-        Original request:
-        {request}
+        Request: {request}
+        Context: {context}
 
         Score each criterion from 0 (worst) to 1 (best):
         1. Comprehensiveness: How complete and thorough is the plan?
@@ -101,6 +106,14 @@ class PlanCritiqueWorker(CachedLLMTaskWorker):
     """
     ).strip()
 
+    def format_prompt(self, task):
+        request: PlanRequest = task.find_input_task(PlanRequest)
+        if request is None:
+            raise ValueError("PlanRequest not found in critique input tasks")
+        return self.prompt.format(
+            request=request.request, context=request.request_context
+        )
+
     def post_process(self, response: PlanCritique, input_task: PlanDraft):
 
         comp = min(1, max(0, response.comprehensiveness))
@@ -108,7 +121,9 @@ class PlanCritiqueWorker(CachedLLMTaskWorker):
         goal = min(1, max(0, response.goal_achievement))
 
         # weight goal achievement more heavily
-        response.overall_score = 0.4 * comp + 0.4 * detail + 0.6 * goal
+        response.overall_score = (0.4 * comp + 0.4 * detail + 0.6 * goal) / 3.0
+
+        self.print(f"Plan Critique scored: {response.overall_score:.2f}")
 
         return super().post_process(response, input_task)
 
@@ -151,16 +166,10 @@ class PlanRefinementWorker(CachedLLMTaskWorker):
     use_xml: bool = True
     prompt: str = dedent(
         """
-        Create a refined, optimized plan by combining the best elements of multiple plans.
+        Create a refined, optimized plan by combining the best elements of multiple plans provided above.
 
-        Original Request:
-        {original_request}
-
-        Available Plans:
-        {plans}
-
-        Plan Critiques:
-        {critiques}
+        Request: {request}
+        Context: {context}
 
         Create a final plan that:
         1. Incorporates the strongest elements from each plan
@@ -172,6 +181,14 @@ class PlanRefinementWorker(CachedLLMTaskWorker):
         - rationale: Brief explanation of how you combined and improved the plans
     """
     ).strip()
+
+    def format_prompt(self, task):
+        request: PlanRequest = task.find_input_task(PlanRequest)
+        if request is None:
+            raise ValueError("PlanRequest not found in critique input tasks")
+        return self.prompt.format(
+            request=request.request, context=request.request_context
+        )
 
 
 def create_planning_graph(
