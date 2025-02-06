@@ -44,7 +44,7 @@ class CachedTaskWorker(TaskWorker):
             try:
                 result = self._cache.get(cache_key)
             except Exception as e:
-                logging.error("Error getting cache key %s: %s", cache_key, str(e))
+                logging.error("Error getting data from cache %s: %s", cache_key, str(e))
                 result = None
 
             if result is not None:
