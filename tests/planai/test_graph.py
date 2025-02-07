@@ -368,6 +368,73 @@ class TestGraph(unittest.TestCase):
         self.assertIsNone(self.graph._dispatch_thread)
         self.assertEqual(self.graph._dispatcher._num_active_tasks, 0)
 
+    def test_worker_state(self):
+        # Define test tasks
+        class Counting(Task):
+            current: str
+
+        class FinalCount(Task):
+            result: str
+
+        # Define worker that maintains state
+        class Counter(TaskWorker):
+            output_types: List[Type[Task]] = [Counting, FinalCount]
+
+            def consume_work(self, task: Counting):
+                # Get state for this task's prefix
+                provenance = task.prefix(1)
+                state = self.get_worker_state(provenance)
+
+                # Initialize or increment count
+                if "count" not in state:
+                    state["count"] = 1
+                else:
+                    state["count"] += 1
+
+                # Update task with current count
+                current_count = state["count"]
+
+                if current_count < 3:
+                    # Continue counting - send task back to self
+                    next_task = Counting(current=f"{task.current}-{current_count}")
+                    self.publish_work(next_task, input_task=task)
+                else:
+                    # Reached final count - output final result
+                    final = FinalCount(result=f"{task.current}-final:{current_count}")
+                    self.publish_work(final, input_task=task)
+
+        # Create graph
+        graph = Graph(name="Counter Test")
+        counter = Counter()
+        graph.add_worker(counter)
+
+        # Set up circular dependency (worker sends tasks back to itself)
+        graph.set_dependency(counter, counter)
+        # Set up sink for final output
+        graph.set_sink(counter, FinalCount)
+
+        # Create initial tasks
+        task1 = Counting(current="A")
+        task2 = Counting(current="B")
+        initial_tasks = [(counter, task1), (counter, task2)]
+
+        # Run graph
+        graph.run(initial_tasks, display_terminal=False)
+
+        # Get output tasks
+        outputs = graph.get_output_tasks()
+        self.assertEqual(len(outputs), 2)
+
+        # Sort outputs by result for consistent testing
+        outputs.sort(key=lambda x: x.result)
+
+        # Verify results show proper counting sequence
+        self.assertEqual(outputs[0].result, "A-1-2-final:3")
+        self.assertEqual(outputs[1].result, "B-1-2-final:3")
+
+        # Verify state was cleaned up
+        self.assertEqual(len(counter._user_state), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

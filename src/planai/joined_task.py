@@ -20,6 +20,7 @@ from typing import Dict, List, Set, Type, get_type_hints
 
 from pydantic import Field, PrivateAttr
 
+from .provenance import ProvenanceChain
 from .task import Task, TaskWorker
 
 
@@ -124,7 +125,7 @@ class JoinedTaskWorker(TaskWorker):
             )
         return first_param_type.__args__[0]
 
-    def notify(self, prefix: str):
+    def notify(self, prefix: ProvenanceChain):
         with self.lock:
             if prefix not in self._joined_results:
                 raise ValueError(f"Task {prefix} does not have any results to join.")
@@ -148,6 +149,8 @@ class JoinedTaskWorker(TaskWorker):
         )
         with self.work_buffer_context(sorted_tasks[0]):
             self.consume_work_joined(sorted_tasks)
+
+        super().notify(prefix)
 
     def _validate_connection(self) -> None:
         """

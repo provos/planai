@@ -271,6 +271,13 @@ class TaskWorker(BaseModel, ABC):
     _local: threading.local = PrivateAttr(default_factory=threading.local)
     _strict_checking: bool = PrivateAttr(default=False)
 
+    # allows an implementation of taskworker to associate state with a task
+    # this is useful for tracking the state of a task across multiple calls to consume_work
+    # for example when there are circular dependencies
+    _user_state: Dict["ProvenanceChain", Dict[str, Any]] = PrivateAttr(
+        default_factory=dict
+    )
+
     def __init__(self, **data):
         super().__init__(**data)
 
@@ -295,7 +302,7 @@ class TaskWorker(BaseModel, ABC):
         return self.__class__.__name__
 
     @property
-    def lock(self) -> threading.Lock:
+    def lock(self) -> threading.RLock:
         """
         Returns the lock object for this worker.
 
@@ -420,6 +427,26 @@ class TaskWorker(BaseModel, ABC):
         if not isinstance(prefix, tuple):
             raise ValueError("Prefix must be a tuple")
         return self._graph.unwatch(prefix, self)
+
+    def get_worker_state(self, provenance: "ProvenanceChain") -> Dict[str, Any]:
+        """
+        Allows a worker to store state for a specific provenance chain.
+
+        This is helpful when we expect the worker to be called multiple times with the same provenance chain.
+        For example, this can happen when there are circular dependencies in the graph. The most common case
+        is when a worker needs to ask for more data from upstream workers and sends a task back to them.
+
+        The state will be cleaned up automatically when the provenance chain is no longer active in the graph.
+
+        Returns:
+            Dict[str, Any]: The state of the task.
+        """
+        with self.lock:
+            if provenance in self._user_state:
+                return self._user_state[provenance]
+            self.watch(provenance)
+            self._user_state[provenance] = {}
+            return self._user_state[provenance]
 
     def print(self, *args):
         """
@@ -578,9 +605,18 @@ class TaskWorker(BaseModel, ABC):
         """Called to let the worker know that it has finished processing all work."""
         pass
 
-    def notify(self, task_name: str):
-        """Called to notify the worker that no tasks with provenance of task_name are remaining."""
-        pass
+    def notify(self, prefix: "ProvenanceChain"):
+        """Called to notify the worker that no tasks with this provenance prefix are remaining.
+
+        Children implementing this method need to call the base class method to ensure that the
+        state is fully removed.
+        """
+        with self.lock:
+            if prefix in self._user_state:
+                del self._user_state[prefix]
+            logging.info("Removing watch for %s in %s", prefix, self.name)
+            # remove the watch - which may already have been removed by the child class
+            self.unwatch(prefix)
 
     def _dispatch_work(self, task: Task):
         consumer: "TaskWorker" = self._consumers.get(task.__class__)
