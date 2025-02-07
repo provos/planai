@@ -223,10 +223,6 @@ class TestTaskWorker(unittest.TestCase):
         # This method is empty in the base class, so we just ensure it doesn't raise an exception
         self.worker.completed()
 
-    def test_notify(self):
-        # This method is empty in the base class, so we just ensure it doesn't raise an exception
-        self.worker.notify("SomeTask")
-
     def test_dispatch_work(self):
         consumer = Mock()
         self.worker._consumers[DummyTask] = consumer
