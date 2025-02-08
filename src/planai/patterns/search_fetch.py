@@ -42,13 +42,13 @@ class PageResult(Task):
 
 
 class PageAnalysis(Task):
-    is_relevant: bool = Field(
-        ..., description="Whether the page contains relevant content"
-    )
-    summary: str = Field(..., description="Summary of the analysis")
     cleaned_content: Optional[str] = Field(
         None,
         description="Content after cleaning and filtering",
+    )
+    summary: str = Field(..., description="Summary of the analysis")
+    is_relevant: bool = Field(
+        ..., description="Whether the page contains relevant content"
     )
 
 
@@ -158,20 +158,12 @@ class PageRelevanceFilter(CachedLLMTaskWorker):
     output_types: List[Type[Task]] = [PageAnalysis]
     llm_input_type: Type[Task] = PageResult
     use_xml: bool = True
-    debug_mode: bool = True
+    debug_mode: bool = False
     prompt: str = dedent(
         """
-You are provided with page content that may include headers, footers, navigation links, and other non-essential elements. Your task is to extract and retain ONLY the informa
-tion directly relevant to the user's query and any attached metadata. This includes all factual details, code snippets, and data points, as well as any contextual informatio
-n that supports the query.
-
-Follow these steps:
-1. Thoroughly review the entire content to identify sections that either explicitly or implicitly address the query and metadata.
-2. Extract and preserve every piece of credible, verifiable information (e.g., code, statistics, detailed descriptions) that supports the query. Preserve contextual clues that may indirectly enhance the understanding of the query.
-3. Remove all non-essential elements such as navigation menus, headers, footers, and promotional content. However, if some information appears indirectly relevant, retain it with a note on its contextual significance.
-4. Cross-reference the retained information with any provided metadata to ensure accuracy and completeness.
-5. Consolidate the relevant information into a concise, well-structured response. Use logical formatting (e.g., bullet points, subheadings) to organize the content effectively.
-6. Include a brief summary at the end that explains your extraction process and the rationale behind including or excluding each section.
+You are provided with a block of page content that may include headers, footers, navigation links, advertisements, and other non-essential elements.
+Your task is to extract and retain ONLY the information directly or indirectly relevant to the user's query and its associated metadata.
+It is critical that all essential data—such as code snippets, numerical data, statistics, technical instructions, and contextual details—be preserved.
 
 Input Details:
 [query]
@@ -182,7 +174,25 @@ Input Details:
 {metadata}
 [/metadata]
 
-If no content is found to be relevant, set is_relevant to False and set cleaned_content to None.
+Follow these steps:
+
+1. Thoroughly review the entire page content to identify all segments that explicitly or subtly address the query ([query]) and correlate with the metadata ([metadata]).
+
+2. Extract every relevant detail, ensuring you capture:
+   - Factual information, statistics, and data points
+   - All code snippets, algorithms, and technical instructions
+   - Contextual descriptions that enhance the understanding of the query
+
+3. Remove non-essential elements such as headers, footers, navigation menus, and promotional material.
+If any of these elements provide indirect yet significant context, include them with.
+
+4. Cross-reference the extracted information with the provided metadata ([metadata]) to verify accuracy and completeness.
+
+5. Consolidate the retained information into a clear and organized response using bullet points, numbered lists, or subheadings to enhance readability.
+
+6. End your response with a brief summary explaining your extraction process and the reasoning behind the inclusion or exclusion of content.
+
+If no relevant content is found, you must set is_relevant to False and cleaned_content to None.
         """
     ).strip()
 

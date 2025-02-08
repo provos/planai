@@ -187,6 +187,11 @@ class TestSearchFetch(unittest.TestCase):
         )
         graph.set_sink(exit_worker, ConsolidatedPages)
 
+        # Check all workers to make sure they don't have debug mode enabled
+        for worker in graph.workers:
+            if hasattr(worker, "debug_mode"):
+                self.assertFalse(worker.debug_mode)
+
         # Find the search executor (entry point)
         search_executor = next(
             w for w in graph.workers if w.__class__.__name__ == "SearchExecutor"
