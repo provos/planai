@@ -46,8 +46,8 @@ class PageAnalysis(Task):
         ..., description="Whether the page contains relevant content"
     )
     summary: str = Field(..., description="Summary of the analysis")
-    cleaned_content: str = Field(
-        ...,
+    cleaned_content: Optional[str] = Field(
+        None,
         description="Content after cleaning and filtering",
     )
 
@@ -149,6 +149,7 @@ class PageFetcher(CachedTaskWorker):
             result = PageAnalysis(
                 is_relevant=False,
                 summary=f"Failed to fetch content from {task.link}",
+                cleaned_content=None,
             )
             self.publish_work(task=result, input_task=task)
 
@@ -160,24 +161,28 @@ class PageRelevanceFilter(CachedLLMTaskWorker):
     debug_mode: bool = True
     prompt: str = dedent(
         """
-        Analyze if this content contains information that is factual, credible and useful for the following query and potential metadata:
+You are provided with page content that may include headers, footers, navigation links, and other non-essential elements. Your task is to extract and retain ONLY the informa
+tion directly relevant to the user's query and any attached metadata. This includes all factual details, code snippets, and data points, as well as any contextual informatio
+n that supports the query.
 
-        [query]
-        {query}
-        [/query]
+Follow these steps:
+1. Thoroughly review the entire content to identify sections that either explicitly or implicitly address the query and metadata.
+2. Extract and preserve every piece of credible, verifiable information (e.g., code, statistics, detailed descriptions) that supports the query. Preserve contextual clues that may indirectly enhance the understanding of the query.
+3. Remove all non-essential elements such as navigation menus, headers, footers, and promotional content. However, if some information appears indirectly relevant, retain it with a note on its contextual significance.
+4. Cross-reference the retained information with any provided metadata to ensure accuracy and completeness.
+5. Consolidate the relevant information into a concise, well-structured response. Use logical formatting (e.g., bullet points, subheadings) to organize the content effectively.
+6. Include a brief summary at the end that explains your extraction process and the rationale behind including or excluding each section.
 
-        [metadata]
-        {metadata}
-        [/metadata]
+Input Details:
+[query]
+{query}
+[/query]
 
-        Guidelines:
-        - Content should be from a credible source
-        - Information should be factual and verifiable
-        - Avoid content that is purely promotional
-        - Content should offer substantive information
+[metadata]
+{metadata}
+[/metadata]
 
-        For the cleaned content, remove any headers, footers, navigation links, and other irrelevant content.
-        Ensure to keep all details that are relevant to the query and the optional metadata.
+If no content is found to be relevant, set is_relevant to False and set cleaned_content to None.
         """
     ).strip()
 
