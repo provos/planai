@@ -27,9 +27,11 @@ class TestSearchFetch(unittest.TestCase):
                 MockLLMResponse(
                     pattern=".*",  # Match any prompt
                     response=PageAnalysis(
-                        is_relevant=True, summary="This is a test summary"
+                        is_relevant=True,
+                        summary="This is a test summary",
+                        cleaned_content="# Test Content\nThis is test content.",
                     ),
-                )
+                ),
             ]
         )
 
@@ -153,17 +155,30 @@ class TestSearchFetch(unittest.TestCase):
         query = SearchQuery(query="test query")
         initial_work = [(search_fetch, query)]
 
+        # Run the graph
         graph.run(
             initial_tasks=initial_work, run_dashboard=False, display_terminal=False
         )
 
+        # Verify the search and fetch attempts
+        self.assertEqual(self.mock_search.call_count, 1)
+        self.assertEqual(
+            self.mock_browser.get_markdown_from_page.call_count,
+            len(self.mock_search_results),
+        )
+
         # Get output tasks
         output_tasks = graph.get_output_tasks()
+        self.assertEqual(len(output_tasks), 1)
+
         consolidated = output_tasks[0]
+        self.assertIsInstance(consolidated, ConsolidatedPages)
 
         # Should only have one successful page
         self.assertEqual(len(consolidated.pages), 1)
-        self.assertEqual(consolidated.pages[0].url, "https://example.com/1")
+        successful_page = consolidated.pages[0]
+        self.assertEqual(successful_page.url, "https://example.com/1")
+        self.assertEqual(successful_page.content, self.mock_page_content)
 
     def test_search_fetch_graph_workflow(self):
         # Create main graph using the plain graph version

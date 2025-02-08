@@ -46,6 +46,10 @@ class PageAnalysis(Task):
         ..., description="Whether the page contains relevant content"
     )
     summary: str = Field(..., description="Summary of the analysis")
+    cleaned_content: str = Field(
+        ...,
+        description="Content after cleaning and filtering",
+    )
 
 
 class ConsolidatedPages(Task):
@@ -153,17 +157,35 @@ class PageRelevanceFilter(CachedLLMTaskWorker):
     output_types: List[Type[Task]] = [PageAnalysis]
     llm_input_type: Type[Task] = PageResult
     use_xml: bool = True
+    debug_mode: bool = True
     prompt: str = dedent(
         """
-        Analyze if this content contains information that is factual, credible and useful:
+        Analyze if this content contains information that is factual, credible and useful for the following query and potential metadata:
+
+        [query]
+        {query}
+        [/query]
+
+        [metadata]
+        {metadata}
+        [/metadata]
 
         Guidelines:
         - Content should be from a credible source
         - Information should be factual and verifiable
-        - Avoid content that is purely promotional or opinion-based
+        - Avoid content that is purely promotional
         - Content should offer substantive information
+
+        For the cleaned content, remove any headers, footers, navigation links, and other irrelevant content.
+        Ensure to keep all details that are relevant to the query and the optional metadata.
         """
     ).strip()
+
+    def format_prompt(self, task: PageResult):
+        query = task.find_input_task(SearchQuery)
+        if query is None:
+            raise ValueError("SearchQuery not found in input tasks")
+        return self.prompt.format(query=query.query, metadata=query.metadata)
 
     def pre_consume_work(self, task):
         self.notify_status(task, f"Analyzing relevance of: {task.url}")
@@ -177,7 +199,10 @@ class PageAnalysisConsumer(CachedTaskWorker):
             result: PageResult = task.find_input_task(PageResult)
             if result is None:
                 raise ValueError("PageAnalysisConsumer requires a PageResult input")
-            self.publish_work(task=result.copy_public(), input_task=task)
+            result = result.copy_public()
+            # inject the cleaned content into the result
+            result.content = task.cleaned_content
+            self.publish_work(task=result, input_task=task)
         else:
             result: SearchResult = task.find_input_task(SearchResult)
             if result is None:
