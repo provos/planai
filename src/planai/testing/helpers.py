@@ -88,8 +88,14 @@ class InvokeTaskWorker:
             worker_class: The TaskWorker class to test
             **kwargs: Arguments to pass to the worker constructor
         """
+
+        class MockGraph:
+            def watch(self, prefix, notifier):
+                return True
+
         self.context = TestTaskContext()
         self.worker = worker_class(**kwargs)
+        self.worker._graph = MockGraph()
         self.is_joined_worker = issubclass(worker_class, JoinedTaskWorker)
 
     def _setup_patch(self):
