@@ -96,6 +96,8 @@ class InvokeTaskWorker:
         self.context = TestTaskContext()
         self.worker = worker_class(**kwargs)
         self.worker._graph = MockGraph()
+        if hasattr(self.worker, "_cache"):
+            self.worker._cache = MockCache()
         self.is_joined_worker = issubclass(worker_class, JoinedTaskWorker)
 
     def _setup_patch(self):
