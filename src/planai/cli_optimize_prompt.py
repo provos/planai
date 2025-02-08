@@ -145,11 +145,36 @@ class ImprovedPrompt(Task):
 
 
 class PromptDistributor(TaskWorker):
-    output_types: List[Type[Task]] = [PromptInput]
+    generator: TaskWorker = Field(description="The worker that generates the prompts")
+    goal_prompt: str = Field(description="The goal of the optimization")
+    original_prompt: str = Field(description="The original prompt to optimize")
+    output_types: List[Type[Task]] = [PromptInput, ImprovedPrompt]
 
     def consume_work(self, task: PromptInputs):
         for input_task in task.inputs:
             self.publish_work(input_task, input_task=task)
+
+        # we are creating one special task for the original prompt
+        # this requires that we fake the provenance so that JoinPromptPerformanceOutput can find it
+        special_task = ImprovedPrompt(
+            prompt_template=self.original_prompt, comment="Original prompt"
+        )
+
+        fake_input = task.model_copy()
+
+        # the order here matters
+        fake_input._add_input_provenance(
+            PromptInput(
+                optimization_goal=self.goal_prompt,
+                prompt_template=self.original_prompt,
+                id=0,
+            )
+        )
+        # we need to add the InitialTaskWorker as the input provenance
+        fake_input._provenance = [task.prefix(1)[0]] + fake_input._provenance
+
+        fake_input._add_worker_provenance(self.generator)
+        self.publish_work(special_task, input_task=fake_input)
 
 
 class PromptGenerationWorker(CachedLLMTaskWorker):
@@ -690,8 +715,12 @@ def optimize_prompt(
 
     # strict needs to be false because we are injecting false provenance
     graph = Graph(name="Prompt Optimization Graph", strict=False)
-    distributor = PromptDistributor()
     generation = PromptGenerationWorker(llm=llm_reason)
+
+    # we need a reference to generation so that we can fake input provenance
+    distributor = PromptDistributor(
+        generator=generation, goal_prompt=goal_prompt, original_prompt=llm_class.prompt
+    )
 
     prepare_input = PrepareInputWorker(
         module=module, task_name=task_name, reference_data=data
@@ -731,6 +760,8 @@ def optimize_prompt(
     ).next(
         prepare_input
     )
+    # this allows the original prompt to bypass the new prompt generation
+    graph.set_dependency(distributor, prepare_input)
     graph.set_sink(accumulate_critique, PromptCritique)
 
     # inject a mock cache
@@ -771,21 +802,6 @@ def optimize_prompt(
     input_tasks: List[Tuple[TaskWorker, Task]] = [
         (distributor, PromptInputs(inputs=prompts))
     ]
-
-    # we are creating one special task for the original prompt
-    # this requires that we fake the provenance so that JoinPromptPerformanceOutput can find it
-    special_task = ImprovedPrompt(
-        prompt_template=llm_class.prompt, comment="Original prompt"
-    )
-    # the order here matters
-    special_task._add_input_provenance(
-        PromptInput(
-            optimization_goal=goal_prompt, prompt_template=llm_class.prompt, id=0
-        )
-    )
-    special_task._add_worker_provenance(generation)
-
-    input_tasks.append((prepare_input, special_task))
 
     # Make sure to pick the prompt from the upstream workers and reflect it in the cache key
     inject_prompt_awareness(llm_class)

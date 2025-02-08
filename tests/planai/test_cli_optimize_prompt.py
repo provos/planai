@@ -165,7 +165,7 @@ class TestWorker(LLMTaskWorker):
 
         # Check that output files were created
         output_files = list(Path(self.temp_dir).glob("TestWorker_prompt_*.txt"))
-        self.assertGreater(len(output_files), 0)
+        self.assertEqual(len(output_files), 2)
 
         # Verify content of first output file
         content = output_files[0].read_text()
