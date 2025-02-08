@@ -130,6 +130,18 @@ class Task(BaseModel):
                 return task
         return None
 
+    def find_input_tasks(self, task_class: Type[Task]) -> List[TaskType]:
+        """
+        Find all input tasks of the specified class in the input provenance.
+
+        Args:
+            task_class (Type[Task]): The class of the tasks to find.
+
+        Returns:
+            List[Task]: A list of tasks of the specified class.
+        """
+        return [task for task in self._input_provenance if task.__class__ is task_class]
+
     def previous_input_task(self):
         if not self._input_provenance:
             return None
