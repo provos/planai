@@ -121,7 +121,6 @@ class DiffAnalyzer(CachedLLMTaskWorker):
     output_types: List[Type[Task]] = [DiffAnalysis]
     llm_input_type: Type[Task] = CommitDiff
     use_xml: bool = False
-    debug_mode: bool = True
     prompt: str = dedent(
         """
         Analyze the provided git diff and produce a 1-2 sentence description that clearly explains what was changed and why.
