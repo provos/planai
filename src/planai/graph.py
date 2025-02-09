@@ -374,8 +374,7 @@ class Graph(BaseModel):
 
         # Start the dispatcher
         dispatcher = Dispatcher(self, web_port=dashboard_port)
-        self._dispatch_thread = Thread(target=dispatcher.dispatch)
-        self._dispatch_thread.start()
+        dispatcher.start()
         if run_dashboard:
             dispatcher.start_web_interface()
             self._has_dashboard = True
@@ -745,11 +744,8 @@ class Graph(BaseModel):
             # Wait for active tasks to complete or timeout
             self._dispatcher.wait_for_completion(timeout=timeout, wait_for_quit=False)
 
-            # Stop the dispatcher
-            self._dispatcher.stop()
-            if self._dispatch_thread:
-                self._dispatch_thread.join(timeout=1.0)
-                self._dispatch_thread = None
+            # Stop the dispatcher thread
+            self._dispatcher.stop(timeout=1.0)
 
             # Stop terminal display if active
             if self._has_terminal and self._terminal_thread:

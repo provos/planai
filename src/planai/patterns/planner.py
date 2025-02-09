@@ -80,6 +80,8 @@ class PlanCreator(CachedLLMTaskWorker):
         - Achieving the goals of the original request
 
         Provide the plan in markdown format using appropriate headers, lists, and sections.
+
+        Important: Prioritize the instructions provided in the context.
     """
     ).strip()
 
@@ -98,7 +100,7 @@ class PlanCritiqueWorker(CachedLLMTaskWorker):
         Score each criterion from 0 (worst) to 1 (best):
         1. Comprehensiveness: How complete and thorough is the plan?
         2. Detail Orientation: How specific and actionable are the steps?
-        3. Goal Achievement: How well does the plan fulfill the goals of the original request?
+        3. Goal Achievement: How well does the plan fulfill the goals of the original request especially the context?
 
         Provide improvement suggestions focused on the weakest aspects.
 

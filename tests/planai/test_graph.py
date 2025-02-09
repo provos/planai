@@ -365,7 +365,7 @@ class TestGraph(unittest.TestCase):
         )
 
         # Verify cleanup
-        self.assertIsNone(self.graph._dispatch_thread)
+        self.assertIsNone(self.graph._dispatcher._dispatch_thread)
         self.assertEqual(self.graph._dispatcher._num_active_tasks, 0)
 
     def test_worker_state(self):

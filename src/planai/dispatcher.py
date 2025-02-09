@@ -141,6 +141,8 @@ class Dispatcher:
 
         self._shutdown_initiated = False
 
+        self._dispatch_thread = None
+
         logging.info(
             "Dispatcher initialized with %d threads",
             self._thread_pool._max_workers if self._thread_pool else 0,
@@ -579,9 +581,6 @@ class Dispatcher:
         per_task_queue.put((worker, task))
         self.work_available.set()
 
-    def stop(self):
-        self.stop_event.set()
-
     def wait_for_completion(self, timeout: float = None, wait_for_quit=False):
         """
         Wait for all tasks to complete or timeout.
@@ -664,3 +663,29 @@ class Dispatcher:
         self._shutdown_initiated = True
         self.task_completion_event.set()
         logging.info("Dispatcher shutdown initiated")
+
+    def start(self):
+        """Start the dispatcher thread if not already running."""
+        if self._dispatch_thread is None:
+            self._dispatch_thread = threading.Thread(target=self.dispatch)
+            self._dispatch_thread.daemon = True
+            self._dispatch_thread.start()
+            logging.info("Dispatcher thread started")
+        else:
+            logging.warning("Dispatcher thread already running")
+
+    def stop(self, timeout: float = None):
+        """
+        Stop the dispatcher and wait for thread completion.
+
+        Args:
+            timeout (float, optional): Maximum time to wait for thread completion in seconds
+        """
+        self.stop_event.set()
+        if self._dispatch_thread:
+            self._dispatch_thread.join(timeout=timeout)
+            if self._dispatch_thread.is_alive():
+                logging.warning("Dispatcher thread did not stop within timeout")
+            else:
+                logging.info("Dispatcher thread stopped")
+            self._dispatch_thread = None
