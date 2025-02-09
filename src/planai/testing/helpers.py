@@ -98,6 +98,8 @@ class InvokeTaskWorker:
         self.worker._graph = MockGraph()
         if hasattr(self.worker, "_cache"):
             self.worker._cache = MockCache()
+        if hasattr(self.worker, "debug_mode"):
+            self.worker.debug_mode = False
         self.is_joined_worker = issubclass(worker_class, JoinedTaskWorker)
 
     def _setup_patch(self):
