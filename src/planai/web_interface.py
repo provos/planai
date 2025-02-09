@@ -85,16 +85,23 @@ def send_static(path):
     return send_from_directory("static", path)
 
 
+# the selected graph - we will use this for traces and mermaid rendering
+selected_graph = 0
+
+
 @app.route("/stream")
 def stream():
     def event_stream():
+        global selected_graph
         last_data = None
         last_trace = None
         last_requests = None
+        last_graphs = None
         while True:
             current_data = get_current_data()
-            current_trace = get_current_trace()
+            current_trace = get_current_trace(selected_graph)
             current_requests = dispatcher.get_user_input_requests()
+            current_graphs = dispatcher.get_graphs()
             memory_stats.update()
             logs = dispatcher.get_logs()
 
@@ -102,6 +109,7 @@ def stream():
                 current_data != last_data
                 or current_trace != last_trace
                 or current_requests != last_requests
+                or current_graphs != last_graphs
                 or logs  # Always send if there are new logs
             ):
                 combined_data = {
@@ -110,6 +118,7 @@ def stream():
                     "stats": dispatcher.get_execution_statistics(),
                     "user_requests": current_requests,
                     "memory": memory_stats.get_stats(),
+                    "graphs": current_graphs,
                     "logs": logs,
                 }
                 yield f"data: {json.dumps(combined_data)}\n\n"
@@ -117,6 +126,7 @@ def stream():
             last_data = current_data
             last_trace = current_trace
             last_requests = current_requests
+            last_graphs = current_graphs
             time.sleep(0.2)
 
     def get_current_data():
@@ -127,8 +137,8 @@ def stream():
             "failed": dispatcher.get_failed_tasks(),
         }
 
-    def get_current_trace():
-        trace = dispatcher.get_traces()
+    def get_current_trace(graph_id: int = 0):
+        trace = dispatcher.get_traces(index=graph_id)
         return {"_".join(map(str, k)): v for k, v in trace.items()}
 
     return Response(event_stream(), mimetype="text/event-stream")
@@ -181,7 +191,8 @@ def user_input():
 
 @app.route("/graph")
 def get_graph():
-    return jsonify({"graph": render_mermaid_graph(dispatcher.graph)})
+    global selected_graph
+    return jsonify({"graph": render_mermaid_graph(dispatcher.graph(selected_graph))})
 
 
 def render_mermaid_graph(graph: "Graph"):

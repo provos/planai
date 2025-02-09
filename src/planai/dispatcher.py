@@ -96,8 +96,8 @@ class Dispatcher:
     ):
         self._thread_pool = ThreadPoolExecutor() if start_thread_pool else None
 
-        self.graph = graph
-        self.web_port = web_port
+        self._graphs = [graph]
+        self._web_port = web_port
         self._web_thread = None
 
         self.task_lock = Lock()
@@ -148,10 +148,20 @@ class Dispatcher:
             self._thread_pool._max_workers if self._thread_pool else 0,
         )
 
+    def register_graph(self, graph: "Graph"):
+        if graph in self._graphs:
+            raise ValueError("Graph already registered")
+        self._graphs.append(graph)
+
     @property
     def active_tasks(self):
         with self.task_lock:
             return self._num_active_tasks
+
+    def graph(self, index: int = 0) -> "Graph":
+        if index >= len(self._graphs):
+            raise ValueError(f"Graph index {index} out of range")
+        return self._graphs[index]
 
     def decrement_active_tasks(self, worker: TaskWorker) -> bool:
         """
@@ -349,8 +359,16 @@ class Dispatcher:
             data["error"] = error
         return data
 
-    def get_traces(self) -> Dict:
-        return self.graph._provenance_tracker.get_traces()
+    def get_graphs(self) -> List["Dict"]:
+        return [
+            {"index": index, "name": graph.name}
+            for index, graph in enumerate(self._graphs)
+        ]
+
+    def get_traces(self, index: int = 0) -> Dict:
+        if index >= len(self._graphs):
+            return {}
+        return self._graphs[index]._provenance_tracker.get_traces()
 
     def get_queued_tasks(self) -> List[Dict]:
         work_items = []
@@ -625,7 +643,7 @@ class Dispatcher:
 
     def start_web_interface(self):
         self._web_thread = threading.Thread(
-            target=run_web_interface, args=(self, self.web_port)
+            target=run_web_interface, args=(self, self._web_port)
         )
         self._web_thread.daemon = (
             True  # This ensures the web thread will exit when the main thread exits

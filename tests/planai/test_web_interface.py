@@ -30,7 +30,8 @@ class TestWebInterface(unittest.TestCase):
         self.client = app.test_client()
         # Create a mock dispatcher
         self.mock_dispatcher = Mock()
-        self.mock_dispatcher.graph = self._create_test_graph()
+        # Set up graph as a mock function
+        self.mock_dispatcher.graph = lambda x: self._create_test_graph()
         set_dispatcher(self.mock_dispatcher)
 
     def _create_test_graph(self) -> Graph:
@@ -123,6 +124,7 @@ class TestWebInterface(unittest.TestCase):
         mock_traces = {(1, "task1"): "trace1", (2, "task2"): "trace2"}
         self.mock_dispatcher.get_traces.return_value = mock_traces
 
+        self.mock_dispatcher.get_graphs.return_value = [{"id": 0, "name": "TestGraph"}]
         self.mock_dispatcher.get_queued_tasks.return_value = [
             {
                 "id": "task1",
