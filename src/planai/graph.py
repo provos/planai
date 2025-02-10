@@ -128,6 +128,10 @@ class Graph(BaseModel):
         worker.set_graph(self)
         return self
 
+    def get_dispatcher(self) -> Optional[Dispatcher]:
+        """Get the dispatcher instance for the graph."""
+        return self._dispatcher
+
     def add_workers(self, *workers: TaskWorker) -> "Graph":
         """Add multiple tasks to the Graph."""
         for worker in workers:
@@ -373,12 +377,19 @@ class Graph(BaseModel):
         self._log_lines = []
 
         # Start the dispatcher
-        dispatcher = Dispatcher(self, web_port=dashboard_port)
-        dispatcher.start()
-        if run_dashboard:
-            dispatcher.start_web_interface()
-            self._has_dashboard = True
-        self._dispatcher = dispatcher
+        if self._dispatcher is None:
+            dispatcher = Dispatcher(self, web_port=dashboard_port)
+            dispatcher.start()
+            if run_dashboard:
+                dispatcher.start_web_interface()
+                self._has_dashboard = True
+            self._dispatcher = dispatcher
+        else:
+            logging.info("Graph %s is using an existing dispatcher", self.name)
+            if run_dashboard:
+                raise RuntimeError(
+                    "Dispatcher is already running. Cannot start dashboard."
+                )
 
         if display_terminal:
             self._has_terminal = True
@@ -756,6 +767,21 @@ class Graph(BaseModel):
             return True
 
         return True  # If no dispatcher, nothing to shut down
+
+    def register_dispatcher(self, dispatcher: Dispatcher) -> None:
+        """Register a dispatcher for this graph.
+
+        Registers a dispatcher instance with the graph. This is useful when running multiple different graphs.
+
+        Args:
+            dispatcher (Dispatcher): The dispatcher instance to register.
+
+        Returns:
+            None
+
+        """
+        self._dispatcher = dispatcher
+        self._dispatcher.register_graph(self)
 
 
 def main():  # pragma: no cover

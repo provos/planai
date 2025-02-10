@@ -199,11 +199,18 @@ def get_graph():
 def select_graph():
     global selected_graph
     try:
-        graph_id = int(request.json.get("graph_id", 0))
+        data = request.get_json()
+        if data is None:
+            return jsonify({"status": "error", "message": "No JSON data received"}), 400
+
+        graph_id = int(data.get("graph_id", 0))
         selected_graph = graph_id
         return jsonify({"status": "ok", "selected_graph": graph_id})
-    except (ValueError, TypeError):
-        return jsonify({"status": "error", "message": "Invalid graph ID"}), 400
+    except (ValueError, TypeError) as e:
+        return (
+            jsonify({"status": "error", "message": f"Invalid graph ID: {str(e)}"}),
+            400,
+        )
 
 
 def render_mermaid_graph(graph: "Graph"):
