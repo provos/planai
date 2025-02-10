@@ -126,7 +126,7 @@ class Task(BaseModel):
                                     or None if no such task is found.
         """
         for task in reversed(self._input_provenance):
-            if isinstance(task, task_class):
+            if type(task).__name__ == task_class.__name__:
                 return task
         return None
 
@@ -140,7 +140,11 @@ class Task(BaseModel):
         Returns:
             List[Task]: A list of tasks of the specified class.
         """
-        return [task for task in self._input_provenance if isinstance(task, task_class)]
+        return [
+            task
+            for task in self._input_provenance
+            if type(task).__name__ == task_class.__name__
+        ]
 
     def previous_input_task(self):
         if not self._input_provenance:
