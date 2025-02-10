@@ -63,6 +63,7 @@ class Graph(BaseModel):
     dependencies: Dict[TaskWorker, List[TaskWorker]] = Field(default_factory=dict)
 
     _dispatcher: Optional[Dispatcher] = PrivateAttr(default=None)
+    _dispatcher_created: bool = PrivateAttr(default=False)
     _dispatch_thread: Optional[Thread] = PrivateAttr(default=None)
     _terminal_thread: Optional[Thread] = PrivateAttr(default=None)
     _provenance_tracker: ProvenanceTracker = PrivateAttr(
@@ -384,11 +385,12 @@ class Graph(BaseModel):
                 dispatcher.start_web_interface()
                 self._has_dashboard = True
             self._dispatcher = dispatcher
+            self._dispatcher_created = True
         else:
             logging.info("Graph %s is using an existing dispatcher", self.name)
-            if run_dashboard:
+            if run_dashboard or display_terminal:
                 raise RuntimeError(
-                    "Dispatcher is already running. Cannot start dashboard."
+                    "Dispatcher is already running. Should not start dashboard or terminal display."
                 )
 
         if display_terminal:
@@ -748,7 +750,11 @@ class Graph(BaseModel):
         """
         logging.info("Initiating graph shutdown...")
 
-        if self._dispatcher:
+        if not self._dispatcher:
+            # nothing to do if the dispatcher was never created
+            return True
+
+        if self._dispatcher_created:
             # Signal dispatcher to stop accepting new work
             self._dispatcher.initiate_shutdown()
 
@@ -762,11 +768,11 @@ class Graph(BaseModel):
             if self._has_terminal and self._terminal_thread:
                 self._stop_terminal_display_event.set()
                 self._terminal_thread.join(timeout=1.0)
+        else:
+            self._dispatcher.deregister_graph(self)
 
-            logging.info("Graph shutdown completed successfully")
-            return True
-
-        return True  # If no dispatcher, nothing to shut down
+        logging.info("Graph shutdown completed successfully")
+        return True
 
     def register_dispatcher(self, dispatcher: Dispatcher) -> None:
         """Register a dispatcher for this graph.
@@ -781,6 +787,7 @@ class Graph(BaseModel):
 
         """
         self._dispatcher = dispatcher
+        self._dispatcher_created = False
         self._dispatcher.register_graph(self)
 
 

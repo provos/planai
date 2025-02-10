@@ -153,6 +153,14 @@ class Dispatcher:
             raise ValueError("Graph already registered")
         self._graphs.append(graph)
 
+    def deregister_graph(self, graph: "Graph"):
+        if graph not in self._graphs:
+            raise ValueError("Graph not registered")
+        # we may need to consider removing the associated tasks from the queues
+        # for now, we assume that this gets called after the main graph initiated a shutdown
+        # on the dispatcher
+        self._graphs.remove(graph)
+
     @property
     def active_tasks(self):
         with self.task_lock:

@@ -435,6 +435,61 @@ class TestGraph(unittest.TestCase):
         # Verify state was cleaned up
         self.assertEqual(len(counter._user_state), 0)
 
+    def test_shared_dispatcher_shutdown(self):
+        """Test shutdown behavior with two graphs sharing a dispatcher."""
+        # Create first graph with its own dispatcher
+        graph1 = Graph(name="Graph1")
+        worker1 = DummyWorker(should_wait=True)
+        graph1.add_worker(worker1)
+        graph1.set_sink(worker1, DummyTask)
+        graph1.prepare(display_terminal=False, run_dashboard=False)
+        graph1.set_entry(worker1)
+
+        # Create second graph that will share the dispatcher
+        graph2 = Graph(name="Graph2")
+        worker2 = DummyWorker(should_wait=True)
+        graph2.add_worker(worker2)
+        graph2.set_sink(worker2, DummyTask)
+        graph2.prepare(display_terminal=False, run_dashboard=False)
+        graph2.set_entry(worker2)
+
+        # Get dispatcher from first graph and register it with second graph
+        dispatcher = graph1.get_dispatcher()
+        self.assertIsNotNone(dispatcher)
+        graph2.register_dispatcher(dispatcher)
+
+        # Add work to both graphs
+        graph1.add_work(worker1, DummyTask(data="test1"))
+        graph2.add_work(worker2, DummyTask(data="test2"))
+
+        # Create threads to run both graphs
+        def run_graph(graph):
+            graph.execute([])
+
+        thread1 = threading.Thread(target=run_graph, args=(graph1,))
+        thread2 = threading.Thread(target=run_graph, args=(graph2,))
+
+        thread1.start()
+        thread2.start()
+
+        # Give some time for tasks to start
+        time.sleep(0.1)
+
+        # Shutdown first graph
+        success1 = graph1.shutdown(timeout=1.0)
+        self.assertTrue(success1)
+        thread1.join(timeout=1.0)
+        self.assertFalse(thread1.is_alive())
+
+        # Verify dispatcher is still running
+        self.assertIsNone(dispatcher._dispatch_thread)
+
+        # Shutdown second graph
+        success2 = graph2.shutdown(timeout=1.0)
+        self.assertTrue(success2)
+        thread2.join(timeout=1.0)
+        self.assertFalse(thread2.is_alive())
+
 
 if __name__ == "__main__":
     unittest.main()
