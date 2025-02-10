@@ -70,13 +70,16 @@ class TestTask(unittest.TestCase):
         class Task2(Task):
             pass
 
+        class Task3(Task):
+            pass
+
         task1 = Task1()
         task2 = Task2()
         self.task._input_provenance = [task1, task2]
 
         self.assertIs(self.task.find_input_task(Task2), task2)
         self.assertIs(self.task.find_input_task(Task1), task1)
-        self.assertIsNone(self.task.find_input_task(Task))
+        self.assertIsNone(self.task.find_input_task(Task3))
 
     def test_copy_input_provenance_creates_new_tasks(self):
         input_task1 = Task()
