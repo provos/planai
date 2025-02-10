@@ -540,3 +540,21 @@ a:visited {
 .log-message a:hover {
     color: var(--link-hover-color);
 }
+
+.graph-selector {
+    margin-right: 1rem;
+}
+
+.graph-selector select {
+    padding: 0.3rem 0.5rem;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    background-color: var(--task-list-bg);
+    color: var(--text-color);
+    font-size: 0.9em;
+    cursor: pointer;
+}
+
+.graph-selector select:hover {
+    border-color: var(--header-color);
+}

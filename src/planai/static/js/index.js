@@ -7,6 +7,7 @@ import { initTheme } from './theme.js';
 import { initTabs } from './utils.js';
 import { initMermaid } from './mermaid.js';
 import { initMemoryListeners } from './memory.js';
+import { initGraphListeners } from './graphs.js';
 
 setupEventSource();
 initTaskListeners();
@@ -17,6 +18,7 @@ initTheme();
 initTabs();
 initMermaid();
 initMemoryListeners();
+initGraphListeners();
 
 // Quit button functionality
 document.getElementById('quit-button').addEventListener('click', function () {

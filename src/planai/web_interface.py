@@ -195,6 +195,17 @@ def get_graph():
     return jsonify({"graph": render_mermaid_graph(dispatcher.graph(selected_graph))})
 
 
+@app.route("/select_graph", methods=["POST"])
+def select_graph():
+    global selected_graph
+    try:
+        graph_id = int(request.json.get("graph_id", 0))
+        selected_graph = graph_id
+        return jsonify({"status": "ok", "selected_graph": graph_id})
+    except (ValueError, TypeError):
+        return jsonify({"status": "error", "message": "Invalid graph ID"}), 400
+
+
 def render_mermaid_graph(graph: "Graph"):
     # Start with graph definition
     mermaid = """graph TD\n"""
