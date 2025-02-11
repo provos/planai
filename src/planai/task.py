@@ -224,6 +224,18 @@ class Task(BaseModel):
         """Formats the task as XML."""
         return dict_dump_xml(self.model_dump(), root=self.name)
 
+    def is_type(self, task_class: Type[Task]) -> bool:
+        """
+        Check if this task is of the specified task class type.
+
+        Args:
+            task_class (Type[Task]): The task class type to check against.
+
+        Returns:
+            bool: True if the task is of the specified type, False otherwise.
+        """
+        return type(self).__name__ == task_class.__name__
+
 
 class WorkBufferContext:
     def __init__(self, worker, input_task=None):
