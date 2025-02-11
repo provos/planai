@@ -692,6 +692,8 @@ class Dispatcher:
 
     def start(self):
         """Start the dispatcher thread if not already running."""
+        if self._thread_pool is None:
+            self._thread_pool = ThreadPoolExecutor()
         if self._dispatch_thread is None:
             self._dispatch_thread = threading.Thread(target=self.dispatch)
             self._dispatch_thread.daemon = True

@@ -64,7 +64,6 @@ class Graph(BaseModel):
 
     _dispatcher: Optional[Dispatcher] = PrivateAttr(default=None)
     _dispatcher_created: bool = PrivateAttr(default=False)
-    _dispatch_thread: Optional[Thread] = PrivateAttr(default=None)
     _terminal_thread: Optional[Thread] = PrivateAttr(default=None)
     _provenance_tracker: ProvenanceTracker = PrivateAttr(
         default_factory=ProvenanceTracker
@@ -78,7 +77,6 @@ class Graph(BaseModel):
 
     _worker_distances: Dict[str, Dict[str, int]] = PrivateAttr(default_factory=dict)
     _has_terminal: bool = PrivateAttr(default=False)
-    _has_dashboard: bool = PrivateAttr(default=False)
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -378,20 +376,21 @@ class Graph(BaseModel):
         self._log_lines = []
 
         # Start the dispatcher
+        dispatcher = self._dispatcher
         if self._dispatcher is None:
             dispatcher = Dispatcher(self, web_port=dashboard_port)
-            dispatcher.start()
-            if run_dashboard:
-                dispatcher.start_web_interface()
-                self._has_dashboard = True
-            self._dispatcher = dispatcher
             self._dispatcher_created = True
-        else:
+        elif not self._dispatcher_created:
             logging.info("Graph %s is using an existing dispatcher", self.name)
             if run_dashboard or display_terminal:
                 raise RuntimeError(
                     "Dispatcher is already running. Should not start dashboard or terminal display."
                 )
+
+        dispatcher.start()
+        if run_dashboard:
+            dispatcher.start_web_interface()
+        self._dispatcher = dispatcher
 
         if display_terminal:
             self._has_terminal = True
@@ -488,12 +487,15 @@ class Graph(BaseModel):
 
         # Wait for all tasks to complete
         logging.info("Graph %s started - waiting for completion", self.name)
-        self._dispatcher.wait_for_completion(wait_for_quit=self._has_dashboard)
+        self._dispatcher.wait_for_completion(
+            wait_for_quit=self._dispatcher.has_dashboard()
+        )
         logging.info("Graph %s completed", self.name)
-        self._dispatcher.stop()
-        if self._dispatch_thread:
-            self._dispatch_thread.join()
-        logging.info("Dispatcher stopped")
+
+        # we'll stop the dispatcher only if we created it
+        if self._dispatcher_created:
+            self._dispatcher.stop()
+            logging.info("Dispatcher stopped")
 
         if self._has_terminal:
             self._stop_terminal_display_event.set()
