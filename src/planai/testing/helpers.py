@@ -89,7 +89,14 @@ class InvokeTaskWorker:
             **kwargs: Arguments to pass to the worker constructor
         """
 
+        class MockProvenanceTracker:
+            def notify_status(self, graph, task, status):
+                pass
+
         class MockGraph:
+            def __init__(self):
+                self._provenance_tracker = MockProvenanceTracker()
+
             def watch(self, prefix, notifier):
                 return True
 
