@@ -22,8 +22,8 @@ from .graph_task import SubGraphWorker
 from .joined_task import InitialTaskWorker, JoinedTaskWorker
 from .llm_task import BaseLLMTaskWorker, CachedLLMTaskWorker, LLMTaskWorker
 from .provenance import ProvenanceChain
+from .pydantic_dict_wrapper import PydanticDictWrapper
 from .task import Task, TaskWorker
-from .utils import PydanticDictWrapper
 
 # Limit what gets imported with "from planai import *"
 __all__ = [

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import json
 import logging
 import os
 import time
@@ -21,7 +20,6 @@ from typing import Any, Dict, Optional
 from xml.dom.minidom import parseString
 
 import dicttoxml
-from pydantic import BaseModel
 
 # Suppress dicttoxml INFO logs at module initialization
 dicttoxml_logger = logging.getLogger("dicttoxml")
@@ -68,18 +66,6 @@ def measure_time():
     finally:
         end_time = time.perf_counter()
         result["elapsed_time"] = (end_time - start_time) * 1000
-
-
-class PydanticDictWrapper(BaseModel):
-    """This class creates a pydantic model from a dict object that can be used in the pre_process method of LLMTaskWorker."""
-
-    data: Dict[str, Any]
-
-    def model_dump_json(self, **kwargs):
-        return json.dumps(self.data, **kwargs)
-
-    def model_dump_xml(self, root: str = "root"):
-        return dict_dump_xml(self.data, root=root)
 
 
 def _is_valid_xml_char(char):

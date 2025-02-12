@@ -1,8 +1,10 @@
+import json
 import random
 import string
 import unittest
 from datetime import datetime
 
+from planai.pydantic_dict_wrapper import PydanticDictWrapper
 from planai.utils import dict_dump_xml
 
 
@@ -133,6 +135,61 @@ class TestDictDumpXml(unittest.TestCase):
                     self.fail(
                         f"Failed with depth={depth}, max_items={max_items}: {random_dict}: {str(e)}"
                     )
+
+
+class TestPydanticDictWrapper(unittest.TestCase):
+    def setUp(self):
+        self.test_data = {
+            "response_type": "in_channel",
+            "text": "Hello, world!",
+            "nested": {"key": "value"},
+            "array": [1, 2, 3],
+        }
+        self.wrapper = PydanticDictWrapper(data=self.test_data, name="response")
+
+    def test_model_dump(self):
+        """Test that model_dump returns the unwrapped dictionary."""
+        result = self.wrapper.model_dump()
+        self.assertEqual(result, self.test_data)
+        self.assertNotIn("data", result)
+
+    def test_model_dump_json(self):
+        """Test JSON serialization."""
+        result = self.wrapper.model_dump_json()
+        # Deserialize to compare dictionaries
+        deserialized = json.loads(result)
+        self.assertEqual(deserialized, self.test_data)
+        self.assertNotIn("data", deserialized)
+
+    def test_model_dump_xml(self):
+        """Test XML serialization."""
+        result = self.wrapper.model_dump_xml()
+        self.assertTrue(result.startswith("<response>"))
+        self.assertTrue(result.endswith("</response>\n"))
+        self.assertIn("<text>Hello, world!</text>", result)
+        self.assertIn("<response_type>in_channel</response_type>", result)
+
+    def test_empty_dict(self):
+        """Test handling of empty dictionary."""
+        wrapper = PydanticDictWrapper(data={})
+        self.assertEqual(wrapper.model_dump(), {})
+        self.assertEqual(json.loads(wrapper.model_dump_json()), {})
+
+    def test_special_characters(self):
+        """Test handling of special characters."""
+        special_data = {"special": "§ß&<>\"'äöü", "emoji": "🌟🔥🌈"}
+        wrapper = PydanticDictWrapper(data=special_data)
+
+        # Test JSON output
+        json_result = json.loads(wrapper.model_dump_json())
+        self.assertEqual(json_result, special_data)
+
+        # Test XML output (should escape special characters)
+        xml_result = wrapper.model_dump_xml()
+        self.assertIn("&lt;", xml_result)
+        self.assertIn("&gt;", xml_result)
+        self.assertIn("&amp;", xml_result)
+        self.assertIn("🌟🔥🌈", xml_result)
 
 
 if __name__ == "__main__":
