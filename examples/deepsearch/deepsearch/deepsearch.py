@@ -14,12 +14,13 @@ import os
 import queue
 import re
 import threading
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 from flask import Flask, request
 from flask_socketio import SocketIO, emit
 from llm_interface import ListResponse, llm_from_config
+from pydantic import BaseModel
 
 from planai import ChatMessage, ChatTask, ProvenanceChain, Task, TaskWorker
 from planai.utils import setup_logging
@@ -364,6 +365,7 @@ def notify_planai(
     worker: TaskWorker,
     task: Task,
     message: str,
+    object: Optional[BaseModel] = None,
 ):
     """Callback to receive notifications from the graph."""
     session_id = metadata.get("session_id")

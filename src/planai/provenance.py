@@ -56,6 +56,8 @@ from typing import (
     Type,
 )
 
+from pydantic import BaseModel
+
 from .task import Task, TaskStatusCallback, TaskWorker
 
 if TYPE_CHECKING:
@@ -109,15 +111,21 @@ class ProvenanceTracker:
         return result
 
     def notify_status(
-        self, worker: TaskWorker, task: Task, message: Optional[str] = None
+        self,
+        worker: TaskWorker,
+        task: Task,
+        message: Optional[str] = None,
+        object: Optional[BaseModel] = None,
     ):
         """Execute callback if registered for this task's initial provenance."""
         logging.info("Notifying status %s on %s", worker.name, task.name)
+        if not task._provenance:
+            raise ValueError(f"Task {task.name} has no provenance")
         provenance_prefix = (task._provenance[0],)
         state = self.get_state(provenance_prefix)
         if state["callback"]:
             state["callback"](
-                state["metadata"], provenance_prefix, worker, task, message
+                state["metadata"], provenance_prefix, worker, task, message, object
             )
 
     def remove_state(self, prefix: ProvenanceChain, execute_callback: bool = False):

@@ -45,7 +45,8 @@ TaskType = TypeVar("TaskType", bound="Task")
 
 
 TaskStatusCallback = Callable[
-    [Dict, "ProvenanceChain", "TaskWorker", "Task", Optional[str]], None
+    [Dict, "ProvenanceChain", "TaskWorker", "Task", Optional[str], Optional[BaseModel]],
+    None,
 ]
 
 
@@ -544,9 +545,14 @@ class TaskWorker(BaseModel, ABC):
             raise RuntimeError("Graph is not initialized.")
         return self._graph.add_work(self, task, metadata, status_callback)
 
-    def notify_status(self, task: Task, message: Optional[str] = None):
+    def notify_status(
+        self,
+        task: Task,
+        message: Optional[str] = None,
+        object: Optional[BaseModel] = None,
+    ):
         """Notify registered callback about task status updates."""
-        self._graph._provenance_tracker.notify_status(self, task, message)
+        self._graph._provenance_tracker.notify_status(self, task, message, object)
 
     def _pre_consume_work(self, task: Task):
         with self.work_buffer_context(task):

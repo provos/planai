@@ -212,7 +212,8 @@ class TestGraph(unittest.TestCase):
             prefix: ProvenanceChain,
             worker: TaskWorker,
             task: Task,
-            message: Optional[str],
+            message: Optional[str] = None,
+            object: Optional[object] = None,
         ):
             callback_data.append(
                 {
