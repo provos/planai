@@ -90,7 +90,7 @@ class InvokeTaskWorker:
         """
 
         class MockProvenanceTracker:
-            def notify_status(self, graph, task, status):
+            def notify_status(self, graph, task, status=None, object=None):
                 pass
 
         class MockGraph:
