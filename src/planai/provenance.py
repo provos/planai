@@ -92,8 +92,8 @@ class ProvenanceTracker:
     def add_state(
         self,
         provenance: ProvenanceChain,
-        metadata: Dict = None,
-        callback: TaskStatusCallback = None,
+        metadata: Optional[Dict] = None,
+        callback: Optional[TaskStatusCallback] = None,
     ):
         """Add metadata and optional callback for a task's provenance."""
         logging.info("Adding state for %s: (%s, %s)", provenance, metadata, callback)
@@ -338,21 +338,24 @@ class ProvenanceTracker:
         def task_completed_callback(
             future, worker: TaskWorker = notifier, task: Task = task
         ):
+            assert worker._graph and worker._graph._dispatcher
             dispatcher: Dispatcher = worker._graph._dispatcher
             dispatcher._task_completed(worker, None, future)
             # now that the notification is really complete, we can remove the provenance and notify the next one
             self._remove_provenance(task, worker)
 
+        assert notifier._graph and notifier._graph._dispatcher
         dispatcher: Dispatcher = notifier._graph._dispatcher
         dispatcher.submit_work(
             notifier, [notifier.notify, prefix], task_completed_callback
         )
 
-    def _get_worker_distance(self, worker: TaskWorker, last_worker_name: str) -> int:
+    def _get_worker_distance(self, worker: TaskWorker, last_worker_name: str) -> float:
         if worker.name == last_worker_name:
             return 0
         if not last_worker_name:
             return float("inf")
+        assert worker._graph
         return worker._graph._worker_distances.get(last_worker_name, {}).get(
             worker.name, float("inf")
         )
