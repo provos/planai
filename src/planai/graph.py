@@ -24,7 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 from .dispatcher import Dispatcher
 from .joined_task import InitialTaskWorker
 from .provenance import ProvenanceChain, ProvenanceTracker
-from .task import Task, TaskStatusCallback, TaskType, TaskWorker
+from .task import Task, TaskStatusCallback, TaskWorker
 
 # Initialize colorama for Windows compatibility
 init(autoreset=True)
@@ -70,7 +70,7 @@ class Graph(BaseModel):
     )
 
     _max_parallel_tasks: Dict[Type[TaskWorker], int] = PrivateAttr(default_factory=dict)
-    _sink_tasks: List[TaskType] = PrivateAttr(default_factory=list)
+    _sink_tasks: List[Type[Task]] = PrivateAttr(default_factory=list)
     _sink_workers: List[TaskWorker] = PrivateAttr(default_factory=list)
     _initial_worker: TaskWorker = PrivateAttr(default=None)
     _subgraph_workers: Set[TaskWorker] = PrivateAttr(default_factory=set)
@@ -207,7 +207,7 @@ class Graph(BaseModel):
         self,
         worker: TaskWorker,
         output_type: Type[Task],
-        notify: Callable[[Dict[str, Any], None], Task] = None,
+        notify: Optional[Callable[[Dict[str, Any], Task], None]] = None,
     ) -> None:
         """Designates a worker as a data sink for collecting specific output tasks.
 
@@ -274,7 +274,7 @@ class Graph(BaseModel):
             output_type.__name__,
         )
 
-    def get_output_tasks(self) -> List[TaskType]:
+    def get_output_tasks(self) -> List[Type[Task]]:
         """
         Retrieves all tasks that were consumed by the sink workers in the graph.
 
@@ -283,7 +283,7 @@ class Graph(BaseModel):
         output type specified when the corresponding sink was set.
 
         Returns:
-            List[TaskType]: A list of tasks collected by all sink workers. The actual
+            List[Type[Task]]: A list of tasks collected by all sink workers. The actual
             type of each task depends on the output types of the workers set as sinks.
 
         Note:

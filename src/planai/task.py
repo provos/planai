@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from __future__ import annotations
+
 import inspect
 import logging
 import threading
@@ -21,12 +23,10 @@ from typing import (
     Any,
     Callable,
     Dict,
-    ForwardRef,
     List,
     Optional,
     Tuple,
     Type,
-    TypeVar,
     get_type_hints,
 )
 
@@ -37,12 +37,6 @@ from planai.utils import dict_dump_xml
 if TYPE_CHECKING:
     from .graph import Graph
     from .provenance import ProvenanceChain
-
-Task = ForwardRef("Task")
-TaskWorker = ForwardRef("TaskWorker")
-
-TaskType = TypeVar("TaskType", bound="Task")
-
 
 TaskStatusCallback = Callable[
     [Dict, "ProvenanceChain", "TaskWorker", "Task", Optional[str], Optional[BaseModel]],
@@ -105,7 +99,6 @@ class Task(BaseModel):
         Increments the retry count by 1.
         """
         self._retry_count += 1
-        return True
 
     def copy_provenance(self) -> List[Tuple[str, int]]:
         return self._provenance.copy()
@@ -113,7 +106,7 @@ class Task(BaseModel):
     def copy_input_provenance(self) -> List[Task]:
         return [input.copy_public() for input in self._input_provenance]
 
-    def find_input_task(self, task_class: Type[Task]) -> Optional[TaskType]:
+    def find_input_task(self, task_class: Type[Task]) -> Optional[Task]:
         """
         Find the most recent input task of the specified class in the input provenance.
         This is guaranteed to work only on the immediate input task and not on any tasks
@@ -131,7 +124,7 @@ class Task(BaseModel):
                 return task
         return None
 
-    def find_input_tasks(self, task_class: Type[Task]) -> List[TaskType]:
+    def find_input_tasks(self, task_class: Type[Task]) -> List[Task]:
         """
         Find all input tasks of the specified class in the input provenance.
 
@@ -239,10 +232,10 @@ class Task(BaseModel):
 
 
 class WorkBufferContext:
-    def __init__(self, worker, input_task=None):
-        self.worker: "TaskWorker" = worker
+    def __init__(self, worker: TaskWorker, input_task=None):
+        self.worker: TaskWorker = worker
         self.input_task: Task = input_task
-        self.work_buffer: List[Tuple["TaskWorker", Task]] = []
+        self.work_buffer: List[Tuple[TaskWorker, Task]] = []
 
     def __enter__(self):
         self.worker._local.ctx = self
@@ -365,8 +358,8 @@ class TaskWorker(BaseModel, ABC):
 
     def sink(
         self,
-        output_type: TaskType,
-        notify: Callable[[Dict[str, Any], TaskType], None] = None,
+        output_type: Type[Task],
+        notify: Optional[Callable[[Dict[str, Any], Task], None]] = None,
     ):
         """
         Designates the current task worker as a sink in the associated graph.
@@ -412,6 +405,7 @@ class TaskWorker(BaseModel, ABC):
             The prefix to trace. Must be a tuple representing a part of a task's provenance chain.
             This is the sequence of task identifiers leading up to (but not including) the current task.
         """
+        assert self._graph is not None
         self._graph.trace(prefix)
 
     def watch(self, prefix: "ProvenanceChain") -> bool:
@@ -441,6 +435,7 @@ class TaskWorker(BaseModel, ABC):
         """
         if not isinstance(prefix, tuple):
             raise ValueError("Prefix must be a tuple")
+        assert self._graph is not None
         return self._graph.watch(prefix, self)
 
     def unwatch(self, prefix: "ProvenanceChain") -> bool:
@@ -455,6 +450,7 @@ class TaskWorker(BaseModel, ABC):
         """
         if not isinstance(prefix, tuple):
             raise ValueError("Prefix must be a tuple")
+        assert self._graph is not None
         return self._graph.unwatch(prefix, self)
 
     def get_worker_state(self, provenance: "ProvenanceChain") -> Dict[str, Any]:
@@ -484,6 +480,7 @@ class TaskWorker(BaseModel, ABC):
         Parameters:
             *args: The message to print.
         """
+        assert self._graph is not None
         self._graph.print(*args)
 
     def get_next_provenance(self) -> Tuple[str, int]:
@@ -505,6 +502,7 @@ class TaskWorker(BaseModel, ABC):
             task (Task): The task to remove the state for.
         """
         provenance = task.prefix(1)
+        assert self._graph is not None
         self._graph._provenance_tracker.remove_state(provenance)
 
     def get_state(self, task: Task) -> Dict[str, Any]:
@@ -518,6 +516,7 @@ class TaskWorker(BaseModel, ABC):
             Dict[str, Any]: The state of the task.
         """
         provenance = task.prefix(1)
+        assert self._graph is not None
         return self._graph._provenance_tracker.get_state(provenance)
 
     def get_metadata(self, task: Task) -> Dict[str, Any]:
@@ -552,6 +551,7 @@ class TaskWorker(BaseModel, ABC):
         object: Optional[BaseModel] = None,
     ):
         """Notify registered callback about task status updates."""
+        assert self._graph is not None
         self._graph._provenance_tracker.notify_status(self, task, message, object)
 
     def _pre_consume_work(self, task: Task):
@@ -653,12 +653,13 @@ class TaskWorker(BaseModel, ABC):
             self.unwatch(prefix)
 
     def _dispatch_work(self, task: Task):
-        consumer: "TaskWorker" = self._consumers.get(task.__class__)
+        consumer: Optional[TaskWorker] = self._consumers.get(task.__class__)
+        assert consumer is not None
         consumer.consume_work(task)
 
     def validate_task(
-        self, task_cls: Type[Task], consumer: "TaskWorker"
-    ) -> Tuple[bool, Exception]:
+        self, task_cls: Type[Task], consumer: TaskWorker
+    ) -> Tuple[bool, Optional[BaseException]]:
         """
         Validate that a consumer can handle a specific Task type.
 
@@ -669,7 +670,7 @@ class TaskWorker(BaseModel, ABC):
             consumer (TaskWorker): The consumer to validate against.
 
         Returns:
-            Tuple[bool, Exception]: A tuple containing a boolean indicating success and an exception if validation failed.
+            Tuple[bool, Optional[BaseException]]: A tuple containing a boolean indicating success and an exception if validation failed.
         """
         # Ensure consumer has a consume_work method taking task_cls as parameter
         first_param_type = consumer.get_task_class()
