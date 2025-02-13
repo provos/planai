@@ -212,75 +212,92 @@ class ProvenanceTracker:
                         "Tracing: add provenance for %s: %s", prefix, trace_entry
                     )
 
+    def _remove_provenance_check(self, task: Task, worker: TaskWorker) -> set:
+        # assumed to be running under lock
+        to_notify = set()
+        for prefix in self._generate_prefixes(task):
+            effective_count = self.provenance[prefix] - 1
+            if effective_count == 0:
+                to_notify.add(prefix)
+
+            if prefix in self.provenance_trace:
+                # Get the list of notifiers for this prefix
+                with self.notifiers_lock:
+                    notifiers = [n.name for n in self.notifiers.get(prefix, [])]
+
+                status = (
+                    "will notify watchers"
+                    if effective_count == 0
+                    else "still waiting for other tasks"
+                )
+                if effective_count == 0 and notifiers:
+                    status += f" (Notifying: {', '.join(notifiers)})"
+
+                trace_entry = {
+                    "worker": task._provenance[-1][0],
+                    "action": "removing",
+                    "task": task.name,
+                    "count": effective_count,
+                    "status": status,
+                }
+                self.provenance_trace[prefix].append(trace_entry)
+                logging.info(
+                    "Tracing: remove provenance for %s: %s", prefix, trace_entry
+                )
+
+            if effective_count < 0:
+                error_message = f"FATAL ERROR in {self}: Provenance count for prefix {prefix} became negative ({effective_count}). This indicates a serious bug in the provenance tracking system."
+                logging.critical(error_message)
+                print(error_message, file=sys.stderr)
+                sys.exit(1)
+
+        return to_notify
+
+    def _remove_provenance_actual(self, task: Task, worker: TaskWorker):
+        for prefix in self._generate_prefixes(task):
+            self.provenance[prefix] -= 1
+            logging.debug(
+                "%s: -Provenance for %s is now %s",
+                repr(self),
+                prefix,
+                self.provenance[prefix],
+            )
+
+            effective_count = self.provenance[prefix]
+            if effective_count == 0:
+                del self.provenance[prefix]
+
     def _remove_provenance(self, task: Task, worker: TaskWorker):
         logging.info(
             "%s: Removing provenance for %s with %s", self, task.name, task._provenance
         )
-        to_notify = set()
-        for prefix in self._generate_prefixes(task):
-            with self.provenance_lock:
-                self.provenance[prefix] -= 1
-                logging.debug(
-                    "%s: -Provenance for %s is now %s",
-                    repr(self),
-                    prefix,
-                    self.provenance[prefix],
-                )
+        # we are removing provenance in two phases
+        # 1. Check whether provenance removal would lead to any notifications
+        # 2. If not, then actually remove the provenance
+        # we don't remove the provenance when there is a notification pending
+        # as the worker owns the provenance until the notification is complete
+        with self.provenance_lock:
+            to_notify = self._remove_provenance_check(task, worker)
 
-                effective_count = self.provenance[prefix]
-                if effective_count == 0:
-                    del self.provenance[prefix]
-                    to_notify.add(prefix)
-
-                if prefix in self.provenance_trace:
-                    # Get the list of notifiers for this prefix
-                    with self.notifiers_lock:
-                        notifiers = [n.name for n in self.notifiers.get(prefix, [])]
-
-                    status = (
-                        "will notify watchers"
-                        if effective_count == 0
-                        else "still waiting for other tasks"
-                    )
-                    if effective_count == 0 and notifiers:
-                        status += f" (Notifying: {', '.join(notifiers)})"
-
-                    trace_entry = {
-                        "worker": task._provenance[-1][0],
-                        "action": "removing",
-                        "task": task.name,
-                        "count": effective_count,
-                        "status": status,
-                    }
-                    self.provenance_trace[prefix].append(trace_entry)
-                    logging.info(
-                        "Tracing: remove provenance for %s: %s", prefix, trace_entry
-                    )
-
-                if effective_count < 0:
-                    error_message = f"FATAL ERROR in {self}: Provenance count for prefix {prefix} became negative ({effective_count}). This indicates a serious bug in the provenance tracking system."
-                    logging.critical(error_message)
-                    print(error_message, file=sys.stderr)
-                    sys.exit(1)
-
-        if to_notify:
-            final_notify = []
-            for p in to_notify:
-                for notifier in self._get_notifiers_for_prefix(p):
-                    final_notify.append((notifier, p))
-
-            if final_notify:
-                logging.info(
-                    "Re-adding provenance for %s (%s) - as we need to wait for the notification to complete before completely removing it",
-                    task.name,
-                    task._provenance,
-                )
-                self._add_provenance(task)
-                self._notify_task_completion(final_notify, worker, task)
-            else:
-                # delete metadata for all the prefixes that are no longer in use
+            if to_notify:
+                final_notify = []
                 for p in to_notify:
-                    self.remove_state(p, execute_callback=True)
+                    for notifier in self._get_notifiers_for_prefix(p):
+                        final_notify.append((notifier, p))
+
+                if final_notify:
+                    logging.info(
+                        "Not committing provenance removal for %s (%s) - as we need to wait for the notification to complete before completely removing it",
+                        task.name,
+                        task._provenance,
+                    )
+                    self._notify_task_completion(final_notify, worker, task)
+                    return
+
+            self._remove_provenance_actual(task, worker)
+            # delete metadata for all the prefixes that are no longer in use
+            for p in to_notify:
+                self.remove_state(p, execute_callback=True)
 
     def _get_notifiers_for_prefix(self, prefix: ProvenanceChain) -> List[TaskWorker]:
         with self.notifiers_lock:
