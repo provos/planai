@@ -249,20 +249,19 @@ class WorkBufferContext:
         return self.input_task, [entry[1] for entry in self.work_buffer]
 
     def _flush_work_buffer(self):
-        if self.worker._graph and self.worker._graph._dispatcher:
-            logging.info(
-                "Worker %s flushing work buffer with %d items",
-                self.worker.name,
-                len(self.work_buffer),
-            )
-            self.worker._graph._dispatcher.add_multiple_work(self.work_buffer)
-        else:
-            for consumer, task in self.work_buffer:
-                self.worker._dispatch_work(task)
         self.work_buffer.clear()
 
     def add_to_buffer(self, consumer: "TaskWorker", task: Task):
         self.work_buffer.append((consumer, task))
+        if self.worker._graph and self.worker._graph._dispatcher:
+            logging.info(
+                "Worker %s publishing work to buffer with consumer %s",
+                self.worker.name,
+                consumer.name,
+            )
+            self.worker._graph._dispatcher.add_work(consumer, task)
+        else:
+            self.worker._dispatch_work(task)
 
 
 class TaskWorker(BaseModel, ABC):

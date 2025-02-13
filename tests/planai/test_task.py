@@ -18,22 +18,9 @@ from unittest.mock import Mock, patch
 from planai.task import Task, TaskWorker
 
 
-def copy_work_buffer(work_buffer):
-    return [
-        (worker.model_copy(deep=False), task.model_copy(deep=False))
-        for worker, task in work_buffer
-    ]
-
-
 class CopyingMock(Mock):
     def __call__(self, *args, **kwargs):
-        if (
-            args
-            and isinstance(args[0], list)
-            and all(isinstance(item, tuple) for item in args[0])
-        ):
-            args = (copy_work_buffer(args[0]),) + args[1:]
-        return super().__call__(*args, **kwargs)
+        return super().__call__(args[0].model_copy(), args[1].model_copy())
 
 
 class TestTask(unittest.TestCase):
@@ -196,7 +183,7 @@ class TestTaskWorker(unittest.TestCase):
             return work_buffer.copy()
 
         # Set the side effect on the mock
-        mock_dispatcher.add_multiple_work = CopyingMock()
+        mock_dispatcher.add_work = CopyingMock()
 
         input_task = DummyTask()
         task = DummyTask()
@@ -209,7 +196,7 @@ class TestTaskWorker(unittest.TestCase):
         self.assertEqual(task._provenance[0][0], self.worker.name)
         self.assertEqual(len(task._input_provenance), 1)
         self.assertEqual(task._input_provenance[0], input_task)
-        mock_dispatcher.add_multiple_work.assert_called_once_with([(self.worker, task)])
+        mock_dispatcher.add_work.assert_called_once_with(self.worker, task)
 
     def test_publish_work_invalid_type(self):
         class InvalidTask(Task):
