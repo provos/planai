@@ -195,6 +195,19 @@ class PlanRefinementWorker(CachedLLMTaskWorker):
         )
 
 
+class SimplePlanAdaptor(TaskWorker):
+    input_types: List[Type[Task]] = [PlanDraft]
+    output_types: List[Type[Task]] = [FinalPlan]
+
+    def consume_work(self, task: PlanDraft):
+        self.publish_work(
+            FinalPlan(
+                plan=task.plan, rationale="This is the draft plan without refinement"
+            ),
+            input_task=task,
+        )
+
+
 def create_planning_graph(
     llm: LLMInterface, name: str = "PlanningWorker", num_variations: int = 3
 ) -> Tuple[Graph, TaskWorker, TaskWorker]:
@@ -207,6 +220,7 @@ def create_planning_graph(
         llm (LLMInterface): Language model interface used by the workers
         name (str, optional): Base name for the graph. Defaults to "PlanningWorker"
         num_variations (int, optional): Number of plan variations to generate. Defaults to 3
+            When set to 0, it will produce a simple plan without going through refinement
 
     Returns:
         Tuple[Graph, TaskWorker, TaskWorker]: A tuple containing:
@@ -229,6 +243,36 @@ def create_planning_graph(
     return graph, entry, refinement
 
 
+def create_simple_planning_graph(
+    llm: LLMInterface, name: str = "SimplePlanningWorker"
+) -> Tuple[Graph, TaskWorker, TaskWorker]:
+    """Creates a simple planning graph with a single worker for plan generation.
+
+    This function sets up a directed graph of workers that generates a plan based on a request.
+
+    Args:
+        llm (LLMInterface): Language model interface used by the workers
+        name (str, optional): Base name for the graph. Defaults to "PlanningWorker"
+
+    Returns:
+        Tuple[Graph, TaskWorker, TaskWorker]: A tuple containing:
+            - The constructed planning graph
+            - The entry worker node
+            - The refinement worker node
+    """
+    graph = Graph(name=f"{name}Graph", strict=True)
+
+    entry = PlanEntryWorker(num_variations=1)
+    creator = PlanCreator(llm=llm)
+    adaptor = SimplePlanAdaptor()
+
+    graph.add_workers(entry, creator, adaptor)
+
+    graph.set_dependency(entry, creator).next(adaptor)
+
+    return graph, entry, adaptor
+
+
 def create_planning_worker(
     llm: LLMInterface, name: str = "PlanningWorker", num_variations: int = 2
 ) -> TaskWorker:
@@ -242,6 +286,7 @@ def create_planning_worker(
     Args:
         llm: LLM interface for plan generation and analysis
         name: Name for the worker
+        num_variations: Number of plan variations to generate. If num_varations is 0, it will use a simple plan adaptor
 
     Input Task:
         PlanRequest: Task containing the original request to create a plan for
@@ -249,9 +294,12 @@ def create_planning_worker(
     Output Task:
         FinalPlan: The refined final plan with rationale
     """
-    graph, entry, refinement = create_planning_graph(
-        llm=llm, name=name, num_variations=num_variations
-    )
+    if num_variations == 0:
+        graph, entry, refinement = create_simple_planning_graph(llm=llm, name=name)
+    else:
+        graph, entry, refinement = create_planning_graph(
+            llm=llm, name=name, num_variations=num_variations
+        )
 
     return SubGraphWorker(
         name=name, graph=graph, entry_worker=entry, exit_worker=refinement

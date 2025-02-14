@@ -10,6 +10,7 @@ from planai.patterns.planner import (
     RefinementRequest,
     create_planning_graph,
     create_planning_worker,
+    create_simple_planning_graph,
 )
 from planai.testing import (
     MockCache,
@@ -165,6 +166,39 @@ class TestPlanner(unittest.TestCase):
         self.assertEqual(len(refinement.plans), 2)
         self.assertEqual(len(refinement.critiques), 2)
         self.assertTrue(all(isinstance(c, PlanCritique) for c in refinement.critiques))
+
+    def test_simple_planning_workflow(self):
+        # Create graph using the simple graph version
+        graph, entry_worker, exit_worker = create_simple_planning_graph(
+            llm=self.mock_llm, name="TestSimplePlanning"
+        )
+        graph.set_sink(exit_worker, FinalPlan)
+
+        # Inject mock cache into graph
+        inject_mock_cache(graph, self.mock_cache)
+
+        # Create initial request
+        request = PlanRequest(request="Create a plan for testing")
+        initial_work = [(entry_worker, request)]
+
+        # Run the graph
+        graph.run(
+            initial_tasks=initial_work, run_dashboard=False, display_terminal=False
+        )
+
+        # Get output tasks
+        output_tasks = graph.get_output_tasks()
+
+        # Should have one final plan
+        self.assertEqual(len(output_tasks), 1)
+        final_plan = output_tasks[0]
+        self.assertIsInstance(final_plan, FinalPlan)
+        self.assertTrue(
+            "Test Plan" in final_plan.plan
+        )  # Verifies content from mock response
+        self.assertEqual(
+            final_plan.rationale, "This is the draft plan without refinement"
+        )
 
 
 if __name__ == "__main__":
