@@ -145,6 +145,7 @@ class TestDispatcher(unittest.TestCase):
         worker._graph = self.graph
         future = Mock()
         task = DummyTask(data="test")
+        self.dispatcher._num_active_tasks = 1
         self.dispatcher._execute_task(worker, task)
         self.dispatcher._task_completed(worker, task, future)
         worker._pre_consume_work.assert_called_once()
@@ -643,6 +644,7 @@ class TestDispatcherThreading(unittest.TestCase):
         )
 
         # Check that the exception was logged
+        dispatcher._num_active_tasks = 1
         with self.assertLogs(level="ERROR") as cm:
             dispatcher._task_completed(
                 worker,

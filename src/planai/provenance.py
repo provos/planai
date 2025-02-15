@@ -340,9 +340,14 @@ class ProvenanceTracker:
         ):
             assert worker._graph and worker._graph._dispatcher
             dispatcher: Dispatcher = worker._graph._dispatcher
+            # the timing here is tricky - we might have had multiple rounds of notifications.
+            # which means new work might get added to the system on the call to remove provenance
+            # but the dispatcher might think that no more work is in the system.
+            dispatcher.create_work_hold()
             dispatcher._task_completed(worker, None, future)
             # now that the notification is really complete, we can remove the provenance and notify the next one
             self._remove_provenance(task, worker)
+            dispatcher.release_work_hold()
 
         assert notifier._graph and notifier._graph._dispatcher
         dispatcher: Dispatcher = notifier._graph._dispatcher

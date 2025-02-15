@@ -62,7 +62,7 @@ import time
 from collections import defaultdict, deque
 from concurrent.futures import ThreadPoolExecutor
 from queue import Empty, Queue
-from threading import Event, Lock
+from threading import Event, RLock
 from typing import TYPE_CHECKING, Any, Deque, Dict, List, Optional, Tuple, Type
 
 from .provenance import ProvenanceChain
@@ -100,7 +100,7 @@ class Dispatcher:
         self._web_port = web_port
         self._web_thread = None
 
-        self.task_lock = Lock()
+        self.task_lock = RLock()
         # We have a default Queue for all tasks
         self.work_queue = Queue()
 
@@ -137,7 +137,7 @@ class Dispatcher:
 
         # Add new log management
         self._log_queue = deque(maxlen=1000)  # Keep last 1000 log messages
-        self._log_lock = Lock()
+        self._log_lock = RLock()
 
         self._shutdown_initiated = False
 
@@ -171,6 +171,16 @@ class Dispatcher:
             raise ValueError(f"Graph index {index} out of range")
         return self._graphs[index]
 
+    def _check_all_tasks_completed(self):
+        with self.task_lock:
+            if (
+                self._num_active_tasks == 0
+                and self.work_queue.empty()
+                and all(q.empty() for q in self._per_worker_queue.values())
+            ):
+                return True
+            return False
+
     def decrement_active_tasks(self, worker: TaskWorker) -> bool:
         """
         Decrements the count of active tasks by 1.
@@ -190,11 +200,14 @@ class Dispatcher:
                     ):
                         self.work_available.set()
             self._num_active_tasks -= 1
+            if self._num_active_tasks < 0:
+                raise ValueError("Number of active tasks is negative")
             if (
                 self._num_active_tasks == 0
                 and self.work_queue.empty()
                 and all(q.empty() for q in self._per_worker_queue.values())
             ):
+                logging.info("All tasks completed")
                 return True
             return False
 
@@ -453,6 +466,18 @@ class Dispatcher:
         else:
             # Fallback in case _provenance is empty
             return f"unknown_{id(task)}"
+
+    def create_work_hold(self):
+        """Artificially increment the number of active tasks to prevent completion."""
+        with self.task_lock:
+            self._num_active_tasks += 1
+
+    def release_work_hold(self):
+        """Release the artificial hold we created and check whether work remains."""
+        with self.task_lock:
+            self._num_active_tasks -= 1
+            if self._num_active_tasks == 0 and self._check_all_tasks_completed():
+                self.task_completion_event.set()
 
     def _task_completed(self, worker: TaskWorker, task: Optional[Task], future):
         success: bool = False
