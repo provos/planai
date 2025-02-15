@@ -246,22 +246,13 @@ class WorkBufferContext:
         self.worker._local.ctx = None
 
     def get_input_and_outputs(self):
-        return self.input_task, [entry[1] for entry in self.work_buffer]
+        return self.input_task, self.work_buffer
 
     def _flush_work_buffer(self):
         self.work_buffer.clear()
 
     def add_to_buffer(self, consumer: "TaskWorker", task: Task):
         self.work_buffer.append((consumer, task))
-        if self.worker._graph and self.worker._graph._dispatcher:
-            logging.info(
-                "Worker %s publishing work to buffer with consumer %s",
-                self.worker.name,
-                consumer.name,
-            )
-            self.worker._graph._dispatcher.add_work(consumer, task)
-        else:
-            self.worker._dispatch_work(task)
 
 
 class TaskWorker(BaseModel, ABC):
@@ -275,7 +266,7 @@ class TaskWorker(BaseModel, ABC):
         output_types (List[Type[Task]]): Types of tasks this worker can produce
         num_retries (int): Number of times to retry failed tasks
         _id (int): Internal worker ID counter
-        _consumers (Dict[Type[Task], TaskWorker]): Registered downstream consumers
+        _consumers (Dict[Type[Task], List[TaskWorker]]): Registered downstream consumers
         _graph (Optional[Graph]): Reference to containing workflow graph
         _instance_id (UUID): Unique worker instance identifier
         _local (threading.local): Thread-local storage
@@ -286,7 +277,7 @@ class TaskWorker(BaseModel, ABC):
 
     _state_lock: threading.RLock = PrivateAttr(default_factory=threading.RLock)
     _id: int = PrivateAttr(default=0)
-    _consumers: Dict[Type[Task], TaskWorker] = PrivateAttr(default_factory=dict)
+    _consumers: Dict[Type[Task], List[TaskWorker]] = PrivateAttr(default_factory=dict)
     _graph: Optional["Graph"] = PrivateAttr(default=None)
     _instance_id: uuid.UUID = PrivateAttr(default_factory=uuid.uuid4)
     _local: threading.local = PrivateAttr(default_factory=threading.local)
@@ -576,7 +567,12 @@ class TaskWorker(BaseModel, ABC):
         """
         pass
 
-    def publish_work(self, task: Task, input_task: Optional[Task]):
+    def publish_work(
+        self,
+        task: Task,
+        input_task: Optional[Task],
+        consumer: Optional[TaskWorker] = None,
+    ):
         """
         Publish a work item.
 
@@ -587,6 +583,7 @@ class TaskWorker(BaseModel, ABC):
         Args:
             task (Task): The work item to be published.
             input_task (Task): The input task that led to this work item.
+            consumer (TaskWorker): The TaskWorker to publish to if there are multiple consumers for the task type.
 
         Raises:
             ValueError: If the task type is not in the output_types or if no consumer is registered for the task type.
@@ -604,35 +601,78 @@ class TaskWorker(BaseModel, ABC):
         task._add_input_provenance(input_task)
         task._add_worker_provenance(self)
 
-        logging.info(
-            "Task %s published work with provenance %s", self.name, task._provenance
-        )
-
         # find the consumer for this task to publish to
-        consumer = self._get_consumer(task)
+        consumer = self._get_consumer(task, worker=consumer)
 
         logging.info(
-            "Worker %s publishing work to consumer %s with task type %s",
+            "Worker %s publishing work to consumer %s with task type %s and provenance %s",
             self.name,
             consumer.name,
             task.__class__.__name__,
+            task._provenance,
         )
+
+        if self._graph and self._graph._dispatcher:
+            logging.info(
+                "Worker %s publishing work to buffer with consumer %s",
+                self.name,
+                consumer.name,
+            )
+            self._graph._dispatcher.add_work(consumer, task)
+        else:
+            self._dispatch_work(task)
 
         # this requires that anything that might call publish_work is wrapped in a work_buffer_context
         self._local.ctx.add_to_buffer(consumer, task)
 
-    def _get_consumer(self, task: Task) -> TaskWorker:
+    def _get_consumer_by_name(self, task: Task, worker_name: str) -> TaskWorker:
         # Verify if there is a consumer for the given task class
-        consumer = self._consumers.get(task.__class__)
-        if consumer is None:
+        consumers = self._consumers.get(task.__class__)
+        if not consumers:
             logging.error(
                 "%s: No consumer registered for %s, available consumers: %s",
                 self.name,
                 task.__class__.__name__,
-                [c.name for c in self._consumers.values()],
+                [c.name for consumers in self._consumers.values() for c in consumers],
             )
             raise ValueError(f"No consumer registered for {task.__class__.__name__}")
-        return consumer
+        for consumer in consumers:
+            if consumer.name == worker_name:
+                return consumer
+        raise ValueError(
+            f"No consumer registered for {task.__class__.__name__} with name {worker_name}"
+        )
+
+    def _get_consumer(
+        self, task: Task, worker: Optional[TaskWorker] = None
+    ) -> TaskWorker:
+        # Verify if there is a consumer for the given task class
+        consumers = self._consumers.get(task.__class__)
+        if not consumers:
+            logging.error(
+                "%s: No consumer registered for %s, available consumers: %s",
+                self.name,
+                task.__class__.__name__,
+                [c.name for consumers in self._consumers.values() for c in consumers],
+            )
+            raise ValueError(f"No consumer registered for {task.__class__.__name__}")
+        if len(consumers) == 1:
+            if worker and consumers[0] != worker:
+                raise ValueError(
+                    f"Worker {worker.name} is not a registered consumer for {task.__class__.__name__}"
+                )
+            return consumers[0]
+        if worker is None:
+            raise ValueError(
+                f"Multiple consumers registered for {task.__class__.__name__}, specify worker_name"
+            )
+
+        if worker not in consumers:
+            raise ValueError(
+                f"Worker {worker.name} is not a registered consumer for {task.__class__.__name__}"
+            )
+
+        return worker
 
     def completed(self):
         """Called to let the worker know that it has finished processing all work."""
@@ -652,7 +692,7 @@ class TaskWorker(BaseModel, ABC):
             self.unwatch(prefix)
 
     def _dispatch_work(self, task: Task):
-        consumer: Optional[TaskWorker] = self._consumers.get(task.__class__)
+        consumer: Optional[TaskWorker] = self._get_consumer(task)
         assert consumer is not None
         consumer.consume_work(task)
 
@@ -733,6 +773,7 @@ class TaskWorker(BaseModel, ABC):
 
         success, error = self.validate_task(task_cls, consumer)
         if not success:
+            assert error is not None
             raise error
 
         if task_cls not in self.output_types:
@@ -740,9 +781,11 @@ class TaskWorker(BaseModel, ABC):
                 f"Downstream consumer {consumer.name} only accepts work of type {task_cls.__name__} but Worker {self.name} does not produce it"
             )
 
-        if task_cls in self._consumers:
+        if task_cls in self._consumers and consumer in self._consumers[task_cls]:
             raise ValueError(f"Consumer for {task_cls.__name__} already registered")
-        self._consumers[task_cls] = consumer
+        if task_cls not in self._consumers:
+            self._consumers[task_cls] = []
+        self._consumers[task_cls].append(consumer)
 
         # special cases like JoinedTask need to validate that their join_type is upstream
         consumer._validate_connection()

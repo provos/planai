@@ -16,12 +16,15 @@ import hashlib
 import logging
 import sys
 import threading
-from typing import List
+from typing import List, Tuple
 
 from diskcache import Cache
 from pydantic import Field, PrivateAttr
 
 from .task import Task, TaskWorker
+
+# This needs to be changed when we make breaking changes to the cache
+CACHE_PROTOCOL_VERSION: int = 1
 
 
 class CachedTaskWorker(TaskWorker):
@@ -56,7 +59,9 @@ class CachedTaskWorker(TaskWorker):
                 self.consume_work(task)
                 input_task, outputs = self._local.ctx.get_input_and_outputs()
                 # strip private fields from outputs
-                outputs = [task.copy_public() for task in outputs]
+                outputs = [
+                    [consumer.name, task.copy_public()] for consumer, task in outputs
+                ]
                 self._set_cache(input_task, outputs)
 
             self.post_consume_work(task)
@@ -90,7 +95,9 @@ class CachedTaskWorker(TaskWorker):
     def _get_cache_key(self, task: Task) -> str:
         """Generate a unique cache key for the input task."""
         task_dict = task.model_dump()
-        task_str = str(sorted(task_dict.items()))  # Ensure consistent ordering
+        task_str = f"{CACHE_PROTOCOL_VERSION}:" + str(
+            sorted(task_dict.items())
+        )  # Ensure consistent ordering
         task_str += f" - {self.name}"  # Include the task name to avoid collisions
         for output_type in self.output_types:
             task_str += f" - {output_type.__name__}"
@@ -102,10 +109,13 @@ class CachedTaskWorker(TaskWorker):
         """Can be implemented by subclasses to provide additional cache key information."""
         return ""
 
-    def _publish_cached_results(self, cached_results: List[Task], input_task: Task):
+    def _publish_cached_results(
+        self, cached_results: List[Tuple[str, Task]], input_task: Task
+    ):
         """Publish cached results."""
-        for result in cached_results:
-            super().publish_work(result, input_task=input_task)
+        for consumer_name, result in cached_results:
+            consumer = self._get_consumer_by_name(result, consumer_name)
+            super().publish_work(result, input_task=input_task, consumer=consumer)
 
     def _set_cache(self, input_task: Task, cached_results: List[Task]):
         cache_key = self._get_cache_key(input_task)

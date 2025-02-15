@@ -115,9 +115,14 @@ class DummyWorker(TaskWorker):
         pass
 
 
+class DummyWorker2(DummyWorker):
+    pass
+
+
 class TestTaskWorker(unittest.TestCase):
     def setUp(self):
         self.worker = DummyWorker()
+        self.worker2 = DummyWorker2()
 
     def test_name_property(self):
         self.assertEqual(self.worker.name, "DummyWorker")
@@ -178,10 +183,6 @@ class TestTaskWorker(unittest.TestCase):
         mock_dispatcher = Mock()
         graph._dispatcher = mock_dispatcher
 
-        # Create a side effect function that copies the input
-        def copy_input(work_buffer):
-            return work_buffer.copy()
-
         # Set the side effect on the mock
         mock_dispatcher.add_work = CopyingMock()
 
@@ -197,6 +198,33 @@ class TestTaskWorker(unittest.TestCase):
         self.assertEqual(len(task._input_provenance), 1)
         self.assertEqual(task._input_provenance[0], input_task)
         mock_dispatcher.add_work.assert_called_once_with(self.worker, task)
+
+    def test_publish_work_multiple_same_consumers(self):
+        graph = Mock()
+        self.worker._graph = graph
+        mock_dispatcher = Mock()
+        graph._dispatcher = mock_dispatcher
+
+        # Set the side effect on the mock
+        mock_dispatcher.add_work = CopyingMock()
+
+        input_task = DummyTask()
+        task = DummyTask()
+        self.worker.register_consumer(DummyTask, self.worker)
+        self.worker.register_consumer(DummyTask, self.worker2)
+
+        with self.assertRaises(ValueError):
+            with self.worker.work_buffer_context(input_task):
+                self.worker.publish_work(task, input_task)
+
+        with self.worker.work_buffer_context(input_task):
+            self.worker.publish_work(task, input_task, self.worker2)
+
+        self.assertEqual(len(task._provenance), 1)
+        self.assertEqual(task._provenance[0][0], self.worker.name)
+        self.assertEqual(len(task._input_provenance), 1)
+        self.assertEqual(task._input_provenance[0], input_task)
+        mock_dispatcher.add_work.assert_called_once_with(self.worker2, task)
 
     def test_publish_work_invalid_type(self):
         class InvalidTask(Task):
@@ -215,7 +243,7 @@ class TestTaskWorker(unittest.TestCase):
 
     def test_dispatch_work(self):
         consumer = Mock()
-        self.worker._consumers[DummyTask] = consumer
+        self.worker._consumers[DummyTask] = [consumer]
         task = DummyTask()
         self.worker._dispatch_work(task)
         consumer.consume_work.assert_called_once_with(task)
@@ -245,7 +273,7 @@ class TestTaskWorker(unittest.TestCase):
     def test_register_consumer(self):
         consumer = DummyWorker()
         self.worker.register_consumer(DummyTask, consumer)
-        self.assertIs(self.worker._consumers[DummyTask], consumer)
+        self.assertListEqual(self.worker._consumers[DummyTask], [consumer])
 
     def test_register_consumer_invalid_task(self):
         with self.assertRaises(TypeError):
