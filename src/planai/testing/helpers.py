@@ -188,6 +188,7 @@ class InvokeTaskWorker:
 
 
 def add_input_provenance(input_task: Task, provenance: Task) -> Task:
+    """A helper to add input provenance to a test task in case a worker depends on it."""
     input_task._input_provenance.append(provenance)
     return input_task
 
