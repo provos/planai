@@ -153,7 +153,7 @@ class Graph(BaseModel):
             worker = graph.get_worker_by_input_type(ImageTask)
         """
         for worker in self.workers:
-            if input_type == worker.get_task_class():
+            if input_type in worker.get_task_classes():
                 return worker
         return None
 
@@ -196,8 +196,23 @@ class Graph(BaseModel):
         if downstream not in self.dependencies[upstream]:
             self.dependencies[upstream].append(downstream)
             if register:
+                potential_task_classes: List[Type[Task]] = downstream.get_task_classes()
+                potential_output_types: List[Type[Task]] = upstream.output_types
+                # intersect the two lists
+                task_classes = set(potential_task_classes).intersection(
+                    potential_output_types
+                )
+                if not task_classes:
+                    raise ValueError(
+                        f"Worker {upstream.name} does not produce any task types that worker {downstream.name} can consume."
+                    )
+                if len(task_classes) > 1:
+                    raise ValueError(
+                        f"Worker {upstream.name} produces multiple task types that worker {downstream.name} can consume. Please specify the task type."
+                    )
+                output_type = task_classes.pop()
                 upstream.register_consumer(
-                    task_cls=downstream.get_task_class(),
+                    task_cls=output_type,
                     consumer=downstream,
                 )
 
@@ -474,6 +489,13 @@ class Graph(BaseModel):
         self.set_entry(*[x[0] for x in initial_tasks])
         # Finalize the graph (compute distances)
         self.finalize()
+
+        # Check special needs for all workers
+        for worker in self.workers:
+            if hasattr(worker, "_validate_post_register") and callable(
+                worker._validate_post_register
+            ):
+                worker._validate_post_register()
 
         # let the workers know that we are about to start
         self.init_workers()

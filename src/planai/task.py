@@ -711,15 +711,28 @@ class TaskWorker(BaseModel, ABC):
         Returns:
             Tuple[bool, Optional[BaseException]]: A tuple containing a boolean indicating success and an exception if validation failed.
         """
-        # Ensure consumer has a consume_work method taking task_cls as parameter
-        first_param_type = consumer.get_task_class()
-
-        if first_param_type is not task_cls:
+        if task_cls not in consumer.get_task_classes():
             return False, TypeError(
-                f"TaskWorker {consumer.__class__.__name__} cannot consume tasks of type {task_cls.__name__}. It can only consume tasks of type {first_param_type.__name__}"
+                f"TaskWorker {consumer.__class__.__name__} cannot consume tasks of type {task_cls.__name__}. It can only consume tasks of type {[t.name for t in consumer.get_task_classes()]}"
             )
 
         return True, None
+
+    def get_task_classes(self) -> List[Type[Task]]:
+        """
+        Get the Task subclasses that this worker can consume.
+
+        This method checks for the task types provided in consume_work.
+
+        Returns:
+            List[Type[Task]]: The list of Task subclasses this worker can consume.
+
+        Raises:
+            AttributeError: If the consume method is not defined.
+            TypeError: If the consume method is not properly
+            typed.
+        """
+        return [self.get_task_class()]
 
     def get_task_class(self) -> Type[Task]:
         """

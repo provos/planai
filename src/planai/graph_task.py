@@ -74,9 +74,9 @@ class SubGraphWorkerInternal(TaskWorker):
         self.graph.finalize()  # compute the worker distances
         self.graph.init_workers()
 
-    def get_task_class(self) -> Type[Task]:
+    def get_task_classes(self) -> List[Type[Task]]:
         # usually the entry task gets dynamically determined from consume_work but we are overriding it here
-        return self.entry_worker.get_task_class()
+        return self.entry_worker.get_task_classes()
 
     def init(self):
         # we need to install the graph dispatcher into the sub-graph
