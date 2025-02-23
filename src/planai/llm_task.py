@@ -278,7 +278,5 @@ class CachedLLMTaskWorker(CachedTaskWorker, LLMTaskWorker):
         """Generate a unique cache key for the input task including the prompt template and model name."""
         upstream_cache_key = super()._get_cache_key(task)
 
-        upstream_cache_key += (
-            f" - {self.system_prompt} - {self.prompt} - {self.llm.model_name}"
-        )
+        upstream_cache_key += f" - {self.system_prompt} - {self.get_full_prompt(task)} - {self.llm.model_name}"
         return hashlib.sha1(upstream_cache_key.encode()).hexdigest()
