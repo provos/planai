@@ -56,6 +56,18 @@ class JoinedWorker(JoinedTaskWorker):
         self.publish_work(output, tasks[0])
 
 
+class IncorrectWorker(TaskWorker):
+    output_types: List[Type[Task]] = [OutputTask]
+
+    def pre_consume_work(self, task: Task):
+        # this is a function only avaiable in CachedTaskWorker
+        pass
+
+    def consume_work(self, task: InputTask):
+        output = OutputTask(result=f"Processed: {task.data}")
+        self.publish_work(output, task)
+
+
 class TestMockCache(unittest.TestCase):
     def setUp(self):
         self.cache = MockCache()
@@ -114,6 +126,13 @@ class TestInvokeTaskWorker(unittest.TestCase):
         worker.assert_published_task_types([JoinedOutputTask])
         self.assertEqual(published[0].results, ["result1", "result2", "result3"])
 
+    def test_incorrect_pre_consume_work(self):
+        worker = InvokeTaskWorker(IncorrectWorker)
+        input_task = InputTask(data="test")
+
+        with self.assertRaises(RuntimeError):
+            worker.invoke(input_task)
+
     def test_wrong_invocation_method(self):
         regular_worker = InvokeTaskWorker(SimpleWorker)
         joined_worker = InvokeTaskWorker(JoinedWorker)
@@ -123,6 +142,13 @@ class TestInvokeTaskWorker(unittest.TestCase):
 
         with self.assertRaises(TypeError):
             joined_worker.invoke(InputTask(data="test"))
+
+    def test_wrong_type_invocation(self):
+        worker = InvokeTaskWorker(SimpleWorker)
+        input_task = OutputTask(result="test")
+
+        with self.assertRaises(TypeError):
+            worker.invoke(input_task)
 
 
 class TestHelperFunctions(unittest.TestCase):

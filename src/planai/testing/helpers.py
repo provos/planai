@@ -100,6 +100,9 @@ class InvokeTaskWorker:
             def watch(self, prefix, notifier):
                 return True
 
+            def print(self, *args, **kwargs):
+                pass
+
         self.context = TestTaskContext()
         self.worker = worker_class(**kwargs)
         self.worker._graph = MockGraph()
@@ -141,8 +144,30 @@ class InvokeTaskWorker:
         original_publish_work = self._setup_patch()
         self.context.current_input_task = input_task
 
+        if not any(
+            input_task.is_type(task_type)
+            for task_type in self.worker.get_task_classes()
+        ):
+            raise TypeError(
+                f"Input task {input_task} is not a valid task for worker {self.worker.name}"
+            )
+
         try:
+            if hasattr(self.worker, "pre_consume_work"):
+                if hasattr(self.worker, "_cache"):
+                    self.worker.pre_consume_work(input_task)
+                else:
+                    raise RuntimeError(
+                        "Worker does not have a cache, you should not define pre_consume_work"
+                    )
             self.worker.consume_work(input_task)
+            if hasattr(self.worker, "post_consume_work"):
+                if hasattr(self.worker, "_cache"):
+                    self.worker.post_consume_work(input_task)
+                else:
+                    raise RuntimeError(
+                        "Worker does not have a cache, you should not define post_consume_work"
+                    )
         finally:
             object.__setattr__(self.worker, "publish_work", original_publish_work)
 
