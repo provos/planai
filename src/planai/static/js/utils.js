@@ -6,18 +6,30 @@ export function formatTime(seconds) {
     return `${hours}h ${minutes}m ${remainingSeconds}s`;
 }
 
+// Helper function to escape HTML special characters
+export function escapeHtml(unsafe) {
+    if (unsafe === null || unsafe === undefined) return '';
+    return String(unsafe)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 export function renderObject(obj, indent = '') {
     return Object.entries(obj).map(([key, value]) => {
-        if (value === null) return `${indent}<strong>${key}:</strong> null`;
+        const escapedKey = escapeHtml(key);
+        if (value === null) return `${indent}<strong>${escapedKey}:</strong> null`;
         if (typeof value === 'object') {
             return `
-                ${indent}<strong>${key}:</strong>
+                ${indent}<strong>${escapedKey}:</strong>
                 <div class="nested-object">
                     ${renderObject(value, indent + '  ')}
                 </div>
             `;
         }
-        return `${indent}<strong>${key}:</strong> ${JSON.stringify(value)}`;
+        return `${indent}<strong>${escapedKey}:</strong> ${escapeHtml(JSON.stringify(value))}`;
     }).join('<br>');
 }
 
