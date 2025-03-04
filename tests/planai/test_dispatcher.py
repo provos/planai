@@ -110,12 +110,13 @@ class SingleThreadedExecutor:
 
 class TestDispatcher(unittest.TestCase):
     def setUp(self):
-        self.graph = Mock(spec=Graph)
+        self.graph = Graph(name="Test Graph")
         self.graph._provenance_tracker = ProvenanceTracker()
         self.dispatcher = Dispatcher(self.graph, start_thread_pool=False)
         self.dispatcher.work_queue = Queue()
         self.dispatcher.stop_event = Event()
         self.dispatcher._thread_pool = SingleThreadedExecutor()
+        self.graph._dispatcher = self.dispatcher
 
     def test_dispatch(self):
         worker = Mock(spec=TaskWorker)
@@ -342,6 +343,76 @@ class TestDispatcher(unittest.TestCase):
         # Clean up
         dispatcher.stop()
         dispatch_thread.join(timeout=1.0)
+
+    def test_user_input_request_response(self):
+        """Test requesting and receiving user input."""
+        task_id = "test_task_123"
+        instruction = "Please provide some input"
+        expected_result = "User provided input"
+        expected_mime_type = "text/plain"
+
+        # Create a task and worker for testing
+        task = DummyTask(data="test")
+        task._provenance = [("TestWorker", 1)]  # Add provenance for task_id generation
+        worker = DummyTaskWorkerSimple()
+        worker._graph = self.graph
+
+        # Mock the _get_task_id method to return our test task_id
+        with patch.object(self.dispatcher, "_get_task_id", return_value=task_id):
+
+            # Flag to track if the thread has completed
+            thread_completed = threading.Event()
+            # Variable to store the result from the thread
+            result_container = {"result": None, "mime_type": None}
+
+            def request_input_thread():
+                try:
+                    # Use the worker's request_user_input method instead
+                    result, mime_type = worker.request_user_input(
+                        task, instruction, ["text/plain"]
+                    )
+
+                    result_container["result"] = result
+                    result_container["mime_type"] = (
+                        mime_type if mime_type else "text/plain"
+                    )
+                    thread_completed.set()
+                except Exception as e:
+                    logging.error(f"Exception in request thread: {e}")
+                    thread_completed.set()
+
+            # Start a thread that will call request_user_input
+            input_thread = threading.Thread(target=request_input_thread)
+            input_thread.start()
+
+            # Give the thread time to make the request
+            time.sleep(0.1)
+
+            # Verify that a request was added
+            self.dispatcher._dispatch_user_requests()
+            self.assertEqual(len(self.dispatcher.user_pending_requests), 1)
+            self.assertTrue(task_id in self.dispatcher.user_pending_requests)
+            self.assertEqual(
+                self.dispatcher.user_pending_requests[task_id].instruction, instruction
+            )
+
+            # Provide a result for the request
+            self.dispatcher.set_user_input_result(
+                task_id, expected_result, expected_mime_type
+            )
+
+            # Wait for the thread to complete with a timeout
+            thread_completed.wait(timeout=1.0)
+            self.assertTrue(
+                thread_completed.is_set(), "Thread did not complete in time"
+            )
+
+            # Verify the result
+            self.assertEqual(result_container["result"], expected_result)
+            self.assertEqual(result_container["mime_type"], expected_mime_type)
+
+            # Verify that the request was removed
+            self.assertEqual(len(self.dispatcher.user_pending_requests), 0)
 
 
 class TestDispatcherThreading(unittest.TestCase):

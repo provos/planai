@@ -24,6 +24,7 @@ from .llm_task import BaseLLMTaskWorker, CachedLLMTaskWorker, LLMTaskWorker
 from .provenance import ProvenanceChain
 from .pydantic_dict_wrapper import PydanticDictWrapper
 from .task import Task, TaskWorker
+from .user_input import UserInputRequest
 
 # Limit what gets imported with "from planai import *"
 __all__ = [
@@ -44,4 +45,5 @@ __all__ = [
     "ProvenanceChain",
     "PydanticDictWrapper",
     "SubGraphWorker",
+    "UserInputRequest",
 ]

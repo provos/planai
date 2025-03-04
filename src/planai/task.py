@@ -32,6 +32,7 @@ from typing import (
 
 from pydantic import BaseModel, Field, PrivateAttr
 
+from planai.user_input import UserInputRequest
 from planai.utils import dict_dump_xml
 
 if TYPE_CHECKING:
@@ -808,7 +809,7 @@ class TaskWorker(BaseModel, ABC):
 
     def request_user_input(
         self,
-        task: "Task",
+        task: Task,
         instruction: str,
         accepted_mime_types: List[str] = ["text/html"],
     ) -> Tuple[Any, Optional[str]]:
@@ -838,7 +839,13 @@ class TaskWorker(BaseModel, ABC):
             raise RuntimeError("Graph or Dispatcher is not initialized.")
 
         task_id = self._graph._dispatcher._get_task_id(task)
-        result, mime_type = self._graph._dispatcher.request_user_input(
-            task_id, instruction, accepted_mime_types
+
+        request = UserInputRequest(
+            task_id=task_id,
+            instruction=instruction,
+            provenance=tuple(task.copy_provenance()),
+            accepted_mime_types=accepted_mime_types,
         )
+
+        result, mime_type = self._graph.wait_on_user_request(request)
         return result, mime_type

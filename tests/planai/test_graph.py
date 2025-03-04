@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Type
 from planai.graph import Graph
 from planai.provenance import ProvenanceChain
 from planai.task import Task, TaskWorker
+from planai.user_input import UserInputRequest
 
 # Dummy task and worker classes for testing
 
@@ -559,6 +560,136 @@ class TestGraph(unittest.TestCase):
         self.assertEqual(len(Child2Worker.received_tasks), 1)
         self.assertEqual(Child1Worker.received_tasks[0], "initial-to-child1")
         self.assertEqual(Child2Worker.received_tasks[0], "initial-to-child2")
+
+
+class TestUserRequestCallback(unittest.TestCase):
+    def setUp(self):
+        # Create a simple graph for testing
+        self.graph = Graph(name="Test User Request")
+
+        # Create a task with metadata for testing
+        self.test_task = Task()
+        self.test_task._provenance = [("InitialTaskWorker", 1)]
+        self.test_metadata = {"key": "value"}
+        self.graph._provenance_tracker.add_state(
+            self.test_task.prefix(1), self.test_metadata, None
+        )
+
+    def tearDown(self):
+        if self.graph._dispatcher:
+            self.graph.shutdown()
+
+    def test_user_request_callback(self):
+        # Create a test callback that puts a result in the response queue
+        callback_called = False
+        callback_args = []
+        test_response = ("Test response data", "text/plain")
+
+        def test_callback(metadata, request):
+            nonlocal callback_called, callback_args
+            callback_called = True
+            callback_args = [metadata, request]
+            # In a real callback, this would happen after user interaction
+            request._response_queue.put(test_response)
+
+        # Set the callback
+        self.graph.set_user_request_callback(test_callback)
+
+        # Create a user input request
+        test_request = UserInputRequest(
+            task_id="test-id",
+            instruction="Please provide input",
+            provenance=self.test_task._provenance,
+            accepted_mime_types=["text/plain"],
+        )
+
+        # Wait for user input
+        result, mime_type = self.graph.wait_on_user_request(test_request)
+
+        # Verify the callback was called with the right arguments
+        self.assertTrue(callback_called)
+        self.assertEqual(callback_args[0], self.test_metadata)
+        self.assertEqual(callback_args[1], test_request)
+
+        # Verify the result is correct
+        self.assertEqual(result, test_response[0])
+        self.assertEqual(mime_type, test_response[1])
+
+    def test_user_request_from_worker(self):
+        # Define task types for our test
+        class InputTask(Task):
+            prompt: str
+
+        class OutputTask(Task):
+            result: str
+
+        # Define a worker that will make a user request
+        class UserRequestWorker(TaskWorker):
+            output_types: List[Type[Task]] = [OutputTask]
+
+            def consume_work(self, task: InputTask):
+                # Worker requests user input during processing
+                user_input, mime_type = self.request_user_input(
+                    task=task,
+                    instruction=f"Please respond to: {task.prompt}",
+                    accepted_mime_types=["text/plain"],
+                )
+
+                # Process the user input and publish result
+                result_text = f"Processed: {user_input} ({mime_type})"
+                self.publish_work(OutputTask(result=result_text), input_task=task)
+
+        # Set up callback tracking
+        callback_invoked = False
+        received_request = None
+        test_response_data = "User provided answer"
+        test_mime_type = "text/plain"
+
+        def user_request_callback(metadata, request):
+            nonlocal callback_invoked, received_request
+            callback_invoked = True
+            received_request = request
+            # Simulate user providing a response
+            self.assertEqual(metadata["test_key"], "test_value")
+            self.assertEqual(metadata["prompt_id"], "12345")
+            request._response_queue.put((test_response_data, test_mime_type))
+
+        # Create and configure the graph
+        graph = Graph(name="User Request Test")
+        worker = UserRequestWorker()
+        graph.add_worker(worker)
+        graph.set_entry(worker)
+        graph.set_sink(worker, OutputTask)
+        graph.set_user_request_callback(user_request_callback)
+
+        # Add task metadata to be tracked
+        metadata = {"test_key": "test_value", "prompt_id": "12345"}
+
+        # Run the graph with an initial task
+        initial_task = InputTask(prompt="What is the answer?")
+        graph.prepare(display_terminal=False, run_dashboard=False)
+
+        graph.add_work(worker, initial_task, metadata=metadata)
+
+        graph.execute([])
+
+        # Verify the callback was invoked
+        self.assertTrue(callback_invoked)
+        self.assertIsNotNone(received_request)
+        self.assertEqual(
+            received_request.instruction, "Please respond to: What is the answer?"
+        )
+
+        # Verify the output task contains the processed response
+        output_tasks = graph.get_output_tasks()
+        self.assertEqual(len(output_tasks), 1)
+        self.assertEqual(
+            output_tasks[0].result,
+            f"Processed: {test_response_data} ({test_mime_type})",
+        )
+
+        # Clean up
+        graph.shutdown()
 
 
 if __name__ == "__main__":

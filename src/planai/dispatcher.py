@@ -452,11 +452,9 @@ class Dispatcher:
             if task_id in self.user_pending_requests:
                 request: UserInputRequest = self.user_pending_requests.pop(task_id)
                 # Provide the result to the requesting TaskWorker's queue
-                request._response_queue.put(
-                    (
-                        result,
-                        mime_type,
-                    )
+                request.respond(
+                    result,
+                    mime_type,
                 )
 
     def _get_task_id(self, task: Task) -> str:
@@ -663,19 +661,9 @@ class Dispatcher:
         )
         self._web_thread.start()
 
-    def request_user_input(
-        self,
-        task_id: str,
-        instruction: str,
-        accepted_mime_types: List[str] = ["text/html"],
-    ) -> Any:
-        request = UserInputRequest(
-            task_id=task_id,
-            instruction=instruction,
-            accepted_mime_types=accepted_mime_types,
-        )
-        self.user_input_requests.put(request)
-        return request._response_queue.get()  # Block until result is available
+    def get_user_input_requests_queue(self) -> Queue:
+        """Get the user input requests queue."""
+        return self.user_input_requests
 
     def add_log(self, message: str) -> None:
         """Add a log message to the queue."""

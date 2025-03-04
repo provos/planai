@@ -25,6 +25,7 @@ from .dispatcher import Dispatcher
 from .joined_task import InitialTaskWorker
 from .provenance import ProvenanceChain, ProvenanceTracker
 from .task import Task, TaskStatusCallback, TaskWorker
+from .user_input import UserInputRequest
 
 # Initialize colorama for Windows compatibility
 init(autoreset=True)
@@ -72,11 +73,15 @@ class Graph(BaseModel):
     _max_parallel_tasks: Dict[Type[TaskWorker], int] = PrivateAttr(default_factory=dict)
     _sink_tasks: List[Type[Task]] = PrivateAttr(default_factory=list)
     _sink_workers: List[TaskWorker] = PrivateAttr(default_factory=list)
-    _initial_worker: TaskWorker = PrivateAttr(default=None)
+    _initial_worker: Optional[TaskWorker] = PrivateAttr(default=None)
     _subgraph_workers: Set[TaskWorker] = PrivateAttr(default_factory=set)
 
     _worker_distances: Dict[str, Dict[str, int]] = PrivateAttr(default_factory=dict)
     _has_terminal: bool = PrivateAttr(default=False)
+
+    _user_request_callback: Optional[
+        Callable[[Dict[str, Any], UserInputRequest], None]
+    ] = PrivateAttr(default=None)
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -233,7 +238,7 @@ class Graph(BaseModel):
         Args:
             worker (TaskWorker): The worker whose output should be collected
             output_type (Type[Task]): The specific task type to collect at this sink
-            notify (Callable[[Dict[str, Any], None], Task], optional): Callback function
+            notify (Callable[[Dict[str, Any], Task], optional): Callback function
                 that receives the task's metadata and the task itself. If provided, tasks
                 won't be stored in the sink's collection.
 
@@ -813,6 +818,50 @@ class Graph(BaseModel):
         self._dispatcher = dispatcher
         self._dispatcher_created = False
         self._dispatcher.register_graph(self)
+
+    def set_user_request_callback(
+        self, callback: Callable[[Dict[str, Any], UserInputRequest], None]
+    ) -> None:
+        """
+        Set a callback function to handle user input requests. The callback will receive task associated
+        metadata and the actual UserInputRequest object.
+        """
+        self._user_request_callback = callback
+
+    def wait_on_user_request(
+        self, request: UserInputRequest
+    ) -> Tuple[Any, Optional[str]]:
+        """Wait for user input request to be completed.
+
+        Args:
+            request (UserInputRequest): The user input request to wait for. Blocks the thread until
+              the user provides input.
+
+        Returns:
+            Tuple[Any, Optional[str]]: A tuple where the first element is the user's input (data), and the second
+              element (if available) is the MIME type of the provided data.
+        """
+
+        if self._user_request_callback:
+            assert request.provenance
+            prefix = request.provenance[:1]
+            metadata = {}
+            state = self._provenance_tracker.get_state(prefix)
+            if state and "metadata" in state:
+                metadata = state["metadata"]
+            self._user_request_callback(metadata, request)
+        else:
+            # the default path is to use the dispatcher dashboard
+            assert self._dispatcher is not None
+            queue = self._dispatcher.get_user_input_requests_queue()
+            queue.put(request)
+
+        # in any case, we expect the consumer of user request to put the result in this queue
+        result, mime_type = (
+            request._response_queue.get()
+        )  # Block until result is available
+
+        return result, mime_type
 
 
 def main():  # pragma: no cover
