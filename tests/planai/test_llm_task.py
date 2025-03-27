@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, Mock, patch
 from llm_interface import LLMInterface
 
 from planai.llm_task import LLMTaskWorker
+from planai.media_task import MediaTask
 from planai.task import Task
 
 
@@ -231,6 +232,55 @@ class TestLLMTaskWorkerInputType(unittest.TestCase):
             mock_publish.assert_called_once_with(
                 task=output_task, input_task=input_task
             )
+
+
+class DummyMediaTask(MediaTask):
+    content: str
+
+
+class TestLLMTaskWorkerWithMediaTask(unittest.TestCase):
+    def setUp(self):
+        self.llm = LLMInterface()
+        self.mock_client = Mock()
+        self.llm.client = self.mock_client
+        self.worker = LLMTaskWorker(
+            llm=self.llm, prompt="Test prompt", output_types=[DummyOutputTask]
+        )
+
+    def test_images_passed_to_llm(self):
+        # Create a MediaTask with images
+        image_urls = ["image1.jpg", "image2.jpg"]
+        media_task = DummyMediaTask(content="Test with images", images=image_urls)
+
+        # Mock the LLM's generate_pydantic method
+        output_task = DummyOutputTask(result="Test output")
+        self.llm.generate_pydantic = Mock(return_value=output_task)
+
+        # Call _invoke_llm with the media task
+        with patch("planai.llm_task.LLMTaskWorker.publish_work"):
+            self.worker._invoke_llm(media_task)
+
+        # Verify that generate_pydantic was called with the correct images parameter
+        self.llm.generate_pydantic.assert_called_once()
+        called_kwargs = self.llm.generate_pydantic.call_args[1]
+        self.assertEqual(called_kwargs["images"], image_urls)
+
+    def test_images_not_passed_for_regular_task(self):
+        # Create a regular Task (not a MediaTask)
+        regular_task = DummyTask(content="Test without images")
+
+        # Mock the LLM's generate_pydantic method
+        output_task = DummyOutputTask(result="Test output")
+        self.llm.generate_pydantic = Mock(return_value=output_task)
+
+        # Call _invoke_llm with the regular task
+        with patch("planai.llm_task.LLMTaskWorker.publish_work"):
+            self.worker._invoke_llm(regular_task)
+
+        # Verify that generate_pydantic was called with images=None
+        self.llm.generate_pydantic.assert_called_once()
+        called_kwargs = self.llm.generate_pydantic.call_args[1]
+        self.assertIsNone(called_kwargs["images"])
 
 
 if __name__ == "__main__":

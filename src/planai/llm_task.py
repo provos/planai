@@ -22,6 +22,7 @@ from llm_interface import LLMInterface
 from pydantic import ConfigDict, Field
 
 from .cached_task import CachedTaskWorker
+from .media_task import MediaTask
 from .task import Task, TaskWorker
 
 PROMPT_TEMPLATE = dedent(
@@ -153,6 +154,7 @@ class LLMTaskWorker(BaseLLMTaskWorker):
             ),
             debug_saver=save_debug_with_task if self.debug_mode else None,
             extra_validation=extra_validation_with_task,
+            images=task.images if isinstance(task, MediaTask) else None,
         )
 
         self.post_process(response=response, input_task=task)
