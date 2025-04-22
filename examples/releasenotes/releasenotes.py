@@ -129,11 +129,8 @@ class DiffAnalyzer(CachedLLMTaskWorker):
     """
     ).strip()
 
-    def post_process(self, response: DiffAnalysis, input_task: Task):
-        commit: CommitDiff = input_task.find_input_task(CommitDiff)
-        if commit is None:
-            raise ValueError("Input task not found")
-        response.commit_hash = commit.commit_hash
+    def post_process(self, response: DiffAnalysis, input_task: CommitDiff):
+        response.commit_hash = input_task.commit_hash
         return super().post_process(response, input_task)
 
 
