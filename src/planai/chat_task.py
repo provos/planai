@@ -47,11 +47,6 @@ class ChatTaskWorker(BaseLLMTaskWorker):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # the chat worker is special in that it does not generate any Pydantic objects
-        if self.llm.support_structured_outputs or self.llm.support_json_mode:
-            raise ValueError(
-                "ChatTaskWorker does not support structured outputs. Please provide the correct LLMInterface object."
-            )
 
     def _format_messages(self, messages: List[ChatMessage]):
         formatted_messages = [
@@ -68,5 +63,7 @@ class ChatTaskWorker(BaseLLMTaskWorker):
         return formatted_messages
 
     def consume_work(self, task: ChatTask):
-        response = self.llm.chat(self._format_messages(task.messages))
+        response = self.llm.chat(
+            self._format_messages(task.messages), allow_json_mode=False
+        )
         self.publish_work(ChatMessage(role="assistant", content=response), task)
