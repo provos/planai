@@ -45,6 +45,14 @@ class ChatTaskWorker(BaseLLMTaskWorker):
     output_types: List[Type[Task]] = [ChatMessage]
     system_prompt: str = "You are a helpful AI assistant. Today is {date}."
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # the chat worker is special in that it does not generate any Pydantic objects
+        if self.llm.support_structured_outputs or self.llm.support_json_mode:
+            raise ValueError(
+                "ChatTaskWorker does not support structured outputs. Please provide the correct LLMInterface object."
+            )
+
     def _format_messages(self, messages: List[ChatMessage]):
         formatted_messages = [
             {

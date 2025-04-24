@@ -27,6 +27,8 @@ class TestChatTaskWorker(unittest.TestCase):
         ]
 
         self.mock_llm = MockLLM(responses=self.responses)
+        self.mock_llm.support_json_mode = False
+        self.mock_llm.support_structured_outputs = False
         self.invoke_worker = InvokeTaskWorker(ChatTaskWorker, llm=self.mock_llm)
 
     def test_basic_chat(self):
