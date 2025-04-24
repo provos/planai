@@ -33,7 +33,7 @@ html2text = "^2024.2.26"
 dicttoxml = "^1.7.16"
 psutil = "^6.1.1"
 waitress = "^3.0.2"
-llm-interface = "^0.1.5"
+llm-interface = "^0.1.10"
 
 
 [tool.poetry.group.dev.dependencies]
