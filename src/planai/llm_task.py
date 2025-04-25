@@ -135,9 +135,7 @@ class LLMTaskWorker(BaseLLMTaskWorker):
 
         response = self.llm.generate_pydantic(
             prompt_template=(
-                PROMPT_TEMPLATE
-                if processed_task is not None
-                else "{instructions}"
+                (PROMPT_TEMPLATE if processed_task is not None else "{instructions}")
                 + (
                     PROMPT_FORMAT_INSTRUCTIONS
                     if not self.llm.support_structured_outputs
@@ -166,9 +164,7 @@ class LLMTaskWorker(BaseLLMTaskWorker):
 
         return self.llm.generate_full_prompt(
             prompt_template=(
-                PROMPT_TEMPLATE
-                if processed_task is not None
-                else "{instructions}"
+                (PROMPT_TEMPLATE if processed_task is not None else "{instructions}")
                 + (
                     PROMPT_FORMAT_INSTRUCTIONS
                     if not self.llm.support_structured_outputs

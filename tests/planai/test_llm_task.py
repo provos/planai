@@ -177,6 +177,84 @@ class TestLLMTaskWorkerPromptTemplate(unittest.TestCase):
         self.assertIn("{instructions}", template_arg)
         self.assertIn("{format_instructions}", template_arg)
 
+    def test_get_full_prompt_variations(self):
+        # Scenario 1: pre_process returns a task, support_structured_outputs=True
+        worker_processed_structured = LLMTaskWorker(
+            llm=self.llm, prompt="Test instruction", output_types=[DummyOutputTask]
+        )
+        worker_processed_structured.llm.support_structured_outputs = True
+        worker_processed_structured.llm.generate_full_prompt = Mock(
+            return_value="test prompt"
+        )
+        input_task = DummyTask(content="Test content")
+
+        _ = worker_processed_structured.get_full_prompt(input_task)
+        worker_processed_structured.llm.generate_full_prompt.assert_called_once()
+        template_arg = worker_processed_structured.llm.generate_full_prompt.call_args[
+            1
+        ]["prompt_template"]
+        self.assertIn("{task}", template_arg)
+        self.assertIn("{instructions}", template_arg)
+        self.assertNotIn("{format_instructions}", template_arg)
+
+        # Scenario 2: pre_process returns a task, support_structured_outputs=False
+        worker_processed_no_structure = LLMTaskWorker(
+            llm=self.llm, prompt="Test instruction", output_types=[DummyOutputTask]
+        )
+        worker_processed_no_structure.llm.support_structured_outputs = False
+        worker_processed_no_structure.llm.generate_full_prompt = Mock(
+            return_value="test prompt"
+        )
+
+        _ = worker_processed_no_structure.get_full_prompt(input_task)
+        worker_processed_no_structure.llm.generate_full_prompt.assert_called_once()
+        template_arg = worker_processed_no_structure.llm.generate_full_prompt.call_args[
+            1
+        ]["prompt_template"]
+        self.assertIn("{task}", template_arg)
+        self.assertIn("{instructions}", template_arg)
+        self.assertIn("{format_instructions}", template_arg)
+
+        # Scenario 3: pre_process returns None, support_structured_outputs=True
+        worker_no_processed_structured = CustomLLMTaskWorker(
+            llm=self.llm, prompt="Test instruction", output_types=[DummyOutputTask]
+        )
+        worker_no_processed_structured.llm.support_structured_outputs = True
+        worker_no_processed_structured.llm.generate_full_prompt = Mock(
+            return_value="test prompt"
+        )
+
+        _ = worker_no_processed_structured.get_full_prompt(input_task)
+        worker_no_processed_structured.llm.generate_full_prompt.assert_called_once()
+        template_arg = (
+            worker_no_processed_structured.llm.generate_full_prompt.call_args[1][
+                "prompt_template"
+            ]
+        )
+        self.assertNotIn("{task}", template_arg)
+        self.assertIn("{instructions}", template_arg)
+        self.assertNotIn("{format_instructions}", template_arg)
+
+        # Scenario 4: pre_process returns None, support_structured_outputs=False
+        worker_no_processed_no_structure = CustomLLMTaskWorker(
+            llm=self.llm, prompt="Test instruction", output_types=[DummyOutputTask]
+        )
+        worker_no_processed_no_structure.llm.support_structured_outputs = False
+        worker_no_processed_no_structure.llm.generate_full_prompt = Mock(
+            return_value="test prompt"
+        )
+
+        _ = worker_no_processed_no_structure.get_full_prompt(input_task)
+        worker_no_processed_no_structure.llm.generate_full_prompt.assert_called_once()
+        template_arg = (
+            worker_no_processed_no_structure.llm.generate_full_prompt.call_args[1][
+                "prompt_template"
+            ]
+        )
+        self.assertNotIn("{task}", template_arg)
+        self.assertIn("{instructions}", template_arg)
+        self.assertIn("{format_instructions}", template_arg)
+
 
 class InputTask(Task):
     data: str
