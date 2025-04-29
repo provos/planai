@@ -18,6 +18,8 @@ from planai import (
 )
 from planai.utils import setup_logging
 
+EXCLUDE_FILES: List[str] = ["poetry.lock"]
+
 
 class InitialCommit(Task):
     """Task containing the initial repository information"""
@@ -84,6 +86,20 @@ class DiffWorker(CachedTaskWorker):
         repo = Repo(self.repo_path)
         self._empty_tree_hash = repo.git.hash_object("-t", "tree", "/dev/null")
 
+    def split_in_blocks(self, diff: str) -> List[str]:
+        """Split the diff into blocks based on file changes"""
+        blocks = []
+        current_block = []
+        for line in diff.splitlines():
+            if line.startswith("diff --git"):
+                if current_block:
+                    blocks.append("\n".join(current_block))
+                    current_block = []
+            current_block.append(line)
+        if current_block:
+            blocks.append("\n".join(current_block))
+        return blocks
+
     def show_commit(self, commit_hash: str) -> str:
         """Generate git-show like output for a commit"""
         repo = Repo(self.repo_path)
@@ -98,9 +114,17 @@ class DiffWorker(CachedTaskWorker):
                 "-U10",  # Include 10 lines of context
                 no_color=True,
             )
-            return show_output
+
+            blocks = self.split_in_blocks(show_output)
+            # Filter out excluded files
+            filtered_blocks = []
+            for block in blocks:
+                first_line = block.splitlines()[0]
+                if not any(excluded in first_line for excluded in EXCLUDE_FILES):
+                    filtered_blocks.append(block)
+            return "\n".join(filtered_blocks)
         except Exception as e:
-            print(f"Error getting diff for {commit_hash}: {e}")
+            self.print(f"Error getting diff for {commit_hash}: {e}")
             return ""
 
     def consume_work(self, task: CommitDiff):
