@@ -10,6 +10,7 @@
 
 ## Table of Contents
 - [Key Features](#key-features)
+- [PlanAIEditor](#planaieditor)
 - [Requirements](#requirements)
 - [Installation](#installation)
 - [Usage](#usage)
@@ -29,6 +30,23 @@
 - **Intelligent Data Routing**: Utilize type-aware routing to efficiently manage data flow between nodes, adapting to multiple downstream consumers.
 - **Input Provenance Tracking**: Trace the lineage and origin of each Task as it flows through the workflow, enabling detailed analysis and debugging of complex processes.
 - **Automatic Prompt Optimization**: Improve your LLM prompts using data and AI-driven optimization
+
+## PlanAIEditor
+
+PlanAIEditor is a graphical user interface (GUI) for visually building and managing AI workflows using the PlanAI framework. It provides a node-based interface built with Svelte 5 and svelte-flow, allowing users to:
+
+- Visually construct PlanAI graphs by creating and connecting Task, TaskWorker, LLMTaskWorker, and JoinedTaskWorker nodes
+- Configure the properties of each node
+- Export the designed graph into a Python module compatible with PlanAI
+- Import existing PlanAI Python modules into the visual editor for modification
+- Execute a PlanAI graph within the UI and see its output
+
+The editor is available as a separate package and can be installed via pip:
+```bash
+pip install planaieditor
+```
+
+For more information about PlanAIEditor, visit [https://github.com/provos/planaieditor](https://github.com/provos/planaieditor).
 
 ## Requirements
 
