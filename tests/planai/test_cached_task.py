@@ -29,9 +29,13 @@ class DummyOutputTask(Task):
     processed_data: str
 
 
+class DummyOutputTask2(Task):
+    processed_data: str
+
+
 # DummyCachedTaskWorker
 class DummyCachedTaskWorker(CachedTaskWorker):
-    output_types: List[Type[Task]] = [DummyOutputTask]
+    output_types: List[Type[Task]] = [DummyOutputTask, DummyOutputTask2]
 
     def consume_work(self, task: DummyInputTask):
         processed_data = f"Processed: {task.data}"
@@ -44,6 +48,11 @@ class DummyCachedTaskWorker(CachedTaskWorker):
 
 class SinkTaskWorker(TaskWorker):
     def consume_work(self, task: DummyOutputTask):
+        pass
+
+
+class SinkTaskWorker2(TaskWorker):
+    def consume_work(self, task: DummyOutputTask2):
         pass
 
 
@@ -141,6 +150,38 @@ class TestCachedTaskWorker(unittest.TestCase):
                     )
 
             mock_super_publish.assert_called_once()
+
+    def test_single_consumer_different_cached_consumer_name(self):
+        task = DummyInputTask(data="test")
+        another_sink_worker = SinkTaskWorker2()
+        self.worker.register_consumer(DummyOutputTask2, another_sink_worker)
+        cached_result = [
+            ("DifferentConsumer", DummyOutputTask(processed_data="Cached: test"))
+        ]
+        cache_key = self.worker._get_cache_key(task)
+        self.mock_cache.set(cache_key, [cached_result, task])
+        self.mock_cache.clear_stats()
+
+        with patch.object(
+            self.worker, "_get_consumer", return_value=self.sink_worker
+        ) as mock_get_consumer:
+            self.worker._pre_consume_work(task)
+            mock_get_consumer.assert_called_once_with(cached_result[0][1])
+
+    def test_two_consumers_invalid_consumer_name(self):
+        second_sink_worker = SinkTaskWorker()
+        self.worker.register_consumer(DummyOutputTask, second_sink_worker)
+
+        task = DummyInputTask(data="test")
+        cached_result = [
+            ("NonExistentConsumer", DummyOutputTask(processed_data="Cached: test"))
+        ]
+        cache_key = self.worker._get_cache_key(task)
+        self.mock_cache.set(cache_key, [cached_result, task])
+        self.mock_cache.clear_stats()
+
+        with self.assertRaises(ValueError):
+            self.worker._pre_consume_work(task)
 
 
 if __name__ == "__main__":

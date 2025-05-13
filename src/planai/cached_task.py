@@ -113,8 +113,14 @@ class CachedTaskWorker(TaskWorker):
         self, cached_results: List[Tuple[str, Task]], input_task: Task
     ):
         """Publish cached results."""
+        num_consumers = len(self._consumers.get(input_task.__class__, []))
         for consumer_name, result in cached_results:
-            consumer = self._get_consumer_by_name(result, consumer_name)
+            if num_consumers > 1:
+                # If there are multiple consumers, we need to find the correct one
+                consumer = self._get_consumer_by_name(result, consumer_name)
+            else:
+                # If there is only one consumer, we can find it by type
+                consumer = self._get_consumer(result)
             super().publish_work(result, input_task=input_task, consumer=consumer)
 
     def _set_cache(self, input_task: Task, cached_results: List[Task]):

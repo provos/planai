@@ -603,7 +603,8 @@ class TaskWorker(BaseModel, ABC):
         task._add_worker_provenance(self)
 
         # find the consumer for this task to publish to
-        consumer = self._get_consumer(task, worker=consumer)
+        if consumer is None:
+            consumer = self._get_consumer(task, worker=consumer)
 
         logging.info(
             "Worker %s publishing work to consumer %s with task type %s and provenance %s",
@@ -621,7 +622,7 @@ class TaskWorker(BaseModel, ABC):
             )
             self._graph._dispatcher.add_work(consumer, task)
         else:
-            self._dispatch_work(task)
+            self._dispatch_work(consumer, task)
 
         # this requires that anything that might call publish_work is wrapped in a work_buffer_context
         self._local.ctx.add_to_buffer(consumer, task)
@@ -692,8 +693,7 @@ class TaskWorker(BaseModel, ABC):
             # remove the watch - which may already have been removed by the child class
             self.unwatch(prefix)
 
-    def _dispatch_work(self, task: Task):
-        consumer: Optional[TaskWorker] = self._get_consumer(task)
+    def _dispatch_work(self, consumer: TaskWorker, task: Task):
         assert consumer is not None
         consumer.consume_work(task)
 

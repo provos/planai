@@ -245,7 +245,7 @@ class TestTaskWorker(unittest.TestCase):
         consumer = Mock()
         self.worker._consumers[DummyTask] = [consumer]
         task = DummyTask()
-        self.worker._dispatch_work(task)
+        self.worker._dispatch_work(consumer, task)
         consumer.consume_work.assert_called_once_with(task)
 
     def test_validate_task(self):
