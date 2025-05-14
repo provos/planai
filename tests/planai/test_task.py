@@ -266,6 +266,10 @@ class TestTaskWorker(unittest.TestCase):
         success, error = self.worker.validate_task(DummyTask, invalid_consumer)
         self.assertFalse(success)
         self.assertIsInstance(error, TypeError)
+        self.assertEqual(
+            str(error),
+            "TaskWorker InvalidConsumer cannot consume tasks of type DummyTask. It can only consume tasks of type ['Task']",
+        )
 
     def test_get_task_class(self):
         self.assertEqual(self.worker.get_task_class(), DummyTask)

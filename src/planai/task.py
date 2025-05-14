@@ -714,7 +714,7 @@ class TaskWorker(BaseModel, ABC):
         """
         if task_cls not in consumer.get_task_classes():
             return False, TypeError(
-                f"TaskWorker {consumer.__class__.__name__} cannot consume tasks of type {task_cls.__name__}. It can only consume tasks of type {[t.name for t in consumer.get_task_classes()]}"
+                f"TaskWorker {consumer.__class__.__name__} cannot consume tasks of type {task_cls.__name__}. It can only consume tasks of type {[t.__name__ for t in consumer.get_task_classes()]}"
             )
 
         return True, None
