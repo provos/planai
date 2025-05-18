@@ -60,7 +60,7 @@ class DummyTaskWorker(TaskWorker):
 
 class LimitedParallelTaskWorker(TaskWorker):
     def consume_work(self, task: DummyTask):
-        time.sleep(0.1)  # Simulate some work
+        time.sleep(0.2)  # Simulate some work
 
 
 class ExceptionRaisingTaskWorker(TaskWorker):
@@ -760,7 +760,7 @@ class TestDispatcherThreading(unittest.TestCase):
         end_time = time.time()
 
         # Calculate the minimum expected time
-        min_expected_time = (num_tasks / max_parallel) * 0.1
+        min_expected_time = (num_tasks / max_parallel) * 0.2
 
         # Assertions
         self.assertEqual(self.dispatcher.total_completed_tasks, num_tasks)
