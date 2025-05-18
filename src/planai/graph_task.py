@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import logging
-from typing import Any, Dict, List, Type
+from typing import Any, Dict, List, Optional, Type
 
 from pydantic import Field, PrivateAttr
 
@@ -27,11 +27,25 @@ class SubGraphWorkerInternal(TaskWorker):
     graph: Graph = Field(
         ..., description="The graph that will be run as part of this TaskWorker"
     )
-    entry_worker: TaskWorker = Field(..., description="The entry point of the graph")
-    exit_worker: TaskWorker = Field(..., description="The exit point of the graph")
+    entry_worker: Optional[TaskWorker] = Field(
+        None, description="The entry point of the graph"
+    )
+    exit_worker: Optional[TaskWorker] = Field(
+        None, description="The exit point of the graph"
+    )
     _state: Dict[str, Any] = PrivateAttr(default_factory=dict)
 
     def model_post_init(self, _: Any):
+        if self.entry_worker is None:
+            if len(self.graph.get_entry_workers()) != 1:
+                raise ValueError(
+                    f"Graph must have exactly one entry worker, got {self.graph.get_entry_workers()}"
+                )
+            self.entry_worker = self.graph.get_entry_workers()[0]
+        if self.exit_worker is None:
+            self.exit_worker = self.graph.get_exit_worker()
+            if self.exit_worker is None:
+                raise ValueError("Graph must have a defined exit worker")
         if len(self.exit_worker.output_types) != 1:
             raise ValueError(
                 f"Exit worker must have exactly one output type, got {self.exit_worker.output_types}"
@@ -62,6 +76,7 @@ class SubGraphWorkerInternal(TaskWorker):
                 task._add_worker_provenance(graph_task)
 
                 # then we can add it to the main graph using the right consumer
+                assert graph_task.exit_worker is not None
                 assert graph_task.exit_worker._graph is not None
                 assert graph_task.exit_worker._graph._dispatcher is not None
                 consumer = graph_task._get_consumer(task)
@@ -76,6 +91,7 @@ class SubGraphWorkerInternal(TaskWorker):
 
     def get_task_classes(self) -> List[Type[Task]]:
         # usually the entry task gets dynamically determined from consume_work but we are overriding it here
+        assert self.entry_worker is not None
         return self.entry_worker.get_task_classes()
 
     def init(self):
@@ -108,6 +124,7 @@ class SubGraphWorkerInternal(TaskWorker):
                 self._state[provenance] = old_task
 
         # and dispatch it to the sub-graph. this also sets the task provenance to InitialTaskWorker
+        assert self.entry_worker is not None
         self.graph._add_work(
             self.entry_worker,
             new_task,
@@ -154,12 +171,15 @@ class SubGraphWorkerInternal(TaskWorker):
 def SubGraphWorker(
     *,
     graph: Graph,
-    entry_worker: TaskWorker,
-    exit_worker: TaskWorker,
+    entry_worker: Optional[TaskWorker] = None,
+    exit_worker: Optional[TaskWorker] = None,
     name: str = "SubGraphWorker",
 ) -> SubGraphWorkerInternal:
     """
     Factory function to create a SubGraphWorker that manages a subgraph within a larger PlanAI graph.
+    If entry or exit worker are not provided, they will be inferred from the graph.
+    The entry worker is the first worker in the subgraph that receives tasks, and the exit worker
+    is the last worker that produces outputs. The exit worker must have exactly one output type.
 
     Parameters
     ----------
@@ -167,9 +187,9 @@ def SubGraphWorker(
         Custom name for the SubGraphWorker class, defaults to "SubGraphWorker"
     graph : Graph
         The graph that will be run as part of this TaskWorker
-    entry_worker : TaskWorker
+    entry_worker : TaskWorker, optional
         The entry point worker of the graph that receives initial tasks
-    exit_worker : TaskWorker
+    exit_worker : TaskWorker, optional
         The exit point worker of the graph that produces final outputs
         Must have exactly one output type
 

@@ -186,10 +186,11 @@ class PlanRefinementWorker(CachedLLMTaskWorker):
     """
     ).strip()
 
-    def format_prompt(self, task):
-        request: PlanRequest = task.find_input_task(PlanRequest)
+    def format_prompt(self, task: Task):
+        request = task.find_input_task(PlanRequest)
         if request is None:
             raise ValueError("PlanRequest not found in critique input tasks")
+        assert isinstance(request, PlanRequest)
         return self.prompt.format(
             request=request.request, context=request.request_context
         )
@@ -239,6 +240,8 @@ def create_planning_graph(
     graph.add_workers(entry, creator, critique, joiner, refinement)
 
     graph.set_dependency(entry, creator).next(critique).next(joiner).next(refinement)
+    graph.set_entry(entry)
+    graph.set_exit(refinement)
 
     return graph, entry, refinement
 
@@ -269,6 +272,8 @@ def create_simple_planning_graph(
     graph.add_workers(entry, creator, adaptor)
 
     graph.set_dependency(entry, creator).next(adaptor)
+    graph.set_entry(entry)
+    graph.set_exit(adaptor)
 
     return graph, entry, adaptor
 
@@ -295,12 +300,10 @@ def create_planning_worker(
         FinalPlan: The refined final plan with rationale
     """
     if num_variations == 0:
-        graph, entry, refinement = create_simple_planning_graph(llm=llm, name=name)
+        graph, _, _ = create_simple_planning_graph(llm=llm, name=name)
     else:
-        graph, entry, refinement = create_planning_graph(
+        graph, _, _ = create_planning_graph(
             llm=llm, name=name, num_variations=num_variations
         )
 
-    return SubGraphWorker(
-        name=name, graph=graph, entry_worker=entry, exit_worker=refinement
-    )
+    return SubGraphWorker(name=name, graph=graph)

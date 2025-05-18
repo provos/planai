@@ -73,6 +73,7 @@ class Graph(BaseModel):
     _max_parallel_tasks: Dict[Type[TaskWorker], int] = PrivateAttr(default_factory=dict)
     _sink_tasks: List[Type[Task]] = PrivateAttr(default_factory=list)
     _sink_workers: List[TaskWorker] = PrivateAttr(default_factory=list)
+    _exit_worker: Optional[TaskWorker] = PrivateAttr(default=None)
     _initial_worker: Optional[TaskWorker] = PrivateAttr(default=None)
     _subgraph_workers: Set[TaskWorker] = PrivateAttr(default_factory=set)
 
@@ -621,6 +622,54 @@ class Graph(BaseModel):
         for worker in workers:
             self._set_dependency(self._initial_worker, worker, register=False)
         return self
+
+    def get_entry_workers(self) -> List[TaskWorker]:
+        """Get the entry workers of the graph.
+
+        Returns:
+            List[TaskWorker]: A list of TaskWorker instances that are entry points in the graph.
+
+        Example:
+            ```
+            entry_workers = graph.get_entry_workers()
+            ```
+        """
+        assert self._initial_worker is not None
+        return self.dependencies.get(self._initial_worker, [])
+
+    def set_exit(self, worker: TaskWorker) -> None:
+        """Set the exit worker for the graph.
+
+        This method designates a specific worker as the exit point of the graph. This is useful
+        for simplifying the creation of subgraphs and provides a programmatic way to define
+        the end of the workflow.
+
+        Args:
+            worker (TaskWorker): The TaskWorker instance to be set as the exit worker.
+
+        Example:
+            ```
+            graph.set_exit_worker(worker)
+            ```
+        """
+        if worker not in self.workers:
+            raise ValueError(
+                f"Worker {worker.name} must be added to the Graph before setting it as an exit worker."
+            )
+        self._exit_worker = worker
+
+    def get_exit_worker(self) -> Optional[TaskWorker]:
+        """Get the exit worker of the graph.
+
+        Returns:
+            Optional[TaskWorker]: The TaskWorker instance that is set as the exit worker, or None if not set.
+
+        Example:
+            ```
+            exit_worker = graph.get_exit_worker()
+            ```
+        """
+        return self._exit_worker
 
     def compute_worker_distances(self):
         for worker in self.workers:

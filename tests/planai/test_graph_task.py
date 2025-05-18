@@ -573,6 +573,22 @@ class TestGraphTask(unittest.TestCase):
         self.assertIn(subgraph_worker, subgraph.dependencies[subgraph._initial_worker])
         self.assertEqual(len(subgraph.dependencies[subgraph._initial_worker]), 1)
 
+    def test_graph_task_setup_with_implicit_entry_and_exit(self):
+        # Create subgraph
+        subgraph = Graph(name="SubGraph")
+        subgraph_worker = SubGraphHandler()
+        subgraph.add_workers(subgraph_worker)
+        subgraph.set_entry(subgraph_worker)
+        subgraph.set_exit(subgraph_worker)
+
+        # Create GraphTask
+        _ = SubGraphWorker(graph=subgraph)
+
+        # Verify that entry worker has been set correctly
+        assert subgraph._initial_worker is not None
+        self.assertIn(subgraph_worker, subgraph.dependencies[subgraph._initial_worker])
+        self.assertEqual(len(subgraph.dependencies[subgraph._initial_worker]), 1)
+
     def test_graph_task_distances(self):
         # Create subgraph with multiple workers
         subgraph = Graph(name="SubGraph")
