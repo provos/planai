@@ -170,7 +170,44 @@ JoinedTaskWorker allows you to combine results from multiple upstream tasks:
             # Aggregation logic here
             pass
 
-When instantiating DataAggregator, you need to specify a TaskWorker as join_type.
+When instantiating DataAggregator, you need to specify a TaskWorker as join_type. The provenance prefix produced by the worker specified by the `join_type` will be the key for the join operation. Once all provenance for the particular provenance prefix has left the graph, the `consume_work_joined` method will be called with all the tasks that have the same provenance prefix.
+
+Subgraphs
+^^^^^^^^^
+
+PlanAI allows you to create nested workflows by encapsulating an entire graph as a single TaskWorker using `SubGraphWorker`. This enables modular, reusable, and composable subgraphs within a larger graph. At the moment, a subgraph is allowed to have only one entry and one exit worker. The expected input and output types need to be provided via code and documentation. In particular, it needs to be possible to python import the input and output types of the subgraph.
+
+Example:
+.. code-block:: python
+
+    from planai import Graph
+    from planai.graph_task import SubGraphWorker
+    # Import or define your TaskWorker classes
+    from my_workers import Task1Worker, Task2Worker, Task3Worker, Task1WorkItem
+
+    # 1. Define a subgraph
+    sub_graph = Graph(name="SubGraphExample")
+    worker1 = Task1Worker()
+    worker2 = Task2Worker()
+    sub_graph.add_workers(worker1, worker2)
+    sub_graph.set_dependency(worker1, worker2)
+    sub_graph.set_entry(worker1)
+    sub_graph.set_exit(worker2)
+
+    # 2. Wrap the subgraph as a TaskWorker
+    subgraph_worker = SubGraphWorker(name="ExampleSubGraph", graph=sub_graph)
+
+    # 3. Integrate into the main graph
+    main_graph = Graph(name="MainWorkflow")
+    final_worker = Task3Worker()
+    main_graph.add_workers(subgraph_worker, final_worker)
+    main_graph.set_dependency(subgraph_worker, final_worker)
+    main_graph.set_entry(subgraph_worker)
+    main_graph.set_exit(final_worker)
+
+    # 4. Run the main graph
+    initial_input = Task1WorkItem(data="start")
+    main_graph.run(initial_tasks=[(subgraph_worker, initial_input)])
 
 Best Practices
 --------------
