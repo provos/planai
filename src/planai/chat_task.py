@@ -64,6 +64,8 @@ class ChatTaskWorker(BaseLLMTaskWorker):
 
     def consume_work(self, task: ChatTask):
         response = self.llm.chat(
-            self._format_messages(task.messages), allow_json_mode=False
+            self._format_messages(task.messages),
+            tools=self.tools if self.tools else None,
+            allow_json_mode=False,
         )
         self.publish_work(ChatMessage(role="assistant", content=response), task)

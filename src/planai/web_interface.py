@@ -92,12 +92,17 @@ selected_graph = 0
 @app.route("/stream")
 def stream():
     def event_stream():
-        global selected_graph
+        global selected_graph, dispatcher
+
         last_data = None
         last_trace = None
         last_requests = None
         last_graphs = None
         while True:
+            if dispatcher is None:
+                time.sleep(0.2)
+                continue
+
             current_data = get_current_data()
             current_trace = get_current_trace(selected_graph)
             current_requests = dispatcher.get_user_input_requests()

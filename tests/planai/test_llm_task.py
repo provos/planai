@@ -5,6 +5,7 @@ from typing import List, Optional, Type
 from unittest.mock import MagicMock, Mock, patch
 
 from llm_interface import LLMInterface
+from llm_interface.llm_tool import Tool as LLMToolInstance
 
 from planai.llm_task import LLMTaskWorker
 from planai.media_task import MediaTask
@@ -21,11 +22,14 @@ class DummyOutputTask(Task):
 
 class TestLLMTaskWorker(unittest.TestCase):
     def setUp(self):
-        self.llm = LLMInterface()
+        self.llm = LLMInterface()  # type: ignore
         self.mock_client = Mock()
         self.llm.client = self.mock_client
         self.worker = LLMTaskWorker(
-            llm=self.llm, prompt="Test prompt", output_types=[DummyOutputTask]
+            llm=self.llm,
+            prompt="Test prompt",
+            output_types=[DummyOutputTask],
+            tools=None,
         )
 
     def test_initialization(self):
@@ -93,6 +97,37 @@ class TestLLMTaskWorker(unittest.TestCase):
 
         self.assertIn("LLM did not return a valid response", log.output[0])
         mock_publish_work.assert_not_called()
+
+    @patch("planai.llm_task.LLMTaskWorker.publish_work")
+    def test_tools_passed_to_llm_interface(self, mock_publish_work):
+        """Test that tools provided to LLMTaskWorker are passed to llm.generate_pydantic."""
+        mock_tool = MagicMock(spec=LLMToolInstance)
+
+        worker_with_tools = LLMTaskWorker(
+            llm=self.llm,
+            prompt="Test prompt for tools",
+            output_types=[DummyOutputTask],
+            tools=[mock_tool],
+        )
+
+        output_task_payload = DummyOutputTask(result="Tool test output")
+        input_task = DummyTask(content="Tool test input")
+
+        with patch.object(
+            self.llm, "generate_pydantic", return_value=output_task_payload
+        ) as mock_generate_pydantic:
+
+            worker_with_tools.consume_work(input_task)
+
+            mock_generate_pydantic.assert_called_once()
+            call_args = mock_generate_pydantic.call_args
+
+            self.assertIn("tools", call_args.kwargs)
+            self.assertEqual(call_args.kwargs["tools"], [mock_tool])
+
+            mock_publish_work.assert_called_once_with(
+                task=output_task_payload, input_task=input_task
+            )
 
     def test_invoke_llm(self):
         input_task = DummyTask(content="Test input")

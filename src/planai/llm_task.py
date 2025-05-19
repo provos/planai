@@ -16,10 +16,10 @@ import json
 import logging
 from pathlib import Path
 from textwrap import dedent
-from typing import Any, Dict, Optional, Type
+from typing import Any, Dict, List, Optional, Type
 
-from llm_interface import LLMInterface
-from pydantic import ConfigDict, Field
+from llm_interface import LLMInterface, Tool
+from pydantic import BaseModel, ConfigDict, Field
 
 from .cached_task import CachedTaskWorker
 from .media_task import MediaTask
@@ -45,19 +45,23 @@ class BaseLLMTaskWorker(TaskWorker):
     llm: LLMInterface = Field(
         ..., title="LLM", description="The LLM to use for the task"
     )
-    system_prompt: str = Field(
-        "You are a helpful AI assistant. Please help the user with the following task and produce output in JSON.",
+    system_prompt: Optional[str] = Field(
+        default="You are a helpful AI assistant. Please help the user with the following task and produce output in JSON.",
         description="The system prompt to use for the task",
+    )
+    tools: Optional[List[Tool]] = Field(
+        default=None,
+        description="The tools that are available for the LLM to use. If not set, no tools are provided to the LLM.",
     )
 
 
 class LLMTaskWorker(BaseLLMTaskWorker):
     llm_output_type: Optional[Type[Task]] = Field(
-        None,
+        default=None,
         description="The output type of the LLM if it differs from the task output type",
     )
     llm_input_type: Optional[Type[Task]] = Field(
-        None,
+        default=None,
         description="The input type of the LLM can be provided here instead of consume_work",
     )
 
@@ -65,18 +69,21 @@ class LLMTaskWorker(BaseLLMTaskWorker):
         ..., title="Prompt", description="The prompt to use for the task"
     )
     debug_mode: bool = Field(
-        False,
+        default=False,
         description="Whether to run the LLM to save prompts and responses in json for debugging",
     )
-    debug_dir: str = Field("debug", description="The directory to save debug output in")
+    debug_dir: str = Field(
+        default="debug", description="The directory to save debug output in"
+    )
     temperature: Optional[float] = Field(
-        None,
+        default=None,
         description="The temperature to use for the LLM. If not set, the LLM default is used",
         le=1.0,
         ge=0.0,
     )
     use_xml: bool = Field(
-        False, description="Whether to use XML format for the data input to the LLM"
+        default=False,
+        description="Whether to use XML format for the data input to the LLM",
     )
 
     def __init__(self, **data):
@@ -117,7 +124,7 @@ class LLMTaskWorker(BaseLLMTaskWorker):
             else task.model_dump_xml()
         )
 
-    def _invoke_llm(self, task: Task) -> Task:
+    def _invoke_llm(self, task: Task):
         # allow subclasses to customize the prompt based on the input task
         task_prompt = self.format_prompt(task)
 
@@ -130,7 +137,8 @@ class LLMTaskWorker(BaseLLMTaskWorker):
             self._save_debug_output(task=task, prompt=prompt, response=response)
 
         # allow subclasses to do extra validation on the response
-        def extra_validation_with_task(response: Task):
+        def extra_validation_with_task(response: BaseModel):
+            assert isinstance(response, Task)
             return self.extra_validation(response, task)
 
         response = self.llm.generate_pydantic(
@@ -144,6 +152,7 @@ class LLMTaskWorker(BaseLLMTaskWorker):
             ),
             output_schema=self._output_type(),
             system=self.system_prompt,
+            tools=self.tools if self.tools else None,
             task=self._format_task(processed_task),
             temperature=self.temperature,
             instructions=task_prompt,
@@ -154,7 +163,7 @@ class LLMTaskWorker(BaseLLMTaskWorker):
             extra_validation=extra_validation_with_task,
             images=task.images if isinstance(task, MediaTask) else None,
         )
-
+        assert isinstance(response, Task) or response is None
         self.post_process(response=response, input_task=task)
 
     def get_full_prompt(self, task: Task) -> str:
