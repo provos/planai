@@ -13,7 +13,7 @@
 # limitations under the License.
 # src/planai/__init__.py
 
-from llm_interface import LLMInterface, llm_from_config
+from llm_interface import LLMInterface, llm_from_config, tool, Tool
 
 from .cached_task import CachedTaskWorker
 from .chat_task import ChatMessage, ChatTask, ChatTaskWorker
@@ -46,4 +46,6 @@ __all__ = [
     "PydanticDictWrapper",
     "SubGraphWorker",
     "UserInputRequest",
+    "tool",
+    "Tool",
 ]
