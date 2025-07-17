@@ -27,24 +27,29 @@ A special type of TaskWorker that integrates with Language Models.
 Here's a basic example of how to create and execute a simple workflow:
 
 ```python
-from planai import Graph, TaskWorker, Task
+from typing import List, Type
+
+from planai import Graph, Task, TaskWorker
+
 
 # Define custom TaskWorkers
 class DataFetcher(TaskWorker):
-    output_types = [FetchedData]
+    output_types: List[Type[Task]] = [FetchedData]
 
     def consume_work(self, task: FetchRequest):
-        # Fetch data from some source
+        # Fetch data from some source - needs to be implemented
         data = self.fetch_data(task.url)
-        self.publish_work(FetchedData(data=data))
+        self.publish_work(FetchedData(data=data), input_task=task)
+
 
 class DataProcessor(TaskWorker):
-    output_types = [ProcessedData]
+    output_types: List[Type[Task]] = [ProcessedData]
 
     def consume_work(self, task: FetchedData):
         # Process the fetched data
         processed_data = self.process(task.data)
-        self.publish_work(ProcessedData(data=processed_data))
+        self.publish_work(ProcessedData(data=processed_data), input_task=task)
+
 
 # Create a graph
 graph = Graph(name="Data Processing Workflow")
@@ -57,9 +62,16 @@ processor = DataProcessor()
 graph.add_workers(fetcher, processor)
 graph.set_dependency(fetcher, processor)
 
+# Let the graph collect all tasks published
+# by the processor with the type ProcessedData
+graph.set_sink(processor, ProcessedData)
+
 # Run the graph
 initial_request = FetchRequest(url="https://example.com/data")
 graph.run(initial_tasks=[(fetcher, initial_request)])
+
+# Get the outputs
+outputs = graph.get_output_tasks()
 ```
 
 ## Integrating AI with LLMTaskWorker
@@ -72,11 +84,11 @@ from planai import LLMTaskWorker, llm_from_config
 class AIAnalyzer(LLMTaskWorker):
     prompt = "Analyze the processed data and provide insights."
     llm_input_type: Type[Task] = ProcessedData
-    output_types = [AnalysisResult]
+    output_types: List[Type[Task]] = [AnalysisResult]
 
 
 # Initialize LLM
-llm = llm_from_config(provider="openai", model_name="gpt-4")
+llm = llm_from_config(provider="openai", model_name="gpt-4o")
 
 # Add to workflow
 ai_analyzer = AIAnalyzer(llm=llm)
@@ -88,17 +100,17 @@ graph.set_dependency(processor, ai_analyzer)
 
 ### Input Provenance
 
-PlanAI provides powerful input provenance tracking capabilities, allowing you to trace the lineage of each Task:
+PlanAI provides powerful input provenance tracking capabilities, allowing you to retrieve any data previously processed in the graph:
 
 ```python
 class AnalysisTask(TaskWorker):
-    output_types = [AnalysisResult]
+    output_types: List[Type[Task]] = [AnalysisResult]
 
     def consume_work(self, task: ProcessedData):
-        # Access the full provenance chain
+        # Complete provenance - not usually required
         provenance = task.copy_provenance()
 
-        # Find a specific input task
+        # Find a specific input task - used frequently
         original_data = task.find_input_task(FetchedData)
 
         # Get the immediately previous input task
@@ -106,9 +118,11 @@ class AnalysisTask(TaskWorker):
 
         # Get the provenance chain for a specific task type
         fetch_provenance = task.prefix_for_input_task(DataFetcher)
+        if fetch_provenance is None:
+            raise ValueError("No fetch provenance found")
 
         # Perform analysis using the provenance information
-        result = self.analyze(task.data, original_data, provenance)
+        result = self.analyze(task.data, original_data)
         self.publish_work(AnalysisResult(result=result), input_task=task)
 ```
 
@@ -128,7 +142,7 @@ Use CachedTaskWorker to avoid redundant computations:
 from planai import CachedTaskWorker
 
 class CachedProcessor(CachedTaskWorker):
-    output_types = [ProcessedData]
+    output_types: List[Type[Task]] = [ProcessedData]
 
     def consume_work(self, task: FetchedData):
         # Processing logic here

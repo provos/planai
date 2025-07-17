@@ -51,7 +51,7 @@ poetry shell
 To verify that PlanAI is installed correctly, you can run:
 
 ```bash
-python -c "import planai; print(planai.__version__)"
+python -c "import planai; print(planai.Task)"
 ```
 
 Or check the CLI:
