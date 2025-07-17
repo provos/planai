@@ -53,13 +53,13 @@ pre-commit run --all-files
 ### Documentation
 ```bash
 # Build Sphinx documentation
-cd docs && make html
+cd docs-astro && npm run build
 
 # View built docs
-open docs/_build/html/index.html
+open dist/index.html
 ```
 
-### CLI Usage
+### CLI Usage - mostly used for debugging and optimization
 ```bash
 # Run the PlanAI CLI
 poetry run planai --help
