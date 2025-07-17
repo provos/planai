@@ -1,0 +1,99 @@
+---
+title: Welcome to PlanAI
+description: Build complex AI workflows with a graph-based architecture
+template: splash
+hero:
+  tagline: A powerful Python framework for creating and orchestrating AI-enhanced workflows using type-safe, graph-based task automation
+  actions:
+    - text: Get Started
+      link: /getting-started/installation/
+      icon: right-arrow
+    - text: View on GitHub
+      link: https://github.com/provos/planai
+      icon: external
+      variant: minimal
+editUrl: false
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## Why PlanAI?
+
+<CardGrid stagger>
+	<Card title="Graph-Based Architecture" icon="seti:config">
+		Build dynamic workflows with interconnected TaskWorkers for highly customizable automation
+	</Card>
+	<Card title="Type-Safe with Pydantic" icon="approve-check">
+		Ensure data integrity and consistency across workflows with Pydantic-validated inputs and outputs
+	</Card>
+	<Card title="LLM Integration" icon="sparkles">
+		Seamlessly combine traditional computations with LLM-powered operations and RAG capabilities
+	</Card>
+	<Card title="Built-in Monitoring" icon="laptop">
+		Track workflow execution in real-time with the integrated web dashboard and provenance tracking
+	</Card>
+</CardGrid>
+
+## Quick Example
+
+```python
+from planai import Graph, TaskWorker, Task, LLMTaskWorker, llm_from_config
+
+# Define a simple data processor
+class DataProcessor(TaskWorker):
+    output_types = [ProcessedData]
+    
+    def consume_work(self, task: RawData):
+        processed = self.process(task.data)
+        self.publish_work(ProcessedData(data=processed))
+
+# Add AI analysis with an LLM
+class AIAnalyzer(LLMTaskWorker):
+    prompt = "Analyze the data and provide insights"
+    output_types = [AnalysisResult]
+
+# Create and run the workflow
+graph = Graph(name="Analysis Pipeline")
+processor = DataProcessor()
+analyzer = AIAnalyzer(llm=llm_from_config("openai", "gpt-4"))
+
+graph.add_workers(processor, analyzer)
+graph.set_dependency(processor, analyzer)
+graph.run(initial_tasks=[(processor, RawData(data="..."))])
+```
+
+## Key Features
+
+<CardGrid>
+	<Card title="Intelligent Routing" icon="random">
+		Type-aware data routing automatically manages flow between nodes
+	</Card>
+	<Card title="Provenance Tracking" icon="list-format">
+		Trace task lineage through the entire workflow for debugging
+	</Card>
+	<Card title="Caching Support" icon="document">
+		Built-in caching for expensive operations and LLM responses
+	</Card>
+	<Card title="Prompt Optimization" icon="setting">
+		AI-driven automatic prompt improvement using production data
+	</Card>
+</CardGrid>
+
+## Next Steps
+
+Ready to build your first AI workflow? Check out our guides:
+
+<CardGrid stagger>
+	<Card title="Installation Guide" icon="rocket">
+		Get PlanAI installed and set up your development environment
+		[Get Started →](/getting-started/installation/)
+	</Card>
+	<Card title="Quick Start Tutorial" icon="open-book">
+		Build your first workflow in minutes with our step-by-step guide
+		[Learn More →](/getting-started/quickstart/)
+	</Card>
+	<Card title="Examples" icon="github">
+		Explore real-world examples including research assistants and Q&A generation
+		[View Examples →](https://github.com/provos/planai/tree/main/examples)
+	</Card>
+</CardGrid>
