@@ -86,7 +86,7 @@ class FirstWorker(TaskWorker):
 
 class LastWorker(TaskWorker):
     # Must produce PipelineOutput
-    output_types = [PipelineOutput]
+    output_types: List[Type[Task]] = [PipelineOutput]
 ```
 
 ## Complex Subgraph Example
@@ -112,7 +112,7 @@ class AnalysisOutput(Task):
 
 # Workers for the subgraph
 class TextPreprocessor(TaskWorker):
-    output_types = [PreprocessedText]
+    output_types: List[Type[Task]] = [PreprocessedText]
     
     def consume_work(self, task: TextInput):
         cleaned = self.clean_text(task.text)
@@ -127,21 +127,21 @@ class TextPreprocessor(TaskWorker):
 class SentimentAnalyzer(LLMTaskWorker):
     prompt = "Analyze the sentiment of this text"
     llm_input_type = PreprocessedText
-    output_types = [SentimentResult]
+    output_types: List[Type[Task]] = [SentimentResult]
 
 class TopicExtractor(LLMTaskWorker):
     prompt = "Extract 3-5 key topics from this text"
     llm_input_type = PreprocessedText
-    output_types = [TopicsResult]
+    output_types: List[Type[Task]] = [TopicsResult]
 
 class Summarizer(LLMTaskWorker):
     prompt = "Provide a concise summary"
     llm_input_type = PreprocessedText
-    output_types = [SummaryResult]
+    output_types: List[Type[Task]] = [SummaryResult]
 
 class ResultAggregator(JoinedTaskWorker):
     join_type = TextPreprocessor
-    output_types = [AnalysisOutput]
+    output_types: List[Type[Task]] = [AnalysisOutput]
     
     def consume_work_joined(self, tasks: List[Task]):
         # Combine all analysis results
@@ -310,7 +310,7 @@ Handle errors within subgraphs:
 
 ```python
 class ErrorHandlingWorker(TaskWorker):
-    output_types = [SuccessResult, ErrorResult]
+    output_types: List[Type[Task]] = [SuccessResult, ErrorResult]
     
     def consume_work(self, task: InputTask):
         try:

@@ -41,7 +41,7 @@ from planai import Graph, TaskWorker, Task, LLMTaskWorker, llm_from_config
 
 # Define a simple data processor
 class DataProcessor(TaskWorker):
-    output_types = [ProcessedData]
+    output_types: List[Type[Task]] = [ProcessedData]
     
     def consume_work(self, task: RawData):
         processed = self.process(task.data)
@@ -50,7 +50,7 @@ class DataProcessor(TaskWorker):
 # Add AI analysis with an LLM
 class AIAnalyzer(LLMTaskWorker):
     prompt = "Analyze the data and provide insights"
-    output_types = [AnalysisResult]
+    output_types: List[Type[Task]] = [AnalysisResult]
 
 # Create and run the workflow
 graph = Graph(name="Analysis Pipeline")

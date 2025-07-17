@@ -44,7 +44,7 @@ Entry point for workflows, introducing external data:
 from planai import InitialTaskWorker
 
 class DataIngester(InitialTaskWorker):
-    output_types = [RawData]
+    output_types: List[Type[Task]] = [RawData]
     
     def generate_initial_tasks(self) -> List[Task]:
         # Fetch data from external sources
@@ -72,7 +72,7 @@ from planai import LLMTaskWorker, llm_from_config
 class TextAnalyzer(LLMTaskWorker):
     prompt = "Analyze this text and extract key insights"
     llm_input_type: Type[Task] = TextData
-    output_types = [AnalysisResult]
+    output_types: List[Type[Task]] = [AnalysisResult]
     
     # Optional: customize system prompt
     system_prompt = "You are an expert text analyst"
@@ -98,7 +98,7 @@ Provides caching for expensive operations:
 from planai import CachedTaskWorker
 
 class ExpensiveProcessor(CachedTaskWorker):
-    output_types = [ProcessedResult]
+    output_types: List[Type[Task]] = [ProcessedResult]
     
     def consume_work(self, task: InputData):
         # This expensive operation will be cached
@@ -122,7 +122,7 @@ from planai import CachedLLMTaskWorker
 class CachedAnalyzer(CachedLLMTaskWorker):
     prompt = "Provide detailed analysis"
     llm_input_type = DocumentData
-    output_types = [Analysis]
+    output_types: List[Type[Task]] = [Analysis]
     
     # Cache responses for 1 hour
     cache_ttl = 3600
@@ -142,7 +142,7 @@ from planai import JoinedTaskWorker
 
 class ResultAggregator(JoinedTaskWorker):
     join_type: Type[TaskWorker] = DataFetcher
-    output_types = [AggregatedResult]
+    output_types: List[Type[Task]] = [AggregatedResult]
     
     def consume_work_joined(self, tasks: List[FetchedData]):
         # All tasks share the same provenance prefix
@@ -199,7 +199,7 @@ Benefits:
 ```python
 class CustomWorker(TaskWorker):
     # Define configuration
-    output_types = [OutputTask]
+    output_types: List[Type[Task]] = [OutputTask]
     config_param: str = "default_value"
     
     def __init__(self, **kwargs):
@@ -236,7 +236,7 @@ class CustomWorker(TaskWorker):
 
 ```python
 class MultiOutputWorker(TaskWorker):
-    output_types = [SuccessResult, ErrorResult, WarningResult]
+    output_types: List[Type[Task]] = [SuccessResult, ErrorResult, WarningResult]
     
     def consume_work(self, task: InputTask):
         if self.validate(task):
@@ -257,7 +257,7 @@ class MultiOutputWorker(TaskWorker):
 
 ```python
 class ConditionalWorker(TaskWorker):
-    output_types = [ProcessedData, SkippedData]
+    output_types: List[Type[Task]] = [ProcessedData, SkippedData]
     
     def should_process(self, task: InputData) -> bool:
         return task.priority > 5
@@ -277,7 +277,7 @@ class ConditionalWorker(TaskWorker):
 
 ```python
 class StatefulWorker(TaskWorker):
-    output_types = [AggregatedData]
+    output_types: List[Type[Task]] = [AggregatedData]
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

@@ -55,7 +55,7 @@ from typing import Type
 class TextSummarizer(LLMTaskWorker):
     prompt = "Summarize the following text in 2-3 sentences"
     llm_input_type: Type[Task] = TextDocument
-    output_types = [Summary]
+    output_types: List[Type[Task]] = [Summary]
 
 # Usage
 summarizer = TextSummarizer(llm=llm)
@@ -73,7 +73,7 @@ class ExpertAnalyzer(LLMTaskWorker):
     system_prompt = """You are a data analysis expert with deep knowledge 
     of statistics and pattern recognition. Provide clear, actionable insights."""
     llm_input_type = DataSet
-    output_types = [Analysis]
+    output_types: List[Type[Task]] = [Analysis]
 ```
 
 ### Structured Output
@@ -94,7 +94,7 @@ class SentimentAnalyzer(LLMTaskWorker):
     prompt = """Analyze the sentiment of this text. 
     Identify key phrases that indicate the sentiment."""
     llm_input_type = TextData
-    output_types = [SentimentResult]
+    output_types: List[Type[Task]] = [SentimentResult]
 ```
 
 The LLM will automatically return data in the format specified by your Pydantic model.
@@ -106,7 +106,7 @@ Generate prompts based on input data:
 ```python
 class ContextualAnalyzer(LLMTaskWorker):
     llm_input_type = Document
-    output_types = [Analysis]
+    output_types: List[Type[Task]] = [Analysis]
     
     def format_prompt(self, task: Document) -> str:
         # Access previous context from provenance
@@ -129,7 +129,7 @@ Control how data is presented to the LLM:
 class FilteredAnalyzer(LLMTaskWorker):
     prompt = "Analyze this filtered data"
     llm_input_type = RawData
-    output_types = [Analysis]
+    output_types: List[Type[Task]] = [Analysis]
     
     def pre_process(self, task: RawData) -> Optional[Task]:
         # Filter sensitive information
@@ -168,7 +168,7 @@ class WeatherTool(Tool):
 class AssistantWorker(LLMTaskWorker):
     prompt = "Help the user with their request"
     llm_input_type = UserRequest
-    output_types = [AssistantResponse]
+    output_types: List[Type[Task]] = [AssistantResponse]
     
     # Enable tool usage
     tools = [WeatherTool()]
@@ -186,7 +186,7 @@ For real-time applications, enable response streaming:
 class StreamingAnalyzer(LLMTaskWorker):
     prompt = "Provide a detailed analysis"
     llm_input_type = Document
-    output_types = [Analysis]
+    output_types: List[Type[Task]] = [Analysis]
     stream = True
     
     def handle_stream(self, chunk: str):
@@ -202,7 +202,7 @@ Monitor and control token usage:
 class TokenAwareAnalyzer(LLMTaskWorker):
     prompt = "Analyze this document"
     llm_input_type = Document
-    output_types = [Analysis]
+    output_types: List[Type[Task]] = [Analysis]
     
     # Set token limits
     max_tokens = 2000
@@ -226,7 +226,7 @@ Implement robust error handling for LLM operations:
 class RobustAnalyzer(LLMTaskWorker):
     prompt = "Analyze this data"
     llm_input_type = DataTask
-    output_types = [Analysis, ErrorResult]
+    output_types: List[Type[Task]] = [Analysis, ErrorResult]
     
     # Retry configuration
     max_retries = 3
@@ -257,7 +257,7 @@ from planai import CachedLLMTaskWorker
 class CachedAnalyzer(CachedLLMTaskWorker):
     prompt = "Perform expensive analysis"
     llm_input_type = ComplexData
-    output_types = [Analysis]
+    output_types: List[Type[Task]] = [Analysis]
     
     # Cache configuration
     cache_ttl = 3600  # 1 hour
@@ -302,12 +302,12 @@ class CachedAnalyzer(CachedLLMTaskWorker):
 class ResearchAssistant(LLMTaskWorker):
     prompt = "Generate search queries for this topic"
     llm_input_type = ResearchTopic
-    output_types = [SearchQueries]
+    output_types: List[Type[Task]] = [SearchQueries]
 
 class Synthesizer(LLMTaskWorker):
     prompt = "Synthesize these search results into a report"
     llm_input_type = SearchResults
-    output_types = [Report]
+    output_types: List[Type[Task]] = [Report]
 
 # Connect in workflow
 graph.add_workers(researcher, search_engine, synthesizer)
@@ -318,7 +318,7 @@ graph.set_dependencies(...)
 
 ```python
 class EnsembleAnalyzer(TaskWorker):
-    output_types = [ConsolidatedAnalysis]
+    output_types: List[Type[Task]] = [ConsolidatedAnalysis]
     
     def __init__(self, llms: List[LLM]):
         super().__init__()
@@ -345,7 +345,7 @@ class EnsembleAnalyzer(TaskWorker):
 class ContextChainWorker(LLMTaskWorker):
     prompt = "Continue the analysis"
     llm_input_type = IntermediateResult
-    output_types = [FinalResult]
+    output_types: List[Type[Task]] = [FinalResult]
     
     def format_prompt(self, task: IntermediateResult) -> str:
         # Build context from provenance chain
@@ -378,7 +378,7 @@ class ContextChainWorker(LLMTaskWorker):
 class DebugAnalyzer(LLMTaskWorker):
     prompt = "Analyze this data"
     llm_input_type = DataTask
-    output_types = [Analysis]
+    output_types: List[Type[Task]] = [Analysis]
     debug_mode = True  # Logs prompts and responses
 ```
 

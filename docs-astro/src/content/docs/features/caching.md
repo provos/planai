@@ -47,7 +47,7 @@ By default, cache keys are generated from the task's data. Customize this behavi
 
 ```python
 class CustomCacheWorker(CachedTaskWorker):
-    output_types = [ProcessedData]
+    output_types: List[Type[Task]] = [ProcessedData]
     
     def get_cache_key(self, task: InputTask) -> str:
         # Custom cache key based on specific fields
@@ -62,7 +62,7 @@ class CustomCacheWorker(CachedTaskWorker):
 
 ```python
 class ConfiguredCacheWorker(CachedTaskWorker):
-    output_types = [Result]
+    output_types: List[Type[Task]] = [Result]
     
     # Cache configuration
     cache_dir = "./my_cache"  # Custom cache directory
@@ -84,7 +84,7 @@ from planai import CachedLLMTaskWorker, llm_from_config
 class CachedAnalyzer(CachedLLMTaskWorker):
     prompt = "Analyze this document and provide insights"
     llm_input_type: Type[Task] = Document
-    output_types = [Analysis]
+    output_types: List[Type[Task]] = [Analysis]
     
     # LLM-specific cache settings
     cache_ttl = 86400  # Cache for 24 hours
@@ -112,7 +112,7 @@ Cache based on specific conditions:
 
 ```python
 class ConditionalCacheWorker(CachedTaskWorker):
-    output_types = [Result]
+    output_types: List[Type[Task]] = [Result]
     
     def should_cache(self, task: InputTask) -> bool:
         # Only cache expensive operations
@@ -141,7 +141,7 @@ Handle cache invalidation with versions:
 
 ```python
 class VersionedCacheWorker(CachedTaskWorker):
-    output_types = [ProcessedData]
+    output_types: List[Type[Task]] = [ProcessedData]
     
     # Algorithm version - increment to invalidate cache
     algorithm_version = "v2.1"
@@ -159,7 +159,7 @@ Implement memory and disk caching:
 from functools import lru_cache
 
 class MultiLevelCacheWorker(CachedTaskWorker):
-    output_types = [Result]
+    output_types: List[Type[Task]] = [Result]
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -196,7 +196,7 @@ class MultiLevelCacheWorker(CachedTaskWorker):
 
 ```python
 class ManagedCacheWorker(CachedTaskWorker):
-    output_types = [Result]
+    output_types: List[Type[Task]] = [Result]
     
     def clear_cache(self):
         """Clear all cached entries"""
@@ -221,7 +221,7 @@ Monitor cache performance:
 
 ```python
 class MonitoredCacheWorker(CachedTaskWorker):
-    output_types = [Result]
+    output_types: List[Type[Task]] = [Result]
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -262,7 +262,7 @@ class MonitoredCacheWorker(CachedTaskWorker):
 
 ```python
 class SmartTTLWorker(CachedTaskWorker):
-    output_types = [Result]
+    output_types: List[Type[Task]] = [Result]
     
     def get_ttl(self, task: InputTask) -> int:
         # Dynamic TTL based on task properties
@@ -280,7 +280,7 @@ Pre-populate cache for common requests:
 
 ```python
 class WarmableCacheWorker(CachedTaskWorker):
-    output_types = [Result]
+    output_types: List[Type[Task]] = [Result]
     
     def warm_cache(self, common_tasks: List[InputTask]):
         """Pre-compute and cache common tasks"""
@@ -295,7 +295,7 @@ Don't cache errors by default:
 
 ```python
 class ErrorAwareCacheWorker(CachedTaskWorker):
-    output_types = [Result, ErrorResult]
+    output_types: List[Type[Task]] = [Result, ErrorResult]
     
     def consume_work(self, task: InputTask):
         try:
@@ -314,7 +314,7 @@ class ErrorAwareCacheWorker(CachedTaskWorker):
 
 ```python
 class SizeLimitedCacheWorker(CachedTaskWorker):
-    output_types = [Result]
+    output_types: List[Type[Task]] = [Result]
     
     # Limit cache size
     cache_size_limit = 1000  # Maximum entries
@@ -337,7 +337,7 @@ import zlib
 import pickle
 
 class CompressedCacheWorker(CachedTaskWorker):
-    output_types = [LargeResult]
+    output_types: List[Type[Task]] = [LargeResult]
     
     def save_to_cache(self, key: str, value: Task):
         # Compress before caching
@@ -361,7 +361,7 @@ Enable cache debugging:
 
 ```python
 class DebugCacheWorker(CachedTaskWorker):
-    output_types = [Result]
+    output_types: List[Type[Task]] = [Result]
     debug_cache = True
     
     def consume_work(self, task: InputTask):

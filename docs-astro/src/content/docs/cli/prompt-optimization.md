@@ -24,8 +24,8 @@ First, enable debug logging in your LLMTaskWorker:
 ```python
 class MyAnalyzer(LLMTaskWorker):
     prompt = "Analyze this data and provide insights"
-    llm_input_type = DataTask
-    output_types = [AnalysisResult]
+    llm_input_type: Type[Task] = DataTask
+    output_types: List[Type[Task]] = [AnalysisResult]
     
     # Enable debug mode to generate logs
     debug_mode = True
@@ -299,8 +299,8 @@ class ReviewSentiment(Task):
 
 class SentimentAnalyzer(LLMTaskWorker):
     prompt = "Analyze the sentiment of this review"
-    llm_input_type = ReviewText
-    output_types = [ReviewSentiment]
+    llm_input_type: Type[Task] = ReviewText
+    output_types: List[Type[Task]] = [ReviewSentiment]
     debug_mode = True
 
 # Collect data (run your normal workflow)

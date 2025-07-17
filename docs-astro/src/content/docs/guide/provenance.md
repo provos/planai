@@ -83,7 +83,7 @@ When multiple search queries are executed in parallel, a join worker can wait fo
 ```python
 class SearchResultAggregator(JoinedTaskWorker):
     join_type: Type[TaskWorker] = SearchInitiator
-    output_types = [ConsolidatedResults]
+    output_types: List[Type[Task]] = [ConsolidatedResults]
     
     def consume_work_joined(self, tasks: List[SearchResult]):
         # All tasks share the same provenance from SearchInitiator

@@ -144,7 +144,7 @@ class SentimentAnalysis(Task):
 
 class SentimentAnalyzer(LLMTaskWorker):
     prompt = "Analyze the sentiment of this text"
-    output_types = [SentimentAnalysis]
+    output_types: List[Type[Task]] = [SentimentAnalysis]
 ```
 
 ## Advanced Prompt Techniques
