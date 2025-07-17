@@ -1,0 +1,181 @@
+---
+import type { Props } from '@astrojs/starlight/components/ContentPanel.astro';
+import Default from '@astrojs/starlight/components/ContentPanel.astro';
+import DocumentToolbar from './DocumentToolbar.astro';
+
+// Get the current route information
+const route = Astro.locals.starlightRoute;
+
+// Check if we should show the toolbar (not on the homepage or special pages)
+const showToolbar = route?.entry?.slug && 
+                   route.entry.slug !== '' && 
+                   route.entry.slug !== '404' &&
+                   !route.entry.slug.endsWith('/404');
+
+// Use a unique class to mark content panels
+const panelId = Math.random().toString(36).substring(7);
+---
+
+<div class="content-panel-wrapper" data-panel-id={panelId}>
+  <Default {...Astro.props}>
+    <slot />
+  </Default>
+</div>
+
+{showToolbar && (
+  <script define:vars={{ panelId, slug: route.entry.slug }}>
+    // Wait for the DOM to be ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', setupToolbar);
+    } else {
+      setupToolbar();
+    }
+    
+    function setupToolbar() {
+      const panel = document.querySelector(`[data-panel-id="${panelId}"]`);
+      if (!panel) return;
+      
+      // Check if this panel contains markdown content
+      const hasMarkdown = panel.querySelector('.sl-markdown-content');
+      
+      // Only add toolbar to the panel with markdown
+      if (hasMarkdown) {
+        const container = panel.querySelector('.sl-container');
+        if (container && !container.querySelector('.document-toolbar')) {
+          // Create toolbar element
+          const toolbarHtml = `
+            <div class="document-toolbar" data-llm-ignore="true">
+              <button
+                class="toolbar-button copy-markdown-btn"
+                data-llms-path="/llms/${slug}.txt"
+                type="button"
+                aria-label="Copy Markdown"
+              >
+                Copy Markdown
+                <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="currentColor" viewBox="0 0 256 256" class="icon">
+                  <rect width="256" height="256" fill="none"></rect>
+                  <path d="M184,64H40a8,8,0,0,0-8,8V216a8,8,0,0,0,8,8H184a8,8,0,0,0,8-8V72A8,8,0,0,0,184,64Zm-8,144H48V80H176ZM224,40V184a8,8,0,0,1-16,0V48H72a8,8,0,0,1,0-16H216A8,8,0,0,1,224,40Z"></path>
+                </svg>
+              </button>
+              
+              <a
+                class="toolbar-button llms-txt-link"
+                href="/llms/${slug}.txt"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="View llms.txt"
+              >
+                llms.txt
+                <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="currentColor" viewBox="0 0 256 256" class="icon">
+                  <rect width="256" height="256" fill="none"></rect>
+                  <path d="M200,64V168a8,8,0,0,1-16,0V83.31L69.66,197.66a8,8,0,0,1-11.32-11.32L172.69,72H88a8,8,0,0,1,0-16H192A8,8,0,0,1,200,64Z"></path>
+                </svg>
+              </a>
+            </div>
+          `;
+          
+          container.insertAdjacentHTML('afterbegin', toolbarHtml);
+          
+          // Initialize copy button
+          const copyBtn = container.querySelector('.copy-markdown-btn');
+          if (copyBtn) {
+            copyBtn.addEventListener('click', async (e) => {
+              const btn = e.currentTarget;
+              const llmsPath = btn.dataset.llmsPath;
+              
+              try {
+                const response = await fetch(llmsPath);
+                if (!response.ok) throw new Error(`Failed to fetch ${llmsPath}`);
+                
+                const content = await response.text();
+                await navigator.clipboard.writeText(content);
+                
+                btn.classList.add('success');
+                const originalHtml = btn.innerHTML;
+                btn.innerHTML = 'Copied! <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="currentColor" viewBox="0 0 256 256" class="icon"><rect width="256" height="256" fill="none"></rect><path d="M229.66,77.66l-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z"></path></svg>';
+                
+                setTimeout(() => {
+                  btn.classList.remove('success');
+                  btn.innerHTML = originalHtml;
+                }, 2000);
+              } catch (err) {
+                console.error('Failed to copy:', err);
+                btn.classList.add('error');
+                const originalHtml = btn.innerHTML;
+                btn.innerHTML = 'Failed to copy';
+                
+                setTimeout(() => {
+                  btn.classList.remove('error');
+                  btn.innerHTML = originalHtml;
+                }, 2000);
+              }
+            });
+          }
+        }
+      }
+    }
+  </script>
+)}
+
+<style>
+  /* Import styles from DocumentToolbar */
+  :global(.document-toolbar) {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    padding-top: 0.5rem;
+  }
+
+  :global(.toolbar-button) {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.5rem;
+    font-size: 0.75rem;
+    line-height: 1rem;
+    font-weight: 600;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.25rem;
+    background-color: transparent;
+    color: var(--sl-color-gray-2);
+    text-decoration: none;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    height: 1.75rem;
+    max-height: 1.75rem;
+  }
+
+  :global(.toolbar-button:hover) {
+    background-color: var(--sl-color-gray-6);
+    color: var(--sl-color-white);
+    border-color: var(--sl-color-gray-4);
+  }
+
+  :global(.toolbar-button .icon) {
+    width: 0.875rem;
+    height: 0.875rem;
+    margin-bottom: 0.125rem;
+  }
+
+  :global(.toolbar-button.success) {
+    background-color: var(--sl-color-green);
+    color: white;
+    border-color: var(--sl-color-green);
+  }
+
+  :global(.toolbar-button.error) {
+    background-color: var(--sl-color-red);
+    color: white;
+    border-color: var(--sl-color-red);
+  }
+
+  :global([data-theme='light'] .toolbar-button) {
+    border-color: var(--sl-color-gray-4);
+    color: var(--sl-color-gray-3);
+  }
+
+  :global([data-theme='light'] .toolbar-button:hover) {
+    background-color: var(--sl-color-gray-6);
+    border-color: var(--sl-color-gray-3);
+  }
+</style>
