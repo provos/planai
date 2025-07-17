@@ -20,13 +20,6 @@ llm = llm_from_config(
     provider="openai",
     model_name="gpt-4"
 )
-
-# Or explicitly (not recommended for production)
-llm = llm_from_config(
-    provider="openai",
-    model_name="gpt-4",
-    api_key="your-api-key"
-)
 ```
 
 ### Ollama (Local Models)
@@ -35,8 +28,7 @@ llm = llm_from_config(
 # Requires Ollama running locally
 llm = llm_from_config(
     provider="ollama",
-    model_name="llama2",
-    api_base="http://localhost:11434"
+    model_name="llama2"
 )
 ```
 
