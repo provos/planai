@@ -1,7 +1,6 @@
 ---
 import type { Props } from '@astrojs/starlight/components/ContentPanel.astro';
 import Default from '@astrojs/starlight/components/ContentPanel.astro';
-import DocumentToolbar from './DocumentToolbar.astro';
 
 // Get the current route information
 const route = Astro.locals.starlightRoute;
@@ -35,11 +34,11 @@ const panelId = Math.random().toString(36).substring(7);
       const panel = document.querySelector(`[data-panel-id="${panelId}"]`);
       if (!panel) return;
       
-      // Check if this panel contains markdown content
-      const hasMarkdown = panel.querySelector('.sl-markdown-content');
+      // Check if this panel contains an h1 tag (page title)
+      const h1Element = panel.querySelector('h1');
       
-      // Only add toolbar to the panel with markdown
-      if (hasMarkdown) {
+      // Only add toolbar to the panel with h1
+      if (h1Element) {
         const container = panel.querySelector('.sl-container');
         if (container && !container.querySelector('.document-toolbar')) {
           // Create toolbar element
@@ -74,7 +73,8 @@ const panelId = Math.random().toString(36).substring(7);
             </div>
           `;
           
-          container.insertAdjacentHTML('afterbegin', toolbarHtml);
+          // Insert toolbar after the h1 element
+          h1Element.insertAdjacentHTML('afterend', toolbarHtml);
           
           // Initialize copy button
           const copyBtn = container.querySelector('.copy-markdown-btn');
@@ -122,8 +122,8 @@ const panelId = Math.random().toString(36).substring(7);
   :global(.document-toolbar) {
     display: flex;
     gap: 0.5rem;
-    margin-bottom: 1.5rem;
-    padding-top: 0.5rem;
+    margin-bottom: 1rem;
+    margin-top: 0.75rem;
   }
 
   :global(.toolbar-button) {
