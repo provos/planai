@@ -15,6 +15,7 @@
 
 from llm_interface import LLMInterface, llm_from_config, tool, Tool
 
+from ._version import __version__
 from .cached_task import CachedTaskWorker
 from .chat_task import ChatMessage, ChatTask, ChatTaskWorker
 from .graph import Graph
@@ -28,6 +29,7 @@ from .user_input import UserInputRequest
 
 # Limit what gets imported with "from planai import *"
 __all__ = [
+    "__version__",
     "Graph",
     "BaseLLMTaskWorker",
     "ChatTaskWorker",

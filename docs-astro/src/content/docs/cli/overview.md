@@ -54,29 +54,21 @@ export OPENAI_API_KEY=your-api-key
 
 ## Available Commands
 
-### monitor
+### cache
 
-Monitor running workflows in real-time:
+Examine the planai cache
 
 ```bash
-# Terminal-based monitoring
-planai monitor
+# Check out the cached tasks
+planai cache ./cache
 
-# Web-based dashboard
-planai monitor --web
-
-# Custom port for web interface
-planai monitor --web --port 8080
-
-# Monitor specific workflow
-planai monitor --workflow "Data Processing Pipeline"
+# Filter cache based on the Output Task
+planai cache --output-task-filter PageResult ./cache
 ```
 
 Options:
-- `--web`: Launch web-based dashboard (default: terminal interface)
-- `--port`: Port for web dashboard (default: 5000)
-- `--workflow`: Filter by workflow name
-- `--refresh`: Refresh interval in seconds (terminal mode)
+- `--clear`: Clear the cache
+- `--output-task-filter`: Filter the output based on the corresponding output task
 
 ### optimize-prompt
 
@@ -114,6 +106,11 @@ Display PlanAI version information:
 planai version
 ```
 
+Output:
+```
+PlanAI version 0.6
+```
+
 ### help
 
 Get help for any command:
@@ -124,22 +121,22 @@ planai --help
 
 # Command-specific help
 planai optimize-prompt --help
-planai monitor --help
+planai cache --help
 ```
 
 ## Common Workflows
 
 ### Development Workflow
 
-During development, use the monitor to track execution:
+During development, use the terminal dashboard to track execution which is enabled by default:
 
 ```bash
-# In one terminal, run your workflow
+# Run your workflow and watch the terminal output
 python my_workflow.py
-
-# In another terminal, monitor execution
-planai monitor --web
 ```
+
+Alternatively, you can pass ```run_dashboard=True``` to the Graph ```run``` or ```prepare``` method.
+By default, this will create a web based dashboard on port ```5000```.
 
 ### Prompt Optimization Workflow
 
@@ -159,107 +156,6 @@ planai --llm-provider openai --llm-model gpt-4o-mini \
   --class-name MyWorker \
   --debug-log debug/MyWorker.json \
   --goal-prompt "Improve response quality"
-```
-
-### Production Monitoring
-
-Set up monitoring for production workflows:
-
-```bash
-# Export metrics to file
-planai monitor --export metrics.json
-
-# Run with custom configuration
-planai --config production.yaml monitor --web
-```
-
-## Configuration Files
-
-Create a `.planai.yaml` configuration file:
-
-```yaml
-# .planai.yaml
-llm:
-  provider: openai
-  model: gpt-4
-  reason_model: gpt-4
-
-monitor:
-  port: 8080
-  refresh_interval: 2
-
-optimize:
-  num_iterations: 5
-  output_dir: ./optimized_prompts
-```
-
-Load configuration:
-
-```bash
-planai --config .planai.yaml <command>
-```
-
-## Exit Codes
-
-PlanAI CLI uses standard exit codes:
-
-- `0`: Success
-- `1`: General error
-- `2`: Invalid arguments
-- `3`: Configuration error
-- `4`: Runtime error
-
-## Debugging
-
-Enable verbose output for debugging:
-
-```bash
-# Verbose mode
-planai -v optimize-prompt ...
-
-# Very verbose mode
-planai -vv optimize-prompt ...
-
-# Debug mode (includes stack traces)
-PLANAI_DEBUG=1 planai optimize-prompt ...
-```
-
-## Shell Completion
-
-Enable tab completion for your shell:
-
-### Bash
-```bash
-eval "$(_PLANAI_COMPLETE=bash_source planai)"
-```
-
-### Zsh
-```bash
-eval "$(_PLANAI_COMPLETE=zsh_source planai)"
-```
-
-### Fish
-```fish
-_PLANAI_COMPLETE=fish_source planai | source
-```
-
-Add to your shell configuration file to make it permanent.
-
-## Integration with Scripts
-
-Use PlanAI CLI in scripts:
-
-```bash
-#!/bin/bash
-
-# Check if workflow completed successfully
-if planai monitor --workflow "ETL Pipeline" --wait --timeout 300; then
-    echo "Workflow completed successfully"
-    planai export-results --workflow "ETL Pipeline" --output results.json
-else
-    echo "Workflow failed or timed out"
-    exit 1
-fi
 ```
 
 ## Next Steps

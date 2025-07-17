@@ -31,7 +31,7 @@ import argparse
 import sys
 from typing import List
 
-from planai import llm_from_config
+from planai import __version__, llm_from_config
 
 from .cli_cache import handle_cache_subcommand
 from .cli_optimize_prompt import optimize_prompt
@@ -133,6 +133,9 @@ def create_parser():
         default=None,
     )
 
+    # Subcommand version
+    subparsers.add_parser("version", help="Display PlanAI version")
+
     return parser
 
 
@@ -142,6 +145,10 @@ def main(args=None):
 
     parser = create_parser()
     parsed_args = parser.parse_args(args)
+
+    if parsed_args.command == "version":
+        print(f"PlanAI version {__version__}")
+        return
 
     if parsed_args.command == "cache":
         handle_cache_subcommand(parsed_args)

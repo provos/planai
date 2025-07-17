@@ -64,9 +64,8 @@ open docs/_build/html/index.html
 # Run the PlanAI CLI
 poetry run planai --help
 
-# Monitor a graph execution
-poetry run planai monitor --web  # Web interface on localhost:5000
-poetry run planai monitor        # Terminal interface
+# Examine the cache
+poetry run planai cache ./cache
 ```
 
 ## Architecture Overview
