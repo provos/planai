@@ -686,7 +686,8 @@ graph = Graph(name="Processing Pipeline")
 
 # Add workers
 worker1 = DataLoader()
-worker2 = DataProcessor()
+llm = llm_from_config(provider="ollama", model_name="gemma3:27b")
+worker2 = DataProcessor(llm=llm)
 worker3 = ResultWriter()
 
 graph.add_workers(worker1, worker2, worker3)

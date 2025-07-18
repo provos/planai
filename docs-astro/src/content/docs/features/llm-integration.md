@@ -87,6 +87,12 @@ class SentimentAnalyzer(LLMTaskWorker):
     Identify key phrases that indicate the sentiment."""
     llm_input_type = TextData
     output_types: List[Type[Task]] = [SentimentResult]
+
+llm = llm_from_config(
+        provider="ollama",
+        model_name="gemma3:27b"
+    )
+worker = SentimentAnalyzer(llm=llm)
 ```
 
 The LLM will automatically return data in the format specified by your Pydantic model.
