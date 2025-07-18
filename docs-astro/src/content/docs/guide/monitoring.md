@@ -36,17 +36,8 @@ graph.run(
 
 ### Terminal Monitoring
 
-For a lightweight terminal-based monitoring option, use the CLI:
-
-```bash
-planai monitor  # Terminal interface
-```
-
-Or with the web interface:
-
-```bash
-planai monitor --web  # Opens web dashboard
-```
+For a lightweight terminal-based monitoring option, use the builtin terminal dashboard which is enabled automatically
+and shows when executing a graph via ```run``` or ```execute```.
 
 ## Dashboard Features
 
@@ -86,10 +77,6 @@ Click on any task to view detailed information:
 
 The dashboard uses server-sent events for live updates without page refreshes:
 
-```python
-# The dashboard automatically subscribes to these events
-# No manual configuration needed
-```
 
 ## Using the Dashboard for Debugging
 
@@ -138,40 +125,19 @@ graph.run(
 
 ### Alternative Monitoring
 
-For production environments, consider:
-
-1. **Logging Integration**: Export metrics to your logging system
-2. **Custom Monitoring**: Implement custom monitoring using PlanAI's hooks
-3. **Metrics Export**: Send metrics to monitoring services (Prometheus, DataDog, etc.)
-
-Example custom monitoring:
+PlanAI emits extensive logs during processing. The best way to capture them is to use the builtin
+```setup_logging``` method:
 
 ```python
-class MonitoredWorker(TaskWorker):
-    def consume_work(self, task: Task):
-        start_time = time.time()
-        
-        try:
-            # Your processing logic
-            result = self.process(task)
-            
-            # Log success metrics
-            self.log_metric("task_processed", 1, {
-                "worker": self.name,
-                "task_type": type(task).__name__,
-                "duration": time.time() - start_time
-            })
-            
-            self.publish_work(result)
-            
-        except Exception as e:
-            # Log failure metrics
-            self.log_metric("task_failed", 1, {
-                "worker": self.name,
-                "error": str(e)
-            })
-            raise
+from planai.utils import setup_logging
+
+def main():
+    setup_logging()
 ```
+
+This will generate two different logs files. One ```general``` log that captures most of PlanAI's operations
+and one ```llm``` log that shows the messages sent and received from LLMs.
+
 
 ## Best Practices
 
@@ -180,23 +146,3 @@ class MonitoredWorker(TaskWorker):
 3. **Production**: Consider security implications before exposing the dashboard
 4. **Debugging**: Save dashboard screenshots when debugging complex issues
 5. **Performance**: Monitor the Active tasks count to identify processing limits
-
-## CLI Monitoring Commands
-
-Monitor your workflows from the command line:
-
-```bash
-# Start web dashboard
-planai monitor --web
-
-# Terminal-based monitoring
-planai monitor
-
-# Custom port
-planai monitor --web --port 8080
-
-# Monitor specific workflow
-planai monitor --workflow "Data Processing Pipeline"
-```
-
-Note: Enabling the dashboard will block the main thread, so it's recommended primarily for development and debugging purposes. For production use, implement a separate monitoring solution that fits your infrastructure.
