@@ -41,19 +41,27 @@ class MyWorker(TaskWorker):
 Entry point for workflows, introducing external data:
 
 ```python
-from planai import InitialTaskWorker
+from typing import List, Type
+from planai import TaskWorker, Task, Graph
 
-class DataIngester(InitialTaskWorker):
+# Need to define RawData and IngestTask types
+
+class DataIngester(TaskWorker):
     output_types: List[Type[Task]] = [RawData]
     
-    def generate_initial_tasks(self) -> List[Task]:
+    def consume_work(self, task: IngestTask):
         # Fetch data from external sources
-        data_items = self.fetch_from_database()
+        data_items = self.fetch_from_database(task.sql_query)
         
-        return [
-            RawData(content=item) 
-            for item in data_items
-        ]
+        # Publish each row as a separate task to the graph
+        for item in data_items:
+            self.publish_work(RawData(content=item), input_task=task)
+
+# Additional set up for the graph needed for downstream processing of RawData
+graph = Graph(name='Example')
+worker = DataIngester()
+graph.add_worker(worker)
+graph.run(initial_tasks=[(worker, IngestTask(sql_query='SELECT * FROM table;'))])
 ```
 
 Use cases:
@@ -79,6 +87,10 @@ class TextAnalyzer(LLMTaskWorker):
     
     # Optional: use XML format for complex text
     use_xml = True
+
+# Graph setup omitted
+llm = llm_from_config(provider='ollama', model_name='gemma3:4b')
+worker = TextAnalyzer(llm=llm)
 ```
 
 Features:
@@ -103,7 +115,7 @@ class ExpensiveProcessor(CachedTaskWorker):
     def consume_work(self, task: InputData):
         # This expensive operation will be cached
         result = self.expensive_computation(task)
-        self.publish_work(ProcessedResult(data=result))
+        self.publish_work(ProcessedResult(data=result), input_task=task)
 ```
 
 Benefits:
@@ -123,15 +135,10 @@ class CachedAnalyzer(CachedLLMTaskWorker):
     prompt = "Provide detailed analysis"
     llm_input_type = DocumentData
     output_types: List[Type[Task]] = [Analysis]
-    
-    # Cache responses for 1 hour
-    cache_ttl = 3600
 ```
 
-Perfect for:
-- Development (avoid repeated API calls)
-- Deterministic LLM responses
-- Cost optimization
+This helps during development to save model costs or avoiding repeat processing if a graph fails to run. Any changes
+to the prompt, model or input_data will lead to a new cache key.
 
 ### JoinedTaskWorker
 
@@ -240,17 +247,17 @@ class MultiOutputWorker(TaskWorker):
     
     def consume_work(self, task: InputTask):
         if self.validate(task):
-            self.publish_work(SuccessResult(data=task.data))
+            self.publish_work(SuccessResult(data=task.data), input_task=task)
         elif self.has_warnings(task):
             self.publish_work(WarningResult(
                 data=task.data,
                 warnings=self.get_warnings(task)
-            ))
+            ), input_task=task)
         else:
             self.publish_work(ErrorResult(
                 error="Validation failed",
                 input_data=task.data
-            ))
+            ), input_task=task)
 ```
 
 #### Conditional Processing
@@ -265,12 +272,12 @@ class ConditionalWorker(TaskWorker):
     def consume_work(self, task: InputData):
         if self.should_process(task):
             result = self.heavy_processing(task)
-            self.publish_work(ProcessedData(data=result))
+            self.publish_work(ProcessedData(data=result), input_task=task)
         else:
             self.publish_work(SkippedData(
                 reason="Low priority",
                 original=task
-            ))
+            ), input_task=task)
 ```
 
 #### Stateful Workers
@@ -279,20 +286,21 @@ class ConditionalWorker(TaskWorker):
 class StatefulWorker(TaskWorker):
     output_types: List[Type[Task]] = [AggregatedData]
     
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.buffer = []
-        self.buffer_size = 10
-    
     def consume_work(self, task: InputData):
-        self.buffer.append(task)
+        state = self.get_worker_state(task.prefix(1))
+        if "buffer" not in state:
+            state["buffer"] = []
+        buffer = state["buffer"]
+        buffer.append(task)
         
-        if len(self.buffer) >= self.buffer_size:
-            # Process batch
+        if len(buffer) >= 5:
+            # Flush buffer for some other processing like analytics
             result = self.process_batch(self.buffer)
-            self.publish_work(AggregatedData(data=result))
-            self.buffer.clear()
+            del state["buffer"]
 ```
+
+State created with self.get_worker_state() will be automatically deleted when the provenance prefix that was used to
+retrieve it leaves the graph.
 
 ## Worker Lifecycle
 

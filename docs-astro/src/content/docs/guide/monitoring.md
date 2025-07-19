@@ -144,5 +144,5 @@ and one ```llm``` log that shows the messages sent and received from LLMs.
 1. **Development**: Always enable the dashboard during development
 2. **Testing**: Use the dashboard to verify workflow behavior
 3. **Production**: Consider security implications before exposing the dashboard
-4. **Debugging**: Save dashboard screenshots when debugging complex issues
-5. **Performance**: Monitor the Active tasks count to identify processing limits
+4. **Debugging**: Best done via the emitted logs in ```general``` although the dashboard shows failing tasks as well.
+5. **Performance**: Monitor the Active, Queued and Failed tasks. Adjust parallelism for individual LLMTaskWorkers.

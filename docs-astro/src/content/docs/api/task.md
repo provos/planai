@@ -208,6 +208,9 @@ def add_private_state(self, key: str, value: Any) -> None:
 
 ### get_private_state
 
+This is very advanced functionality that most users of PlanAI should not
+make use of. Most use cases can be satisfied by retrieving provenance task data vis ```find_input_task```. See also how to manage state in [TaskWorker](/api/taskworker/).
+
 ```python
 def get_private_state(self, key: str) -> Any:
     """Retrieve and remove private state data"""
@@ -215,15 +218,16 @@ def get_private_state(self, key: str) -> Any:
 
 Example usage:
 ```python
-class SubGraphWorker(TaskWorker):
+class ExampleWorker(TaskWorker):
     def consume_work(self, task: Task):
         # Store original task for later retrieval
         new_task.add_private_state("metadata", task)
         # Process through subgraph...
         
-    def on_subgraph_complete(self, result_task: Task):
+class DownstreamWorker(TaskWorker):
+    def consume_work(self, task: Task):
         # Retrieve original task
-        original = result_task.get_private_state("metadata")
+        original = task.get_private_state("metadata")
         # Continue processing...
 ```
 

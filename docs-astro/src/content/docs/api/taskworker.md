@@ -664,7 +664,10 @@ class Broadcaster(TaskWorker):
 ### State-Driven Processing
 ```python
 class StatefulProcessor(TaskWorker):
+    output_tasks: List[Type[Task]] = [NormalResult, AggregatedResult]
     def consume_work(self, task: StateTask):
+        # this state is conditioned on the input provenance
+        # tasks with a different prefix will get their own state
         state = self.get_worker_state(task.prefix(1))
         
         if 'counter' not in state:
@@ -676,7 +679,14 @@ class StatefulProcessor(TaskWorker):
             # Process after collecting 5 tasks
             result = AggregatedResult(count=state['counter'])
             self.publish_work(result, input_task=task)
+        else:
+            # Regular processing
+            result = NormalResult()
+            self.publish_work(result, input_task=task)
 ```
+
+This can be useful when looping in the graph and needing to terminate processing
+after the specific number of retries.
 
 ## Integration with Graphs
 
