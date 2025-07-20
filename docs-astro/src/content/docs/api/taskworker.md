@@ -247,11 +247,11 @@ def pre_process(self, task: Task) -> Optional[Task]:
 def post_process(self, response: Optional[Task], input_task: Task):
     """Post-process LLM response"""
     if response:
-        self.publish_work(response, input_task)
+        self.publish_work(response, input_task=input_task)
         # Optionally publish additional tasks
         self.publish_work(
             StatusUpdate(message="Plan created"),
-            input_task
+            input_task=input_task
         )
 ```
 
@@ -299,7 +299,7 @@ class SearchSummarizer(LLMTaskWorker):
             extraction=response.extraction
         )
         
-        self.publish_work(analysis, input_task)
+        self.publish_work(analysis, input_task=input_task)
 ```
 
 ### CachedLLMTaskWorker
@@ -483,7 +483,7 @@ class AnalysisJoiner(JoinedTaskWorker):
     def consume_work_joined(self, tasks: List[PhaseAnalysis]):
         """Process aggregated tasks"""
         combined = PhaseAnalyses(analyses=tasks)
-        self.publish_work(combined, tasks[0])
+        self.publish_work(combined, input_task=tasks[0])
 ```
 
 ### Key Features
@@ -555,7 +555,7 @@ class PlanWorker(LLMTaskWorker):
     
     def post_process(self, response: Plan, input_task: Request):
         # Publish the plan for downstream processing
-        self.publish_work(response, input_task)
+        self.publish_work(response, input_task=input_task)
         
         # Also publish a status update
         status = Response(
@@ -563,7 +563,7 @@ class PlanWorker(LLMTaskWorker):
             phase="plan",
             message=response.response
         )
-        self.publish_work(status, input_task)
+        self.publish_work(status, input_task=input_task)
 ```
 
 ### Complex Workflow Coordination

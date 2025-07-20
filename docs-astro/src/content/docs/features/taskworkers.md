@@ -21,7 +21,7 @@ class MyWorker(TaskWorker):
         result = self.process(task)
         
         # Publish output
-        self.publish_work(OutputTask(data=result))
+        self.publish_work(OutputTask(data=result), input_task=task)
 ```
 
 ### Key Attributes

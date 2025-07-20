@@ -192,7 +192,7 @@ class AnalysisJoiner(JoinedTaskWorker):
         # Tasks are automatically grouped by their provenance prefix
         # for the join_type worker
         combined = PhaseAnalyses(analyses=tasks)
-        self.publish_work(combined, tasks[0])
+        self.publish_work(combined, input_task=tasks[0])
 ```
 
 ## Private State Management

@@ -315,7 +315,7 @@ class ErrorHandlingWorker(TaskWorker):
     def consume_work(self, task: InputTask):
         try:
             result = self.process(task)
-            self.publish_work(SuccessResult(data=result))
+            self.publish_work(SuccessResult(data=result), input_task=task)
         except ValidationError as e:
             self.publish_work(ErrorResult(
                 error_type="validation",

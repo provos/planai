@@ -88,7 +88,7 @@ class SearchResultAggregator(JoinedTaskWorker):
     def consume_work_joined(self, tasks: List[SearchResult]):
         # All tasks share the same provenance from SearchInitiator
         consolidated = self.merge_search_results(tasks)
-        self.publish_work(ConsolidatedResults(data=consolidated))
+        self.publish_work(ConsolidatedResults(data=consolidated), input_task=task)
 ```
 
 #### Batch Processing
@@ -163,15 +163,13 @@ class MetadataAwareWorker(TaskWorker):
         else:
             result = self.process_without_cache(task)
         
-        self.publish_work(result)
+        self.publish_work(result, input_task=task)
 ```
 
 ## Best Practices
 
 1. **Use Provenance for Debugging**: When errors occur, trace the provenance to understand what led to the failure
 2. **Maintain Context**: Use provenance to maintain important context throughout your workflow
-3. **Audit AI Decisions**: Track AI decision-making through provenance for transparency
-4. **Optimize Joins**: Use provenance-based joins to efficiently consolidate parallel processing results
-5. **Document Dependencies**: When accessing provenance, document which previous tasks your worker depends on
+3. **Document Dependencies**: When accessing provenance, document which previous tasks your worker depends on
 
-Overall, the provenance tracking capabilities of PlanAI are essential for building robust, reproducible, and explainable AI-driven workflows. It provides developers with the tools they need to understand, debug, and audit complex automated processes.
+Overall, the provenance tracking in PlanAI makes it easy to create reproducible, and explainable AI-driven workflows. Provenance allows developers to fully understand all the computation that happened at any given points in the graph.

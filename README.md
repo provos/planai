@@ -82,7 +82,7 @@ class CustomDataProcessor(TaskWorker):
 
     def consume_work(self, task: RawData):
         processed_data = self.process(task.data)
-        self.publish_work(ProcessedData(data=processed_data))
+        self.publish_work(ProcessedData(data=processed_data), input_task=task)
 
 # Define an LLM-powered task
 class AIAnalyzer(LLMTaskWorker):

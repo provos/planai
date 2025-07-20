@@ -334,7 +334,7 @@ class EnsembleAnalyzer(TaskWorker):
         
         # Consolidate results
         consolidated = self.merge_analyses(results)
-        self.publish_work(consolidated)
+        self.publish_work(consolidated, input_task=task)
 ```
 
 ### Context-Aware Chains
