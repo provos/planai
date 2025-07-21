@@ -726,4 +726,3 @@ logging.getLogger("planai").setLevel(logging.DEBUG)
 - [TaskWorker](/api/taskworker/) - Processing units
 - [Task](/api/task/) - Data structures
 - [Monitoring](/guide/monitoring/) - Dashboard usage
-- [Performance](/guide/performance/) - Optimization techniques

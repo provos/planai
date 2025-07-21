@@ -749,4 +749,4 @@ def consume_work(self, task: ComplexTask):
 - [Task](/api/task/) - Data units processed by TaskWorkers
 - [Graph](/api/graph/) - Orchestrating TaskWorker workflows  
 - [Provenance](/guide/provenance/) - Understanding task lineage
-- [LLM Integration](/guide/llm/) - Working with language models 
+- [LLM Integration](/features/llm-integration/) - Working with language models 
