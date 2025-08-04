@@ -16,7 +16,7 @@ Abstract base class for processing tasks. All workers inherit from this class an
 ### [Graph](/api/graph/)
 The workflow orchestrator that manages task execution, dependencies, and parallelism.
 
-### [LLM Workers](/api/llm-workers/)
+### LLM Workers
 Specialized workers for integrating Large Language Models into workflows, including `LLMTaskWorker` and `CachedLLMTaskWorker`.
 
 ## Additional Components
