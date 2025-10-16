@@ -399,19 +399,27 @@ class TaskWorker(BaseModel, ABC):
         assert self._graph is not None
         self._graph.trace(prefix)
 
-    def watch(self, prefix: "ProvenanceChain") -> bool:
+    def watch(
+        self,
+        prefix: "ProvenanceChain",
+        callback: Optional[Callable[["ProvenanceChain"], None]] = None,
+    ) -> bool:
         """
         Watches for the completion of a specific provenance chain prefix in the task graph.
 
-        This method sets up a watch on a given prefix in the provenance chain. It will be notified
-        in its notify method when this prefix is no longer part of any active task's provenance, indicating
-        that all tasks with this prefix have been completed.
+        This method sets up a watch on a given prefix in the provenance chain. When the prefix
+        is no longer part of any active task's provenance, either the provided callback or
+        the worker's notify() method will be called.
 
         Parameters:
         -----------
         prefix : ProvenanceChain
             The prefix to watch. Must be a tuple representing a part of a task's provenance chain.
             This is the sequence of task identifiers leading up to (but not including) the current task.
+
+        callback : Optional[Callable[[ProvenanceChain], None]]
+            Optional callback function to invoke when prefix completes.
+            If None, the worker's notify() method will be called instead.
 
         Returns:
         --------
@@ -427,22 +435,35 @@ class TaskWorker(BaseModel, ABC):
         if not isinstance(prefix, tuple):
             raise ValueError("Prefix must be a tuple")
         assert self._graph is not None
-        return self._graph.watch(prefix, self)
+        return self._graph.watch(prefix, self, callback)
 
-    def unwatch(self, prefix: "ProvenanceChain") -> bool:
+    def unwatch(
+        self,
+        prefix: "ProvenanceChain",
+        callback: Optional[Callable[["ProvenanceChain"], None]] = None,
+    ) -> bool:
         """
         Removes the watch for this task provenance to be completed in the graph.
 
         Parameters:
-            worker (Type[Task]): The worker to unwatch.
+        -----------
+        prefix : ProvenanceChain
+            The prefix to stop watching.
+
+        callback : Optional[Callable[[ProvenanceChain], None]]
+            The callback to match. Must match the callback passed to watch().
+            Equality comparison (==) is used, so bound methods will match correctly.
+            Defaults to None, which matches watches created without a callback.
 
         Returns:
+        --------
+        bool
             True if the watch was removed, False if the watch was not present.
         """
         if not isinstance(prefix, tuple):
             raise ValueError("Prefix must be a tuple")
         assert self._graph is not None
-        return self._graph.unwatch(prefix, self)
+        return self._graph.unwatch(prefix, self, callback)
 
     def get_worker_state(self, provenance: "ProvenanceChain") -> Dict[str, Any]:
         """
@@ -460,9 +481,19 @@ class TaskWorker(BaseModel, ABC):
         with self.lock:
             if provenance in self._user_state:
                 return self._user_state[provenance]
-            self.watch(provenance)
+
+            # Register cleanup callback - does NOT call notify()
+            self.watch(provenance, callback=self._cleanup_state)
             self._user_state[provenance] = {}
             return self._user_state[provenance]
+
+    def _cleanup_state(self, prefix: "ProvenanceChain"):
+        """Internal callback for state cleanup - not exposed to subclasses."""
+        with self.lock:
+            if prefix in self._user_state:
+                del self._user_state[prefix]
+            # Unwatch - bound methods are compared using equality, not identity
+            self.unwatch(prefix, callback=self._cleanup_state)
 
     def print(self, *args):
         """
@@ -681,17 +712,8 @@ class TaskWorker(BaseModel, ABC):
         pass
 
     def notify(self, prefix: "ProvenanceChain"):
-        """Called to notify the worker that no tasks with this provenance prefix are remaining.
-
-        Children implementing this method need to call the base class method to ensure that the
-        state is fully removed.
-        """
-        with self.lock:
-            if prefix in self._user_state:
-                del self._user_state[prefix]
-            logging.info("Removing watch for %s in %s", prefix, self.name)
-            # remove the watch - which may already have been removed by the child class
-            self.unwatch(prefix)
+        """Called to notify the worker that no tasks with this provenance prefix are remaining."""
+        pass
 
     def _dispatch_work(self, consumer: TaskWorker, task: Task):
         assert consumer is not None

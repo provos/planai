@@ -47,6 +47,7 @@ from collections import defaultdict
 from threading import Lock, RLock
 from typing import (
     TYPE_CHECKING,
+    Callable,
     DefaultDict,
     Dict,
     Generator,
@@ -67,6 +68,12 @@ if TYPE_CHECKING:
 TaskID = int
 TaskName = str
 ProvenanceChain = Tuple[Tuple[TaskName, TaskID], ...]
+# Notifier entry: (worker, optional callback). If callback is None, worker.notify() is called.
+NotifierEntry = Tuple[TaskWorker, Optional[Callable[[ProvenanceChain], None]]]
+# Notifier with prefix: (worker, callback, prefix) used in _notify_task_completion
+NotifierWithPrefix = Tuple[
+    TaskWorker, Optional[Callable[[ProvenanceChain], None]], ProvenanceChain
+]
 
 
 class ProvenanceTracker:
@@ -75,7 +82,8 @@ class ProvenanceTracker:
         self.provenance: DefaultDict[ProvenanceChain, int] = defaultdict(int)
         self.provenance_trace: Dict[ProvenanceChain, list] = {}  # TODO: rename to trace
         self.task_state: Dict[ProvenanceChain, Dict] = {}
-        self.notifiers: DefaultDict[ProvenanceChain, List[TaskWorker]] = defaultdict(
+        # Changed to store tuples of (TaskWorker, callback) instead of just TaskWorker
+        self.notifiers: DefaultDict[ProvenanceChain, List[NotifierEntry]] = defaultdict(
             list
         )
         self.provenance_lock = RLock()
@@ -223,7 +231,7 @@ class ProvenanceTracker:
             if prefix in self.provenance_trace:
                 # Get the list of notifiers for this prefix
                 with self.notifiers_lock:
-                    notifiers = [n.name for n in self.notifiers.get(prefix, [])]
+                    notifiers = [w.name for w, c in self.notifiers.get(prefix, [])]
 
                 status = (
                     "will notify watchers"
@@ -282,8 +290,8 @@ class ProvenanceTracker:
             if to_notify:
                 final_notify = []
                 for p in to_notify:
-                    for notifier in self._get_notifiers_for_prefix(p):
-                        final_notify.append((notifier, p))
+                    for notifier, callback in self._get_notifiers_for_prefix(p):
+                        final_notify.append((notifier, callback, p))
 
                 if final_notify:
                     logging.info(
@@ -299,13 +307,35 @@ class ProvenanceTracker:
             for p in to_notify:
                 self.remove_state(p, execute_callback=True)
 
-    def _get_notifiers_for_prefix(self, prefix: ProvenanceChain) -> List[TaskWorker]:
+    def _get_notifiers_for_prefix(self, prefix: ProvenanceChain) -> List[NotifierEntry]:
+        """Get list of (worker, callback) tuples for a given prefix."""
         with self.notifiers_lock:
             return self.notifiers.get(prefix, []).copy()
 
+    def _notification_sort_key(
+        self, notifier_entry: NotifierWithPrefix, source_worker_name: str
+    ) -> Tuple[float, str, int]:
+        """
+        Sort key for notification prioritization.
+
+        Returns a tuple of (distance, worker_name, callback_priority) where:
+        - distance: float representing the graph distance from source worker
+        - worker_name: name of the worker to be notified (for stable sorting)
+        - callback_priority: 0 if callback is None (higher priority), 1 otherwise
+
+        This ensures:
+        1. Notifications are sent to closer workers first
+        2. When workers have the same distance, they're sorted by name for stability
+        3. When worker names are the same, None callbacks are prioritized
+        """
+        notifier, callback, _ = notifier_entry
+        distance = self._get_worker_distance(notifier, source_worker_name)
+        callback_priority = 0 if callback is None else 1
+        return (distance, notifier.name, callback_priority)
+
     def _notify_task_completion(
         self,
-        to_notify: List[Tuple[TaskWorker, ProvenanceChain]],
+        to_notify: List[NotifierWithPrefix],
         worker: TaskWorker,
         task: Task,
     ):
@@ -317,15 +347,19 @@ class ProvenanceTracker:
             return
 
         # Sort the to_notify list based on the distance from the last worker in the provenance
+        # If the worker name is the same, we prioritize the one with a callback of None
+        # This ensures that the notify() in the JoinedTaskWorker is called first and that the
+        # state management callback is called afterwards - at some point, this should be replaced
+        # with an explicit priority for each callback.
         sorted_to_notify = sorted(
-            to_notify, key=lambda x: self._get_worker_distance(x[0], worker.name)
+            to_notify, key=lambda x: self._notification_sort_key(x, worker.name)
         )
         if len(sorted_to_notify) > 1:
             logging.info(
                 f"Prioritizing notifications based on distance from {worker.name}: {','.join([str(x[0].name) for x in sorted_to_notify])}"
             )
 
-        notifier, prefix = sorted_to_notify.pop(0)
+        notifier, callback, prefix = sorted_to_notify.pop(0)
 
         logging.info(f"Notifying {notifier.name} that prefix {prefix} is complete")
 
@@ -351,9 +385,17 @@ class ProvenanceTracker:
 
         assert notifier._graph and notifier._graph._dispatcher
         dispatcher: Dispatcher = notifier._graph._dispatcher
-        dispatcher.submit_work(
-            notifier, [notifier.notify, prefix], task_completed_callback
-        )
+
+        # If callback is None, use the default notify() method
+        if callback is None:
+            dispatcher.submit_work(
+                notifier, [notifier.notify, prefix], task_completed_callback
+            )
+        else:
+            # Use the custom callback
+            dispatcher.submit_work(
+                notifier, [callback, prefix], task_completed_callback
+            )
 
     def _get_worker_distance(self, worker: TaskWorker, last_worker_name: str) -> float:
         if worker.name == last_worker_name:
@@ -375,15 +417,20 @@ class ProvenanceTracker:
         with self.provenance_lock:
             return self.provenance_trace
 
-    def watch(self, prefix: ProvenanceChain, notifier: TaskWorker) -> bool:
+    def watch(
+        self,
+        prefix: ProvenanceChain,
+        notifier: TaskWorker,
+        callback: Optional[Callable[[ProvenanceChain], None]] = None,
+    ) -> bool:
         """
-        Watches the given prefix and notifies the specified notifier when the prefix is no longer tracked
+        Watches the given prefix and invokes a callback when the prefix is no longer tracked
         as part of the provenance of all tasks.
 
         This method sets up a watch on a specific prefix in the provenance chain. When the prefix is
-        no longer part of any task's provenance, the provided notifier will be called with the prefix
-        as an argument. If the prefix is already not part of any task's provenance, the notifier may
-        be called immediately.
+        no longer part of any task's provenance, the provided callback will be invoked with the prefix
+        as an argument. If no callback is provided, stores None and will call notifier.notify(prefix)
+        when the watch fires.
 
         Parameters:
         -----------
@@ -391,14 +438,17 @@ class ProvenanceTracker:
             The prefix to watch. Must be a tuple representing a part of a task's provenance chain.
 
         notifier : TaskWorker
-            The object to be notified when the watched prefix is no longer in use.
-            Its notify method will be called with the watched prefix as an argument.
+            The worker object that owns this watch. Used for identification and default notification.
+
+        callback : Optional[Callable[[ProvenanceChain], None]]
+            Optional callback function to invoke when prefix completes.
+            If None, will call notifier.notify(prefix) when the watch fires.
 
         Returns:
         --------
         bool
-            True if the notifier was successfully added to the watch list for the given prefix.
-            False if the notifier was already in the watch list for this prefix.
+            True if the watch was successfully added for the given prefix.
+            False if this exact worker+callback combination was already watching this prefix.
 
         Raises:
         -------
@@ -410,19 +460,59 @@ class ProvenanceTracker:
 
         added = False
         with self.notifiers_lock:
-            if notifier not in self.notifiers[prefix]:
-                self.notifiers[prefix].append(notifier)
-                added = True
+            # Check if this exact worker+callback combo already exists
+            # Use equality (==) for callback comparison to support bound methods
+            for existing_worker, existing_callback in self.notifiers[prefix]:
+                if existing_worker is notifier and existing_callback == callback:
+                    return False
+
+            self.notifiers[prefix].append((notifier, callback))
+            added = True
 
         return added
 
-    def unwatch(self, prefix: ProvenanceChain, notifier: TaskWorker) -> bool:
+    def unwatch(
+        self,
+        prefix: ProvenanceChain,
+        notifier: TaskWorker,
+        callback: Optional[Callable[[ProvenanceChain], None]] = None,
+    ) -> bool:
+        """
+        Remove a watch for the given prefix.
+
+        Parameters:
+        -----------
+        prefix : ProvenanceChain
+            The prefix to stop watching.
+
+        notifier : TaskWorker
+            The worker that was watching this prefix.
+
+        callback : Optional[Callable[[ProvenanceChain], None]]
+            The callback to match. Must match exactly what was passed to watch().
+            Defaults to None, which matches watches created without a callback.
+
+        Returns:
+        --------
+        bool
+            True if the watch was removed, False otherwise.
+        """
         if not isinstance(prefix, tuple):
             raise ValueError("Prefix must be a tuple")
+
         with self.notifiers_lock:
-            if prefix in self.notifiers and notifier in self.notifiers[prefix]:
-                self.notifiers[prefix].remove(notifier)
-                if not self.notifiers[prefix]:
-                    del self.notifiers[prefix]
-                return True
+            if prefix not in self.notifiers:
+                return False
+
+            # Find and remove the exact (worker, callback) pair
+            # Use equality (==) for callback comparison to support bound methods
+            for i, (existing_worker, existing_callback) in enumerate(
+                self.notifiers[prefix]
+            ):
+                if existing_worker is notifier and existing_callback == callback:
+                    del self.notifiers[prefix][i]
+                    if not self.notifiers[prefix]:
+                        del self.notifiers[prefix]
+                    return True
+
         return False

@@ -93,11 +93,21 @@ class Graph(BaseModel):
     def trace(self, prefix: ProvenanceChain):
         self._provenance_tracker.trace(prefix)
 
-    def watch(self, prefix: ProvenanceChain, notifier: TaskWorker) -> bool:
-        return self._provenance_tracker.watch(prefix, notifier)
+    def watch(
+        self,
+        prefix: ProvenanceChain,
+        notifier: TaskWorker,
+        callback: Optional[Callable[[ProvenanceChain], None]] = None,
+    ) -> bool:
+        return self._provenance_tracker.watch(prefix, notifier, callback)
 
-    def unwatch(self, prefix: ProvenanceChain, notifier: TaskWorker) -> bool:
-        return self._provenance_tracker.unwatch(prefix, notifier)
+    def unwatch(
+        self,
+        prefix: ProvenanceChain,
+        notifier: TaskWorker,
+        callback: Optional[Callable[[ProvenanceChain], None]] = None,
+    ) -> bool:
+        return self._provenance_tracker.unwatch(prefix, notifier, callback)
 
     def add_worker(self, worker: TaskWorker) -> "Graph":
         """Adds a single task worker to the graph.

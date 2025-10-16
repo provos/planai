@@ -15,11 +15,11 @@ from typing import List, Type
 
 class MyWorker(TaskWorker):
     output_types: List[Type[Task]] = [OutputTask]
-    
+
     def consume_work(self, task: InputTask):
         # Process the task
         result = self.process(task)
-        
+
         # Publish output
         self.publish_work(OutputTask(data=result), input_task=task)
 ```
@@ -48,11 +48,11 @@ from planai import TaskWorker, Task, Graph
 
 class DataIngester(TaskWorker):
     output_types: List[Type[Task]] = [RawData]
-    
+
     def consume_work(self, task: IngestTask):
         # Fetch data from external sources
         data_items = self.fetch_from_database(task.sql_query)
-        
+
         # Publish each row as a separate task to the graph
         for item in data_items:
             self.publish_work(RawData(content=item), input_task=task)
@@ -65,6 +65,7 @@ graph.run(initial_tasks=[(worker, IngestTask(sql_query='SELECT * FROM table;'))]
 ```
 
 Use cases:
+
 - Reading from databases
 - Fetching from APIs
 - Loading files
@@ -81,10 +82,10 @@ class TextAnalyzer(LLMTaskWorker):
     prompt = "Analyze this text and extract key insights"
     llm_input_type: Type[Task] = TextData
     output_types: List[Type[Task]] = [AnalysisResult]
-    
+
     # Optional: customize system prompt
     system_prompt = "You are an expert text analyst"
-    
+
     # Optional: use XML format for complex text
     use_xml = True
 
@@ -94,6 +95,7 @@ worker = TextAnalyzer(llm=llm)
 ```
 
 Features:
+
 - Automatic prompt formatting
 - Structured output with Pydantic
 - Tool/function calling support
@@ -111,7 +113,7 @@ from planai import CachedTaskWorker
 
 class ExpensiveProcessor(CachedTaskWorker):
     output_types: List[Type[Task]] = [ProcessedResult]
-    
+
     def consume_work(self, task: InputData):
         # This expensive operation will be cached
         result = self.expensive_computation(task)
@@ -119,6 +121,7 @@ class ExpensiveProcessor(CachedTaskWorker):
 ```
 
 Benefits:
+
 - Automatic result caching
 - Configurable cache backends
 - TTL support
@@ -150,11 +153,11 @@ from planai import JoinedTaskWorker
 class ResultAggregator(JoinedTaskWorker):
     join_type: Type[TaskWorker] = DataFetcher
     output_types: List[Type[Task]] = [AggregatedResult]
-    
+
     def consume_work_joined(self, tasks: List[FetchedData]):
         # All tasks share the same provenance prefix
         combined_data = self.merge_results(tasks)
-        
+
         self.publish_work(AggregatedResult(
             data=combined_data,
             source_count=len(tasks)
@@ -162,6 +165,7 @@ class ResultAggregator(JoinedTaskWorker):
 ```
 
 Use cases:
+
 - Combining parallel search results
 - Aggregating batch processing
 - Consolidating multi-source data
@@ -194,6 +198,7 @@ main_graph.add_worker(pipeline_worker)
 ```
 
 Benefits:
+
 - Modular workflow design
 - Reusable components
 - Simplified testing
@@ -208,17 +213,17 @@ class CustomWorker(TaskWorker):
     # Define configuration
     output_types: List[Type[Task]] = [OutputTask]
     config_param: str = "default_value"
-    
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # Initialize resources
         self.connection = self.setup_connection()
-    
+
     def consume_work(self, task: InputTask):
         try:
             # Process task
             result = self.process_data(task)
-            
+
             # Publish result with provenance
             self.publish_work(
                 OutputTask(data=result),
@@ -244,7 +249,7 @@ class CustomWorker(TaskWorker):
 ```python
 class MultiOutputWorker(TaskWorker):
     output_types: List[Type[Task]] = [SuccessResult, ErrorResult, WarningResult]
-    
+
     def consume_work(self, task: InputTask):
         if self.validate(task):
             self.publish_work(SuccessResult(data=task.data), input_task=task)
@@ -265,10 +270,10 @@ class MultiOutputWorker(TaskWorker):
 ```python
 class ConditionalWorker(TaskWorker):
     output_types: List[Type[Task]] = [ProcessedData, SkippedData]
-    
+
     def should_process(self, task: InputData) -> bool:
         return task.priority > 5
-    
+
     def consume_work(self, task: InputData):
         if self.should_process(task):
             result = self.heavy_processing(task)
@@ -282,25 +287,86 @@ class ConditionalWorker(TaskWorker):
 
 #### Stateful Workers
 
+Workers can maintain state across multiple invocations using `get_worker_state()`. This is particularly useful for circular dependencies or iterative processing:
+
+**Example 1: Buffering Data**
+
 ```python
-class StatefulWorker(TaskWorker):
+class BufferingWorker(TaskWorker):
     output_types: List[Type[Task]] = [AggregatedData]
-    
+
     def consume_work(self, task: InputData):
+        # Get state scoped to this task's provenance prefix
         state = self.get_worker_state(task.prefix(1))
+
         if "buffer" not in state:
             state["buffer"] = []
-        buffer = state["buffer"]
-        buffer.append(task)
-        
-        if len(buffer) >= 5:
-            # Flush buffer for some other processing like analytics
-            result = self.process_batch(self.buffer)
-            del state["buffer"]
+
+        state["buffer"].append(task)
+
+        if len(state["buffer"]) >= 5:
+            # Flush buffer for batch processing
+            result = self.process_batch(state["buffer"])
+            self.publish_work(
+                AggregatedData(data=result),
+                input_task=task
+            )
+            state["buffer"].clear()
 ```
 
-State created with self.get_worker_state() will be automatically deleted when the provenance prefix that was used to
-retrieve it leaves the graph.
+**Example 2: Iterative Processing with Retry Counter**
+
+```python
+class RetryWorker(TaskWorker):
+    output_types: List[Type[Task]] = [ProcessedData, FailedData]
+    max_retries: int = 3
+
+    def consume_work(self, task: InputData):
+        # For circular dependencies, we need to use the original input task's prefix
+        # because task.prefix() grows longer with each iteration. Using find_input_tasks
+        # to get the first input task from the upstream worker ensures consistent state lookup.
+        input_tasks = task.find_input_tasks(DataFetcher)
+        if not input_tasks:
+            raise ValueError("DataFetcher input task not found")
+
+        prefix = input_tasks[0].prefix(1)
+        state = self.get_worker_state(prefix)
+
+        if "retry_count" not in state:
+            state["retry_count"] = 0
+
+        try:
+            result = self.risky_operation(task)
+            self.publish_work(
+                ProcessedData(data=result),
+                input_task=task
+            )
+        except Exception as e:
+            state["retry_count"] += 1
+
+            if state["retry_count"] < self.max_retries:
+                # Retry by publishing back to an upstream worker
+                self.publish_work(
+                    InputData(data=task.data, retry=True),
+                    input_task=task
+                )
+            else:
+                # Max retries reached, publish failure
+                self.publish_work(
+                    FailedData(
+                        data=task.data,
+                        error=str(e),
+                        retries=state["retry_count"]
+                    ),
+                    input_task=task
+                )
+```
+
+**Important Notes:**
+
+- State is automatically cleaned up when the provenance prefix completes
+- State is scoped to a specific prefix, ensuring isolation between different task chains
+- Useful for implementing retry logic and iterative refinement
 
 ## Worker Lifecycle
 

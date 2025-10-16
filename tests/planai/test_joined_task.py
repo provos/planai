@@ -229,5 +229,145 @@ class TestJoinedTaskWorkerStress(unittest.TestCase):
         self.assertEqual(self.dispatcher._num_active_tasks, 0)
 
 
+# Tasks for state management test
+class UpstreamTask(Task):
+    iteration: int
+
+
+class MiddleTask(Task):
+    data: str
+
+
+class CompletedTask(Task):
+    result: str
+
+
+# Global state to verify counter doesn't reset prematurely
+state_verification = {"global_count": 0, "times_reset": 0}
+
+
+class UpstreamWorker(TaskWorker):
+    output_types: List[Type[Task]] = [UpstreamTask]
+
+    def consume_work(self, task: UpstreamTask):
+        # Just pass through
+        output = UpstreamTask(iteration=task.iteration)
+        self.publish_work(output, task)
+
+
+class MiddleWorker(TaskWorker):
+    output_types: List[Type[Task]] = [MiddleTask]
+
+    def consume_work(self, task: UpstreamTask):
+        # Generate multiple tasks for joining
+        for i in range(3):
+            output = MiddleTask(data=f"middle-{task.iteration}-{i}")
+            self.publish_work(output, task)
+
+
+class StatefulJoinedWorker(JoinedTaskWorker):
+    join_type: Type[TaskWorker] = UpstreamWorker
+    output_types: List[Type[Task]] = [UpstreamTask, CompletedTask]
+
+    def consume_work_joined(self, tasks: List[MiddleTask]):
+        # Get state for the prefix(1) - this is the UpstreamWorker provenance
+        prefix = tasks[0].prefix(1)
+        state = self.get_worker_state(prefix)
+
+        # Track counter in state
+        if "count" not in state:
+            state["count"] = 0
+
+        state["count"] += 1
+        current_count = state["count"]
+
+        # Update global verification state
+        with self._lock:
+            state_verification["global_count"] += 1
+            # If count went backwards, state was reset prematurely
+            if current_count < state_verification["global_count"]:
+                state_verification["times_reset"] += 1
+            # Protect against regressions by terminating if we detect a loop
+            if state_verification["global_count"] > 10:
+                raise ValueError("Loop detected in state management")
+
+        if current_count < 3:
+            # Send more work back to upstream - creates circular dependency
+            next_task = UpstreamTask(iteration=current_count)
+            self.publish_work(next_task, tasks[0])
+        else:
+            # We've reached count 3, send final task
+            final = CompletedTask(result=f"completed-count:{current_count}")
+            self.publish_work(final, tasks[0])
+
+
+class TestJoinedTaskWorkerWithState(unittest.TestCase):
+    """Test that get_worker_state() works correctly with JoinedTaskWorker."""
+
+    def test_joined_worker_with_state_no_premature_cleanup(self):
+        """
+        Test that worker state is not cleaned up prematurely when using
+        get_worker_state() inside a JoinedTaskWorker.
+
+        This test verifies:
+        1. The state counter increments correctly (1, 2, 3)
+        2. State is not reset prematurely (no infinite loop)
+        3. The final task is produced after count reaches 3
+        4. No endless loop occurs
+        """
+        # Reset global state
+        state_verification["global_count"] = 0
+        state_verification["times_reset"] = 0
+
+        # Create graph with real dispatcher
+        graph = Graph(name="State Test Graph")
+
+        upstream_worker = UpstreamWorker()
+        middle_worker = MiddleWorker()
+        joined_worker = StatefulJoinedWorker()
+
+        graph.add_workers(upstream_worker, middle_worker, joined_worker)
+        graph.set_dependency(upstream_worker, middle_worker).next(joined_worker)
+
+        # Set up circular dependency: joined_worker -> upstream_worker
+        graph.set_dependency(joined_worker, upstream_worker)
+
+        # Set up sink for final task
+        graph.set_sink(joined_worker, CompletedTask)
+
+        # Run the graph
+        initial_task = UpstreamTask(iteration=0)
+        initial_tasks = [(upstream_worker, initial_task)]
+        graph.run(initial_tasks, display_terminal=False)
+
+        # Get output
+        outputs = graph.get_output_tasks()
+
+        # Verify we got exactly one completed task
+        self.assertEqual(len(outputs), 1, "Should have exactly one completed task")
+        self.assertEqual(
+            outputs[0].result, "completed-count:3", "Final count should be 3"
+        )
+
+        # Verify counter incremented correctly without resetting
+        self.assertEqual(
+            state_verification["global_count"],
+            3,
+            "Counter should have reached 3",
+        )
+        self.assertEqual(
+            state_verification["times_reset"],
+            0,
+            "State should never have been reset prematurely",
+        )
+
+        # Verify state was cleaned up after completion
+        self.assertEqual(
+            len(joined_worker._user_state),
+            0,
+            "Worker state should be cleaned up after completion",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

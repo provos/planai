@@ -153,7 +153,8 @@ class TestTaskWorker(unittest.TestCase):
         self.assertIsNotNone(prefix)
         result = self.worker.watch(prefix)
         self.assertIsNotNone(prefix)
-        graph.watch.assert_called_once_with(prefix, self.worker)
+        # Now watch() accepts an optional callback parameter (None by default)
+        graph.watch.assert_called_once_with(prefix, self.worker, None)
         self.assertEqual(result, graph.watch.return_value)
 
     def test_unwatch(self):
@@ -162,8 +163,9 @@ class TestTaskWorker(unittest.TestCase):
         task = DummyTask()
         task._provenance = [("DummyTask", 1)]
         result = self.worker.unwatch(task.prefix_for_input_task(DummyTask))
+        # Now unwatch() accepts an optional callback parameter (None by default)
         graph.unwatch.assert_called_once_with(
-            task.prefix_for_input_task(DummyTask), self.worker
+            task.prefix_for_input_task(DummyTask), self.worker, None
         )
         self.assertEqual(result, graph.unwatch.return_value)
 

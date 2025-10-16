@@ -150,8 +150,6 @@ class JoinedTaskWorker(TaskWorker):
         with self.work_buffer_context(sorted_tasks[0]):
             self.consume_work_joined(sorted_tasks)
 
-        super().notify(prefix)
-
     def _validate_connection(self) -> None:
         """
         Validate that the join_type is a TaskWorker that is upstream
