@@ -67,6 +67,7 @@ planai cache --output-task-filter PageResult ./cache
 ```
 
 Options:
+
 - `--clear`: Clear the cache
 - `--output-task-filter`: Filter the output based on the corresponding output task
 
@@ -85,6 +86,7 @@ planai --llm-provider openai --llm-model gpt-4o-mini --llm-reason-model gpt-4 \
 ```
 
 Required arguments:
+
 - `--python-file`: Python file containing the LLMTaskWorker
 - `--class-name`: Name of the LLMTaskWorker class to optimize
 - `--search-path`: Python path for imports
@@ -92,6 +94,7 @@ Required arguments:
 - `--goal-prompt`: Optimization goal description
 
 Optional arguments:
+
 - `--num-iterations`: Number of optimization iterations (default: 3)
 - `--output-dir`: Directory for optimized prompts (default: current directory)
 - `--max-samples`: Maximum debug samples to use (default: all)
@@ -107,8 +110,9 @@ planai version
 ```
 
 Output:
+
 ```
-PlanAI version 0.6
+PlanAI version 0.6.1
 ```
 
 ### help
@@ -135,12 +139,13 @@ During development, use the terminal dashboard to track execution which is enabl
 python my_workflow.py
 ```
 
-Alternatively, you can pass ```run_dashboard=True``` to the Graph ```run``` or ```prepare``` method.
-By default, this will create a web based dashboard on port ```5000```.
+Alternatively, you can pass `run_dashboard=True` to the Graph `run` or `prepare` method.
+By default, this will create a web based dashboard on port `5000`.
 
 ### Prompt Optimization Workflow
 
 1. Enable debug mode in your LLMTaskWorker:
+
 ```python
 class MyWorker(LLMTaskWorker):
     debug_mode = True  # Generates debug logs
@@ -149,6 +154,7 @@ class MyWorker(LLMTaskWorker):
 2. Run your workflow to collect data
 
 3. Optimize the prompt:
+
 ```bash
 planai --llm-provider openai --llm-model gpt-4o-mini \
   optimize-prompt \
