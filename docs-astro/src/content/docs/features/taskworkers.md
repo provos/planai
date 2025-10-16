@@ -322,14 +322,14 @@ class RetryWorker(TaskWorker):
     max_retries: int = 3
 
     def consume_work(self, task: InputData):
-        # For circular dependencies, we need to use the original input task's prefix
-        # because task.prefix() grows longer with each iteration. Using find_input_tasks
+        # For circular dependencies, we need to use the original input task's provenance
+        # because task.provenance() grows longer with each iteration. Using find_input_tasks
         # to get the first input task from the upstream worker ensures consistent state lookup.
         input_tasks = task.find_input_tasks(DataFetcher)
         if not input_tasks:
             raise ValueError("DataFetcher input task not found")
 
-        prefix = input_tasks[0].prefix(1)
+        prefix = input_tasks[0].provenance()
         state = self.get_worker_state(prefix)
 
         if "retry_count" not in state:

@@ -162,6 +162,15 @@ class Task(BaseModel):
         """
         return tuple(self._provenance[:length])
 
+    def provenance(self) -> "ProvenanceChain":
+        """
+        Get the entire provenance chain for this task.
+
+        Returns:
+            ProvenanceChain: A tuple containing the complete provenance chain.
+        """
+        return tuple(self._provenance)
+
     def prefix_for_input_task(
         self, task_class: Type["TaskWorker"]
     ) -> Optional["ProvenanceChain"]:
