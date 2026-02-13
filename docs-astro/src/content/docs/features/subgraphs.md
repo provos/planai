@@ -249,40 +249,40 @@ meta_graph.add_workers(language_detector, english_analyzer, spanish_analyzer, re
 
 ## Testing Subgraphs
 
-Test subgraphs in isolation:
+Test subgraphs by running the full graph with `MockLLM` and `inject_mock_cache`:
 
 ```python
-import pytest
-from planai.testing import WorkflowTestHelper
+from planai import Graph, SubGraphWorker
+from planai.testing import MockLLM, MockLLMResponse, MockCache, inject_mock_cache
 
 def test_text_analysis_subgraph():
-    # Create test instance
-    llm = MockLLM()  # Use mock for testing
-    subgraph = create_text_analysis_subgraph(llm)
-    
-    # Wrap for testing
+    mock_llm = MockLLM(responses=[
+        MockLLMResponse(pattern="Analyze the sentiment.*", response=SentimentResult(sentiment="positive")),
+        MockLLMResponse(pattern="Extract.*key topics.*", response=TopicsResult(topics=["product"])),
+        MockLLMResponse(pattern="Provide a concise summary", response=SummaryResult(summary="Positive review")),
+    ])
+    mock_cache = MockCache(dont_store=True)
+
+    # Build and wrap the subgraph
+    subgraph = create_text_analysis_subgraph(mock_llm)
     analyzer = SubGraphWorker(name="TestAnalyzer", graph=subgraph)
-    
-    # Create test helper
-    helper = WorkflowTestHelper()
-    helper.add_worker(analyzer)
-    
-    # Test input
-    test_input = TextInput(
-        text="This is a great product! I love it.",
-        analysis_type="full"
-    )
-    
-    # Run test
-    results = helper.run_test([(analyzer, test_input)])
-    
-    # Verify output
+
+    # Embed in a test graph with a sink
+    graph = Graph(name="TestGraph")
+    graph.add_workers(analyzer)
+    graph.set_sink(analyzer, AnalysisOutput)
+    inject_mock_cache(graph, mock_cache)
+
+    test_input = TextInput(text="This is a great product! I love it.", analysis_type="full")
+    graph.run(initial_tasks=[(analyzer, test_input)], run_dashboard=False, display_terminal=False)
+
+    results = graph.get_output_tasks()
     assert len(results) == 1
-    output = results[0]
-    assert isinstance(output, AnalysisOutput)
-    assert output.sentiment == "positive"
-    assert output.word_count == 8
+    assert isinstance(results[0], AnalysisOutput)
+    assert results[0].sentiment == "positive"
 ```
+
+See the [Testing guide](/guide/testing/) for full details on all available testing utilities.
 
 ## Best Practices
 

@@ -38,9 +38,12 @@ Specialized workers for integrating Large Language Models into workflows, includ
 - **PydanticDictWrapper**: Utility for wrapping dictionaries as tasks
 - **Provenance**: Classes for tracking task lineage
 
-### Testing
-- **WorkflowTestHelper**: Utilities for testing workflows
-- **MockLLM**: Mock LLM for unit testing
+### [Testing](/guide/testing/)
+- **InvokeTaskWorker**: Test workers in isolation
+- **MockLLM / MockLLMResponse**: Mock LLM for unit testing
+- **MockCache**: In-memory cache for testing cached workers
+- **inject_mock_cache**: Replace caches across an entire graph
+- **add_input_provenance**: Inject provenance for testing
 
 ## Import Structure
 

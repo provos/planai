@@ -27,6 +27,7 @@ export default defineConfig({
                         { label: 'Prompts', slug: 'guide/prompts' },
                         { label: 'Provenance', slug: 'guide/provenance' },
                         { label: 'Monitoring', slug: 'guide/monitoring' },
+                        { label: 'Testing', slug: 'guide/testing' },
                     ],
                 },
                 {
