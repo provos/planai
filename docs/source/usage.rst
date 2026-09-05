@@ -209,6 +209,56 @@ Example:
     initial_input = Task1WorkItem(data="start")
     main_graph.run(initial_tasks=[(subgraph_worker, initial_input)])
 
+Letting an LLM Work with Files
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``WorkspaceLLMTaskWorker`` (in ``planai.workspace_task``) is a ``CachedLLMTaskWorker`` that
+gives the LLM a set of file tools -- ``read_file``, ``write_file``, ``edit_file``,
+``list_files``, and ``grep_files`` -- jailed to a per-job working directory. This is useful
+when many jobs run concurrently, each operating on its own directory, and you want an LLM to
+read, write, or search files without risking access outside of the directory assigned to it.
+
+The working directory is discovered automatically from the task's provenance chain: include a
+``WorkspaceTask`` (or any ``Task`` subclass with a string ``workspace`` attribute) upstream, and
+``WorkspaceLLMTaskWorker.get_workspace()`` will find the nearest one. All file paths the LLM
+uses are relative to that directory; absolute paths, ``..`` components, and symlinks that
+escape the directory are rejected.
+
+.. code-block:: python
+
+    from planai import Graph, WorkspaceLLMTaskWorker, WorkspaceTask, llm_from_config
+
+    class CodeReviewer(WorkspaceLLMTaskWorker):
+        prompt = "Review the code in this repository and write your findings to review.md."
+        output_types = [ReviewResult]
+
+        def expected_output_files(self, task):
+            # a cache hit whose files are missing (e.g. a fresh checkout) is re-executed
+            return ["review.md"]
+
+    llm = llm_from_config(provider="openai", model_name="gpt-4o")
+    reviewer = CodeReviewer(llm=llm, max_tool_rounds=40)
+
+    graph = Graph(name="Review Workflow")
+    graph.add_workers(reviewer)
+    graph.set_entry(reviewer)
+    graph.set_exit(reviewer)
+    graph.run(
+        initial_tasks=[(reviewer, WorkspaceTask(workspace="/jobs/job-123"))]
+    )
+
+Because a cache hit replays only the published output tasks and not any files the tools wrote
+on a previous run, override ``expected_output_files()`` to list the workspace-relative paths
+the worker is expected to produce; if any are missing, the cache entry is treated as a miss and
+the worker re-executes. Set ``input_globs`` to fold the content of matching workspace files
+into the cache key so that changing an input file also invalidates the cache. Pass
+``read_only=True`` to omit the ``write_file`` and ``edit_file`` tools.
+
+The underlying pieces are reusable on their own: ``Workspace`` is the sandboxing primitive,
+``make_file_tools(workspace, ...)`` builds the ``llm_interface`` ``Tool`` objects for any
+``LLMTaskWorker`` (via the ``get_tools()`` hook), and ``hash_files(workspace, globs)`` computes
+a stable content hash for a set of glob patterns.
+
 Best Practices
 --------------
 

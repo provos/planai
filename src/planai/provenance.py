@@ -40,7 +40,6 @@ task lineages. Integrating this class within a task dispatching system like Disp
 management of task dependencies and ordered task execution.
 """
 
-
 import logging
 import sys
 from collections import defaultdict

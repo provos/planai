@@ -50,8 +50,19 @@ class CachedTaskWorker(TaskWorker):
                 logging.error("Error getting data from cache %s: %s", cache_key, str(e))
                 result = None
 
+            cache_hit = False
+            cached_results = None
             if result is not None:
                 cached_results, _ = result
+                cache_hit = self._cache_hit_is_valid(task, cached_results)
+                if not cache_hit:
+                    logging.info(
+                        "Cache hit for %s with key: %s is no longer valid; re-executing",
+                        self.name,
+                        cache_key,
+                    )
+
+            if cache_hit:
                 logging.info("Cache hit for %s with key: %s", self.name, cache_key)
                 self._publish_cached_results(cached_results, task)
             else:
@@ -65,6 +76,24 @@ class CachedTaskWorker(TaskWorker):
                 self._set_cache(input_task, outputs)
 
             self.post_consume_work(task)
+
+    def _cache_hit_is_valid(
+        self, task: Task, cached_results: List[Tuple[str, Task]]
+    ) -> bool:
+        """
+        Hook for subclasses to reject a cache hit based on external state that isn't
+        captured by the cache key itself (e.g. output files on disk that a previous
+        run's cache entry references but that are no longer present). Defaults to
+        always accepting the cache hit.
+
+        Args:
+            task (Task): The input task that produced a cache hit.
+            cached_results (List[Tuple[str, Task]]): The cached (consumer_name, output_task) pairs.
+
+        Returns:
+            bool: True if the cached results should be used, False to treat this as a cache miss.
+        """
+        return True
 
     def pre_consume_work(self, task: Task):
         """

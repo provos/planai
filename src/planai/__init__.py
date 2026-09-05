@@ -25,7 +25,9 @@ from .llm_task import BaseLLMTaskWorker, CachedLLMTaskWorker, LLMTaskWorker
 from .provenance import ProvenanceChain
 from .pydantic_dict_wrapper import PydanticDictWrapper
 from .task import Task, TaskWorker
+from .tools import Workspace, hash_files, make_file_tools
 from .user_input import UserInputRequest
+from .workspace_task import WorkspaceLLMTaskWorker, WorkspaceTask
 
 # Limit what gets imported with "from planai import *"
 __all__ = [
@@ -50,4 +52,9 @@ __all__ = [
     "UserInputRequest",
     "tool",
     "Tool",
+    "Workspace",
+    "make_file_tools",
+    "hash_files",
+    "WorkspaceLLMTaskWorker",
+    "WorkspaceTask",
 ]
