@@ -203,6 +203,36 @@ initial_input = Task1WorkItem(data="start")
 main_graph.run(initial_tasks=[(subgraph_worker, initial_input)])
 ```
 
+### Letting an LLM Work with Files
+
+`WorkspaceLLMTaskWorker` is a `CachedLLMTaskWorker` that gives the LLM `read_file`, `write_file`, `edit_file`, `list_files`, and `grep_files` tools jailed to a per-job working directory. Use it when the text is too large to pass through a prompt and a structured response, or when many concurrent jobs each need their own directory that the model cannot escape.
+
+The directory is discovered from the task's provenance: publish a `WorkspaceTask` (or any `Task` with a string `workspace` attribute) upstream and `get_workspace()` finds the nearest one. All paths the model uses are relative to that directory; absolute paths, `..` components, and symlinks that leave the directory are rejected.
+
+```python
+from planai import Graph, WorkspaceLLMTaskWorker, WorkspaceTask, llm_from_config
+
+class CodeReviewer(WorkspaceLLMTaskWorker):
+    prompt = "Review the code in this repository and write your findings to review.md."
+    llm_input_type: Type[Task] = WorkspaceTask
+    output_types: List[Type[Task]] = [ReviewResult]
+
+    def expected_output_files(self, task: WorkspaceTask) -> List[str]:
+        # a cache hit whose files are missing (e.g. a fresh checkout) is re-executed
+        return ["review.md"]
+
+llm = llm_from_config(provider="anthropic", model_name="claude-sonnet-5")
+reviewer = CodeReviewer(llm=llm, max_tool_rounds=40)
+
+graph = Graph(name="Review Workflow")
+graph.add_workers(reviewer)
+graph.set_entry(reviewer)
+graph.set_exit(reviewer)
+graph.run(initial_tasks=[(reviewer, WorkspaceTask(workspace="/jobs/job-123"))])
+```
+
+Because a cache hit replays only the published output tasks and not the files the tools wrote, `expected_output_files()` lists the paths the worker must produce; if any are missing the entry is treated as a miss. Set `input_globs` to fold the content of matching workspace files into the cache key, and pass `read_only=True` to omit the writing tools. The full guide is [Workspaces and File Tools](/features/workspaces/).
+
 ## Best Practices
 
 1. **Modular Design**: Break down complex tasks into smaller, reusable TaskWorkers.

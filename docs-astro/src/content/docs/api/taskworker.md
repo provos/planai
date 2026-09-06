@@ -264,6 +264,15 @@ def extra_validation(self, response: Task, input_task: Task) -> Optional[str]:
     return None
 ```
 
+##### get_tools
+```python
+def get_tools(self, task: Task) -> Optional[List[Tool]]:
+    """Tools for this task; defaults to the static ``tools`` field"""
+    return make_file_tools(Workspace(task.job_dir), read_only=True)
+```
+
+The `max_tool_rounds` field bounds the number of tool-calling rounds per request. When it is reached the model is asked for a final answer with tools disabled. See [Workspaces and File Tools](/features/workspaces/).
+
 ### Real-World Example
 
 ```python
@@ -313,6 +322,33 @@ class ExpensiveAnalysis(CachedLLMTaskWorker):
     # Automatically caches based on input task and prompt
     pass
 ```
+
+### WorkspaceLLMTaskWorker
+
+A `CachedLLMTaskWorker` that hands the LLM file tools jailed to a per-job directory found in the task's provenance:
+
+```python
+from planai import WorkspaceLLMTaskWorker, WorkspaceTask
+
+class Editor(WorkspaceLLMTaskWorker):
+    prompt: str = "Fix the inconsistencies between the sections in draft/report.md"
+    llm_input_type: Type[Task] = WorkspaceTask
+    output_types: List[Type[Task]] = [EditSummary]
+    input_globs: List[str] = ["draft/*.md"]
+    max_tool_rounds: int = 40
+
+    def expected_output_files(self, task: WorkspaceTask) -> List[str]:
+        return ["draft/report.md"]
+```
+
+Fields: `read_only` (default `False`), `max_tool_rounds` (default `40`), `input_globs` (default empty), and `max_read_chars` (default `100000`).
+
+Hooks:
+- `get_workspace(task)` returns the `Workspace`, taken from the nearest task with a string `workspace` attribute; override it to source the directory elsewhere.
+- `expected_output_files(task)` lists workspace-relative files whose absence invalidates a cache hit.
+- `get_cache_salt(task)` forwards the cache key to the LLM response cache.
+
+See [Workspaces and File Tools](/features/workspaces/) for the full guide.
 
 ## CachedTaskWorker
 
@@ -381,6 +417,17 @@ def extra_cache_key(self, task: Task) -> str:
     return f"{self.custom_setting}_{task.priority}"
 ```
 
+#### _cache_hit_is_valid
+```python
+def _cache_hit_is_valid(
+    self, task: Task, cached_results: List[Tuple[str, Task]]
+) -> bool:
+    """Reject a cache hit based on state the key does not capture"""
+    return (Path(task.output_dir) / "index.json").exists()
+```
+
+Called on every cache hit before the cached results are published. Returning `False` logs the hit as no longer valid and runs `consume_work()` as on a miss.
+
 ### Real-World Example
 
 ```python
@@ -417,9 +464,10 @@ class DocumentAnalyzer(CachedTaskWorker):
 #### Cache Hit
 When input matches cached data:
 1. `pre_consume_work()` is called
-2. Cached results are published directly 
-3. `consume_work()` is **skipped**
-4. `post_consume_work()` is called
+2. `_cache_hit_is_valid()` may reject the hit, in which case the miss path runs
+3. Cached results are published directly
+4. `consume_work()` is **skipped**
+5. `post_consume_work()` is called
 
 #### Cache Miss
 When no cached data exists:

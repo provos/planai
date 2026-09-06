@@ -143,6 +143,25 @@ class CachedAnalyzer(CachedLLMTaskWorker):
 This helps during development to save model costs or avoiding repeat processing if a graph fails to run. Any changes
 to the prompt, model or input_data will lead to a new cache key.
 
+### WorkspaceLLMTaskWorker
+
+A `CachedLLMTaskWorker` whose LLM can read, write, edit, list, and search files inside a per-job directory:
+
+```python
+from planai import WorkspaceLLMTaskWorker, WorkspaceTask
+
+class ReportWriter(WorkspaceLLMTaskWorker):
+    prompt = "Read notes/*.md and write the report to report.md"
+    llm_input_type = WorkspaceTask
+    output_types: List[Type[Task]] = [ReportSummary]
+    input_globs: List[str] = ["notes/*.md"]
+
+    def expected_output_files(self, task: WorkspaceTask) -> List[str]:
+        return ["report.md"]
+```
+
+The directory comes from a `WorkspaceTask` upstream in the provenance chain, every path the model uses is jailed to it, and the cache is invalidated when the input files change or the output files are missing. See [Workspaces and File Tools](/features/workspaces/) for details.
+
 ### JoinedTaskWorker
 
 Aggregates results from multiple tasks:
