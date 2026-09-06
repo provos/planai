@@ -179,6 +179,25 @@ class TestLLMTaskWorker(unittest.TestCase):
                     "per-task system prompt",
                 )
 
+    def test_cache_key_evaluates_the_system_prompt_hook_once(self):
+        from planai.llm_task import CachedLLMTaskWorker
+
+        class Worker(CachedLLMTaskWorker):
+            output_types: list = [DummyOutputTask]
+            calls: int = 0
+
+            def get_system_prompt(self, task):
+                self.calls += 1
+                return "per task"
+
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as cache_dir:
+            worker = Worker(llm=self.llm, prompt="p", cache_dir=cache_dir)
+            key = worker._get_cache_key(DummyTask(content="x"))
+        self.assertEqual(worker.calls, 1)
+        self.assertTrue(key)
+
     def test_get_system_prompt_defaults_to_the_field(self):
         self.assertEqual(
             self.worker.get_system_prompt(DummyTask(content="x")),

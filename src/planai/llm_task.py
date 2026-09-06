@@ -234,10 +234,15 @@ class LLMTaskWorker(BaseLLMTaskWorker):
         assert isinstance(response, Task) or response is None
         self.post_process(response=response, input_task=task)
 
-    def get_full_prompt(self, task: Task) -> str:
+    def get_full_prompt(self, task: Task, system_prompt: Optional[str] = None) -> str:
+        """The formatted prompt for ``task``. ``system_prompt`` lets a caller that
+        has already evaluated ``get_system_prompt(task)`` pass it in, so the hook
+        runs once per task."""
         task_prompt = self.format_prompt(task)
 
         processed_task = self.pre_process(task)
+        if system_prompt is None:
+            system_prompt = self.get_system_prompt(task)
 
         return self.llm.generate_full_prompt(
             prompt_template=(
@@ -248,7 +253,7 @@ class LLMTaskWorker(BaseLLMTaskWorker):
                     else ""
                 )
             ),
-            system=self.get_system_prompt(task),
+            system=system_prompt,
             task=self._format_task(processed_task),
             instructions=task_prompt,
             format_instructions=LLMInterface.get_format_instructions(
@@ -353,5 +358,11 @@ class CachedLLMTaskWorker(CachedTaskWorker, LLMTaskWorker):
         """Generate a unique cache key for the input task including the prompt template and model name."""
         upstream_cache_key = super()._get_cache_key(task)
 
-        upstream_cache_key += f" - {self.get_system_prompt(task)} - {self.get_full_prompt(task)} - {self.llm.model_name}"
+        # generate_full_prompt() does not fold the system prompt into its result,
+        # so the key carries it explicitly; the hook is evaluated once here
+        system_prompt = self.get_system_prompt(task)
+        full_prompt = self.get_full_prompt(task, system_prompt=system_prompt)
+        upstream_cache_key += (
+            f" - {system_prompt} - {full_prompt} - {self.llm.model_name}"
+        )
         return hashlib.sha1(upstream_cache_key.encode()).hexdigest()

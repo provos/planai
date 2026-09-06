@@ -268,7 +268,7 @@ def extra_validation(self, response: Task, input_task: Task) -> Optional[str]:
 ```python
 def get_system_prompt(self, task: Task) -> Optional[str]:
     """System prompt for this task; defaults to the ``system_prompt`` field"""
-    return self.system_prompt + "\n\n# Reference\n" + load_reference(task)
+    return (self.system_prompt or "") + "\n\n# Reference\n" + load_reference(task)
 ```
 
 Use it to put material that many tasks share, such as a set of notes every section writer works from, into the system prompt. Provider prompt caching matches prefixes at block boundaries, so a shared system block is reused across tasks while the per-task instructions vary.
