@@ -22,6 +22,20 @@ llm = llm_from_config(
 )
 ```
 
+### Anthropic
+
+```python
+# Set ANTHROPIC_API_KEY in your environment
+llm = llm_from_config(
+    provider="anthropic",
+    model_name="claude-sonnet-5",
+    thinking={"type": "adaptive"},  # optional extended thinking
+    effort="high",                  # optional: low, medium, high, xhigh, max
+)
+```
+
+Anthropic requests use structured outputs and prompt caching by default.
+
 ### Ollama (Local Models)
 
 ```python
@@ -175,6 +189,25 @@ class AssistantWorker(LLMTaskWorker):
         super().__init__(**kwargs)
         # Tools are automatically registered with the LLM
 ```
+
+### Per-Task Tools
+
+The `tools` field binds the same tools to every task. Override `get_tools()` when the tools depend on the task, for example file tools jailed to a directory that arrives with the task:
+
+```python
+from planai import LLMTaskWorker, Workspace, make_file_tools
+
+class RepoReviewer(LLMTaskWorker):
+    prompt = "Review the repository and report the three most important issues"
+    llm_input_type = RepoTask
+    output_types: List[Type[Task]] = [Review]
+    max_tool_rounds: int = 30
+
+    def get_tools(self, task: RepoTask):
+        return make_file_tools(Workspace(task.checkout_dir), read_only=True)
+```
+
+`max_tool_rounds` bounds how many rounds of tool calls the model may make within one request. When the limit is reached, the model is asked for its final structured answer with tools disabled, so a worker always produces an output task. See [Workspaces and File Tools](/features/workspaces/) for `WorkspaceLLMTaskWorker`, which wires up the file tools, workspace discovery, and file-aware caching for you.
 
 ## Streaming Responses
 
@@ -403,3 +436,4 @@ class TokenTrackingWorker(LLMTaskWorker):
 - Explore [Caching Strategies](/features/caching/) for cost optimization
 - See [Examples](https://github.com/provos/planai/tree/main/examples) using LLMs
 - Read about [Prompt Optimization](/cli/prompt-optimization/) tools
+- Give the LLM files to work on with [Workspaces and File Tools](/features/workspaces/)

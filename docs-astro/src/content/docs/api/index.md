@@ -29,6 +29,13 @@ Specialized workers for integrating Large Language Models into workflows, includ
 - **CachedTaskWorker**: Base class for workers with caching
 - **CachedLLMTaskWorker**: LLM worker with response caching
 
+### Workspaces and File Tools
+- **Workspace**: A sandboxed directory that every file path is resolved against
+- **make_file_tools**: Builds read/write/edit/list/grep tools jailed to a Workspace
+- **hash_files**: Content hash of the files matching glob patterns, for cache keys
+- **WorkspaceTask**: Task that carries the workspace path through provenance
+- **WorkspaceLLMTaskWorker**: CachedLLMTaskWorker with file tools and file-aware caching
+
 ### Advanced Workers
 - **InitialTaskWorker**: Entry point for workflows
 - **JoinedTaskWorker**: Aggregates multiple task results
@@ -67,6 +74,13 @@ from planai import (
     JoinedTaskWorker,
     CachedTaskWorker,
     SubGraphWorker,
+    
+    # Workspaces and file tools
+    Workspace,
+    make_file_tools,
+    hash_files,
+    WorkspaceTask,
+    WorkspaceLLMTaskWorker,
     
     # Utilities
     Dispatcher,

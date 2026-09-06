@@ -35,6 +35,7 @@ export default defineConfig({
                     items: [
                         { label: 'Task Workers', slug: 'features/taskworkers' },
                         { label: 'LLM Integration', slug: 'features/llm-integration' },
+                        { label: 'Workspaces & File Tools', slug: 'features/workspaces' },
                         { label: 'Caching', slug: 'features/caching' },
                         { label: 'Subgraphs', slug: 'features/subgraphs' },
                     ],

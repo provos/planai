@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Tools that can be handed to LLMTaskWorker subclasses to let an LLM act on files."""
 
-"""Version information for PlanAI."""
+from .filesystem import Workspace, hash_files, make_file_tools
 
-__version__ = "0.7.0"
+__all__ = ["Workspace", "make_file_tools", "hash_files"]

@@ -16,7 +16,7 @@ import hashlib
 import logging
 import sys
 import threading
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 from diskcache import Cache
 from pydantic import Field, PrivateAttr
@@ -44,27 +44,85 @@ class CachedTaskWorker(TaskWorker):
             self.pre_consume_work(task)
 
             cache_key = self._get_cache_key(task)
+            # remember the lookup key for the duration of this task so that hooks
+            # running inside consume_work (e.g. get_cache_salt) do not recompute it
+            self._local.lookup_cache_key = (task, cache_key)
             try:
-                result = self._cache.get(cache_key)
-            except Exception as e:
-                logging.error("Error getting data from cache %s: %s", cache_key, str(e))
-                result = None
+                self._consume_with_cache(task, cache_key)
+            finally:
+                self._local.lookup_cache_key = None
 
-            if result is not None:
-                cached_results, _ = result
-                logging.info("Cache hit for %s with key: %s", self.name, cache_key)
-                self._publish_cached_results(cached_results, task)
-            else:
-                logging.info("Cache miss for %s with key: %s", self.name, cache_key)
-                self.consume_work(task)
-                input_task, outputs = self._local.ctx.get_input_and_outputs()
-                # strip private fields from outputs
-                outputs = [
-                    [consumer.name, task.copy_public()] for consumer, task in outputs
-                ]
-                self._set_cache(input_task, outputs)
+    def _consume_with_cache(self, task: Task, cache_key: str):
+        try:
+            result = self._cache.get(cache_key)
+        except Exception as e:
+            logging.error("Error getting data from cache %s: %s", cache_key, str(e))
+            result = None
 
-            self.post_consume_work(task)
+        cached_results: Optional[List[Tuple[str, Task]]] = None
+        if result is not None:
+            cached_results, _ = result
+            if not self._cache_hit_is_valid(task, cached_results):
+                logging.info(
+                    "Cache hit for %s with key: %s is no longer valid; re-executing",
+                    self.name,
+                    cache_key,
+                )
+                cached_results = None
+
+        if cached_results is not None:
+            logging.info("Cache hit for %s with key: %s", self.name, cache_key)
+            self._publish_cached_results(cached_results, task)
+        else:
+            logging.info("Cache miss for %s with key: %s", self.name, cache_key)
+            self.consume_work(task)
+            input_task, outputs = self._local.ctx.get_input_and_outputs()
+            # strip private fields from outputs
+            outputs = [
+                [consumer.name, task.copy_public()] for consumer, task in outputs
+            ]
+            # The key is deliberately computed again inside _set_cache, after
+            # consume_work: extra_cache_key() may depend on state the worker just
+            # changed (e.g. files it edits in place), and the entry must be found
+            # by a later run that sees that state, which is exactly when replaying
+            # the outputs without re-running is valid.
+            self._set_cache(input_task, outputs)
+
+        self.post_consume_work(task)
+
+    def _lookup_cache_key(self, task: Task) -> str:
+        """
+        The cache key that was used to look up ``task`` on this thread, computed once
+        per task. Falls back to computing it when called outside of task consumption.
+
+        Args:
+            task (Task): The task being consumed.
+
+        Returns:
+            str: The cache key.
+        """
+        memo = getattr(self._local, "lookup_cache_key", None)
+        if memo is not None and memo[0] is task:
+            return memo[1]
+        return self._get_cache_key(task)
+
+    def _cache_hit_is_valid(
+        self, task: Task, cached_results: List[Tuple[str, Task]]
+    ) -> bool:
+        """
+        Hook for subclasses to reject a cache hit based on external state that isn't
+        captured by the cache key itself (e.g. output files on disk that a previous
+        run's cache entry references but that are no longer present). Defaults to
+        always accepting the cache hit.
+
+        Args:
+            task (Task): The input task that produced a cache hit.
+            cached_results (List[Tuple[str, Task]]): The cached (consumer_name, output_task) pairs.
+
+        Returns:
+            bool: True if the cached results should be used, False to treat this as a cache miss.
+        """
+        return True
 
     def pre_consume_work(self, task: Task):
         """

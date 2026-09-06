@@ -118,6 +118,33 @@ class VersionedCacheWorker(CachedTaskWorker):
         return algorithm_version
 ```
 
+## Caching Work That Touches Files
+
+The cache key covers the input task, the prompt, and `extra_cache_key()`, but not the files a worker reads or writes. Two hooks close that gap:
+
+- `hash_files(workspace, globs)` returns a content hash for the files matching a set of glob patterns. Return it from `extra_cache_key()` so a changed input file produces a new key.
+- `_cache_hit_is_valid(task, cached_results)` runs on every cache hit and can reject it based on state the key does not capture. Return `False` when an output file from the cached run no longer exists, and the worker re-executes instead of replaying stale results.
+
+```python
+from pathlib import Path
+from planai import CachedTaskWorker, hash_files
+
+class Indexer(CachedTaskWorker):
+    output_types: List[Type[Task]] = [IndexBuilt]
+
+    def extra_cache_key(self, task: JobTask) -> str:
+        return hash_files(task.job_dir, ["docs/**/*.md"])
+
+    def _cache_hit_is_valid(self, task: JobTask, cached_results) -> bool:
+        return (Path(task.job_dir) / "index.json").exists()
+
+    def consume_work(self, task: JobTask):
+        # build docs/index.json from the markdown files
+        ...
+```
+
+`WorkspaceLLMTaskWorker` implements both through its `input_globs` field and `expected_output_files()` hook. Note that the key is computed again when results are stored, after the worker ran, so a worker that changes files it also hashes is found by a later run over the changed files. See [Workspaces and File Tools](/features/workspaces/).
+
 ## Next Steps
 
 - Learn about [Task Workers](/features/taskworkers/) that can be cached

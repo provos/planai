@@ -85,6 +85,13 @@ class LLMTaskWorker(BaseLLMTaskWorker):
         default=False,
         description="Whether to use XML format for the data input to the LLM",
     )
+    max_tool_rounds: Optional[int] = Field(
+        default=None,
+        description=(
+            "Maximum number of tool-calling rounds to allow the LLM. Only forwarded to "
+            "generate_pydantic when tools are actually in use for a given call."
+        ),
+    )
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -124,6 +131,38 @@ class LLMTaskWorker(BaseLLMTaskWorker):
             else task.model_dump_xml()
         )
 
+    def get_tools(self, task: Task) -> Optional[List[Tool]]:
+        """
+        Returns the tools that should be made available to the LLM for this task.
+        Defaults to the static ``tools`` field, but subclasses can override this to
+        provide dynamic, per-task tools (e.g. file tools bound to a task-specific
+        working directory).
+
+        Args:
+            task (Task): The input task.
+
+        Returns:
+            Optional[List[Tool]]: The tools to make available, or None/empty for no tools.
+        """
+        return self.tools
+
+    def get_cache_salt(self, task: Task) -> Optional[str]:
+        """
+        Returns an optional salt to forward as ``cache_salt`` to generate_pydantic.
+        Only used by _invoke_llm when it returns a non-None value (and tools are in
+        use), so the default LLMTaskWorker behavior of not passing cache_salt is
+        unchanged. Subclasses (e.g. WorkspaceLLMTaskWorker) can override this to
+        invalidate the LLM's own response cache when external state, such as
+        workspace files, changes.
+
+        Args:
+            task (Task): The input task.
+
+        Returns:
+            Optional[str]: The cache salt, or None to omit it.
+        """
+        return None
+
     def _invoke_llm(self, task: Task):
         # allow subclasses to customize the prompt based on the input task
         task_prompt = self.format_prompt(task)
@@ -141,6 +180,19 @@ class LLMTaskWorker(BaseLLMTaskWorker):
             assert isinstance(response, Task)
             return self.extra_validation(response, task)
 
+        tools = self.get_tools(task)
+
+        # only forward these new, tool-related kwargs when tools are actually in
+        # use for this call, so that callers/mocks that don't expect them (and
+        # don't use tools) keep working unchanged.
+        extra_kwargs: Dict[str, Any] = {}
+        if tools:
+            if self.max_tool_rounds is not None:
+                extra_kwargs["max_tool_rounds"] = self.max_tool_rounds
+            cache_salt = self.get_cache_salt(task)
+            if cache_salt is not None:
+                extra_kwargs["cache_salt"] = cache_salt
+
         response = self.llm.generate_pydantic(
             prompt_template=(
                 (PROMPT_TEMPLATE if processed_task is not None else "{instructions}")
@@ -152,7 +204,7 @@ class LLMTaskWorker(BaseLLMTaskWorker):
             ),
             output_schema=self._output_type(),
             system=self.system_prompt,
-            tools=self.tools if self.tools else None,
+            tools=tools if tools else None,
             task=self._format_task(processed_task),
             temperature=self.temperature,
             instructions=task_prompt,
@@ -162,6 +214,7 @@ class LLMTaskWorker(BaseLLMTaskWorker):
             debug_saver=save_debug_with_task if self.debug_mode else None,
             extra_validation=extra_validation_with_task,
             images=task.images if isinstance(task, MediaTask) else None,
+            **extra_kwargs,
         )
         assert isinstance(response, Task) or response is None
         self.post_process(response=response, input_task=task)

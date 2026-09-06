@@ -129,6 +129,105 @@ class TestLLMTaskWorker(unittest.TestCase):
                 task=output_task_payload, input_task=input_task
             )
 
+    def test_get_tools_defaults_to_static_tools_field(self):
+        mock_tool = MagicMock(spec=LLMToolInstance)
+        worker = LLMTaskWorker(
+            llm=self.llm,
+            prompt="Test prompt",
+            output_types=[DummyOutputTask],
+            tools=[mock_tool],
+        )
+        task = DummyTask(content="content")
+        self.assertEqual(worker.get_tools(task), [mock_tool])
+
+    @patch("planai.llm_task.LLMTaskWorker.publish_work")
+    def test_invoke_llm_uses_get_tools_hook(self, mock_publish_work):
+        """_invoke_llm must call self.get_tools(task) rather than reading self.tools directly."""
+        mock_tool = MagicMock(spec=LLMToolInstance)
+        output_task_payload = DummyOutputTask(result="Tool test output")
+        input_task = DummyTask(content="Tool test input")
+
+        with patch.object(
+            self.llm, "generate_pydantic", return_value=output_task_payload
+        ) as mock_generate_pydantic:
+            with patch(
+                "planai.llm_task.LLMTaskWorker.get_tools", return_value=[mock_tool]
+            ) as mock_get_tools:
+                self.worker._invoke_llm(input_task)
+
+                mock_get_tools.assert_called_once_with(input_task)
+                call_args = mock_generate_pydantic.call_args
+                self.assertEqual(call_args.kwargs["tools"], [mock_tool])
+
+    @patch("planai.llm_task.LLMTaskWorker.publish_work")
+    def test_max_tool_rounds_forwarded_only_with_tools(self, mock_publish_work):
+        mock_tool = MagicMock(spec=LLMToolInstance)
+        output_task_payload = DummyOutputTask(result="Tool test output")
+        input_task = DummyTask(content="Tool test input")
+
+        worker_with_tools = LLMTaskWorker(
+            llm=self.llm,
+            prompt="Test prompt",
+            output_types=[DummyOutputTask],
+            tools=[mock_tool],
+            max_tool_rounds=7,
+        )
+
+        with patch.object(
+            self.llm, "generate_pydantic", return_value=output_task_payload
+        ) as mock_generate_pydantic:
+            worker_with_tools._invoke_llm(input_task)
+            call_args = mock_generate_pydantic.call_args
+            self.assertEqual(call_args.kwargs["max_tool_rounds"], 7)
+
+        # Without tools, max_tool_rounds must not be forwarded even if set.
+        worker_without_tools = LLMTaskWorker(
+            llm=self.llm,
+            prompt="Test prompt",
+            output_types=[DummyOutputTask],
+            tools=None,
+            max_tool_rounds=7,
+        )
+        with patch.object(
+            self.llm, "generate_pydantic", return_value=output_task_payload
+        ) as mock_generate_pydantic:
+            worker_without_tools._invoke_llm(input_task)
+            call_args = mock_generate_pydantic.call_args
+            self.assertNotIn("max_tool_rounds", call_args.kwargs)
+
+    @patch("planai.llm_task.LLMTaskWorker.publish_work")
+    def test_cache_salt_forwarded_only_when_hook_returns_value(self, mock_publish_work):
+        mock_tool = MagicMock(spec=LLMToolInstance)
+        output_task_payload = DummyOutputTask(result="Tool test output")
+        input_task = DummyTask(content="Tool test input")
+
+        worker_with_tools = LLMTaskWorker(
+            llm=self.llm,
+            prompt="Test prompt",
+            output_types=[DummyOutputTask],
+            tools=[mock_tool],
+        )
+
+        # default get_cache_salt returns None -> no cache_salt kwarg
+        with patch.object(
+            self.llm, "generate_pydantic", return_value=output_task_payload
+        ) as mock_generate_pydantic:
+            worker_with_tools._invoke_llm(input_task)
+            self.assertNotIn("cache_salt", mock_generate_pydantic.call_args.kwargs)
+
+        # overridden get_cache_salt returning a value -> forwarded
+        with patch(
+            "planai.llm_task.LLMTaskWorker.get_cache_salt", return_value="some-salt"
+        ):
+            with patch.object(
+                self.llm, "generate_pydantic", return_value=output_task_payload
+            ) as mock_generate_pydantic:
+                worker_with_tools._invoke_llm(input_task)
+                self.assertEqual(
+                    mock_generate_pydantic.call_args.kwargs["cache_salt"],
+                    "some-salt",
+                )
+
     def test_invoke_llm(self):
         input_task = DummyTask(content="Test input")
         output_task = DummyOutputTask(result="Test output")

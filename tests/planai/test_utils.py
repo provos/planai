@@ -82,7 +82,7 @@ class TestDictDumpXml(unittest.TestCase):
         chars = (
             string.printable
             + "".join(chr(i) for i in range(0x80, 0x110000, 997))  # sparse unicode
-            + "\x00\x01\x02\x03\x1F"  # control chars
+            + "\x00\x01\x02\x03\x1f"  # control chars
             + "<>\"'&"  # XML special chars
             + "🌟🔥🌈"  # emojis
         )

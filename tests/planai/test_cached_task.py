@@ -168,6 +168,32 @@ class TestCachedTaskWorker(unittest.TestCase):
             self.worker._pre_consume_work(task)
             mock_get_consumer.assert_called_once_with(cached_result[0][1])
 
+    def test_cache_hit_is_valid_default_true(self):
+        task = DummyInputTask(data="test")
+        cached_result = [("SinkTaskWorker", DummyOutputTask(processed_data="x"))]
+        self.assertTrue(self.worker._cache_hit_is_valid(task, cached_result))
+
+    def test_cache_hit_invalidated_by_hook_reexecutes(self):
+        task = DummyInputTask(data="test")
+        cached_result = [DummyOutputTask(processed_data="Cached: test")]
+        cache_key = self.worker._get_cache_key(task)
+        self.mock_cache.set(cache_key, [cached_result, task])
+        self.mock_cache.clear_stats()
+
+        with patch.object(
+            self.worker, "_cache_hit_is_valid", return_value=False
+        ) as mock_valid:
+            with patch(
+                "test_cached_task.DummyCachedTaskWorker.consume_work"
+            ) as mock_consume:
+                with patch.object(
+                    self.worker, "_publish_cached_results"
+                ) as mock_publish:
+                    self.worker._pre_consume_work(task)
+                    mock_valid.assert_called_once_with(task, cached_result)
+                    mock_consume.assert_called_once_with(task)
+                    mock_publish.assert_not_called()
+
     def test_two_consumers_invalid_consumer_name(self):
         second_sink_worker = SinkTaskWorker()
         self.worker.register_consumer(DummyOutputTask, second_sink_worker)
