@@ -160,6 +160,32 @@ class TestLLMTaskWorker(unittest.TestCase):
                 self.assertEqual(call_args.kwargs["tools"], [mock_tool])
 
     @patch("planai.llm_task.LLMTaskWorker.publish_work")
+    def test_invoke_llm_uses_get_system_prompt_hook(self, mock_publish_work):
+        output_task_payload = DummyOutputTask(result="out")
+        input_task = DummyTask(content="in")
+
+        with patch.object(
+            self.llm, "generate_pydantic", return_value=output_task_payload
+        ) as mock_generate_pydantic:
+            with patch(
+                "planai.llm_task.LLMTaskWorker.get_system_prompt",
+                return_value="per-task system prompt",
+            ) as mock_hook:
+                self.worker._invoke_llm(input_task)
+
+                mock_hook.assert_called_once_with(input_task)
+                self.assertEqual(
+                    mock_generate_pydantic.call_args.kwargs["system"],
+                    "per-task system prompt",
+                )
+
+    def test_get_system_prompt_defaults_to_the_field(self):
+        self.assertEqual(
+            self.worker.get_system_prompt(DummyTask(content="x")),
+            self.worker.system_prompt,
+        )
+
+    @patch("planai.llm_task.LLMTaskWorker.publish_work")
     def test_max_tool_rounds_forwarded_only_with_tools(self, mock_publish_work):
         mock_tool = MagicMock(spec=LLMToolInstance)
         output_task_payload = DummyOutputTask(result="Tool test output")

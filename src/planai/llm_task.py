@@ -146,6 +146,21 @@ class LLMTaskWorker(BaseLLMTaskWorker):
         """
         return self.tools
 
+    def get_system_prompt(self, task: Task) -> Optional[str]:
+        """
+        Returns the system prompt to use for this task. Defaults to the static
+        ``system_prompt`` field. Override it to build a per-task system prompt, for
+        example to place reference material that several tasks share ahead of the
+        per-task instructions, where provider prompt caching can reuse it.
+
+        Args:
+            task (Task): The input task.
+
+        Returns:
+            Optional[str]: The system prompt, or None for the provider default.
+        """
+        return self.system_prompt
+
     def get_cache_salt(self, task: Task) -> Optional[str]:
         """
         Returns an optional salt to forward as ``cache_salt`` to generate_pydantic.
@@ -203,7 +218,7 @@ class LLMTaskWorker(BaseLLMTaskWorker):
                 )
             ),
             output_schema=self._output_type(),
-            system=self.system_prompt,
+            system=self.get_system_prompt(task),
             tools=tools if tools else None,
             task=self._format_task(processed_task),
             temperature=self.temperature,
@@ -233,7 +248,7 @@ class LLMTaskWorker(BaseLLMTaskWorker):
                     else ""
                 )
             ),
-            system=self.system_prompt,
+            system=self.get_system_prompt(task),
             task=self._format_task(processed_task),
             instructions=task_prompt,
             format_instructions=LLMInterface.get_format_instructions(
@@ -338,5 +353,5 @@ class CachedLLMTaskWorker(CachedTaskWorker, LLMTaskWorker):
         """Generate a unique cache key for the input task including the prompt template and model name."""
         upstream_cache_key = super()._get_cache_key(task)
 
-        upstream_cache_key += f" - {self.system_prompt} - {self.get_full_prompt(task)} - {self.llm.model_name}"
+        upstream_cache_key += f" - {self.get_system_prompt(task)} - {self.get_full_prompt(task)} - {self.llm.model_name}"
         return hashlib.sha1(upstream_cache_key.encode()).hexdigest()

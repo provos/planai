@@ -82,6 +82,8 @@ class ExpertAnalyzer(LLMTaskWorker):
     output_types: List[Type[Task]] = [Analysis]
 ```
 
+Override `get_system_prompt(task)` when the system prompt depends on the task, for example to include reference material that several tasks share so the provider's prompt cache can reuse it.
+
 ### Structured Output
 
 PlanAI automatically handles structured output using Pydantic models:
