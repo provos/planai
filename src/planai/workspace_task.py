@@ -14,8 +14,10 @@
 """A CachedLLMTaskWorker that lets an LLM read, write, and search files inside a
 per-job working directory carried through task provenance."""
 
+import uuid
 from typing import List, Optional, Tuple
 
+from llm_interface import Tool
 from pydantic import Field
 
 from .llm_task import CachedLLMTaskWorker
@@ -45,6 +47,12 @@ class WorkspaceLLMTaskWorker(CachedLLMTaskWorker):
     published output tasks and not any files the tools wrote on a prior run,
     subclasses can declare expected_output_files() so that a cache hit whose
     files are missing is treated as a cache miss and re-executed.
+
+    The cache key includes the workspace root and, through input_globs, the
+    content of the declared input files. Workers that can write files pass a
+    fresh cache_salt to the LLM on every execution so that llm_interface's
+    response cache never replays an answer whose tool calls (the file writes)
+    would be skipped; read-only workers pass the cache key instead.
     """
 
     read_only: bool = Field(
@@ -97,22 +105,48 @@ class WorkspaceLLMTaskWorker(CachedLLMTaskWorker):
             "string 'workspace' attribute) upstream"
         )
 
-    def get_tools(self, task: Task):
+    def get_tools(self, task: Task) -> List[Tool]:
         file_tools = make_file_tools(
             self.get_workspace(task),
             read_only=self.read_only,
             max_read_chars=self.max_read_chars,
         )
-        if self.tools:
-            return file_tools + list(self.tools)
-        return file_tools
+        if not self.tools:
+            return file_tools
+
+        file_tool_names = {t.name for t in file_tools}
+        clashes = sorted(t.name for t in self.tools if t.name in file_tool_names)
+        if clashes:
+            raise ValueError(
+                f"{self.name}: static tools {clashes} would shadow the workspace "
+                "file tools of the same name"
+            )
+        return file_tools + list(self.tools)
 
     def get_cache_salt(self, task: Task) -> Optional[str]:
-        return self._get_cache_key(task)
+        """
+        Salt for llm_interface's response cache. Read-only workers use the cache
+        key, so an identical request can be served from the response cache. Workers
+        that can write files get a fresh value on every execution: a replayed
+        response skips the tool calls, so the files it describes would never be
+        written.
+        """
+        cache_key = self._lookup_cache_key(task)
+        if self.read_only:
+            return cache_key
+        return f"{cache_key}:{uuid.uuid4().hex}"
 
     def extra_cache_key(self, task: Task) -> str:
-        workspace = self.get_workspace(task)
-        return hash_files(workspace, self.input_globs)
+        try:
+            workspace = self.get_workspace(task)
+        except ValueError:
+            # nothing to add; get_tools() raises a descriptive error when the
+            # worker actually runs
+            return ""
+        parts = [str(workspace.root)]
+        if self.input_globs:
+            parts.append(hash_files(workspace, self.input_globs))
+        return ":".join(parts)
 
     def expected_output_files(self, task: Task) -> List[str]:
         """

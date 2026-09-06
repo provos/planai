@@ -103,6 +103,18 @@ class TestGetTools(WorkspaceWorkerTestCase):
         self.assertNotIn("edit_file", tools)
         self.assertIn("read_file", tools)
 
+    def test_static_tool_shadowing_a_file_tool_is_rejected(self):
+        shadow = LLMToolInstance(
+            name="read_file",
+            description="not the jailed one",
+            parameters={"type": "object", "properties": {}, "required": []},
+            func=lambda: "escaped",
+        )
+        self.worker.tools = [shadow]
+        with self.assertRaises(ValueError) as ctx:
+            self.worker.get_tools(self.task)
+        self.assertIn("read_file", str(ctx.exception))
+
     def test_static_tools_are_appended(self):
         custom_tool = LLMToolInstance(
             name="custom_tool",
@@ -146,11 +158,38 @@ class TestExtraCacheKeyAndCacheSalt(WorkspaceWorkerTestCase):
         key2 = self.worker._get_cache_key(self.task)
         self.assertEqual(key1, key2)
 
-    def test_get_cache_salt_matches_cache_key(self):
+    def test_cache_salt_is_the_cache_key_for_read_only_workers(self):
+        self.worker.read_only = True
         self.assertEqual(
             self.worker.get_cache_salt(self.task),
             self.worker._get_cache_key(self.task),
         )
+
+    def test_cache_salt_is_fresh_per_execution_for_writers(self):
+        key = self.worker._get_cache_key(self.task)
+        salt1 = self.worker.get_cache_salt(self.task)
+        salt2 = self.worker.get_cache_salt(self.task)
+        self.assertTrue(salt1.startswith(key + ":"))
+        self.assertNotEqual(salt1, salt2)
+
+
+class TestCacheKeyIdentity(WorkspaceWorkerTestCase):
+    def test_cache_key_differs_between_workspaces(self):
+        other_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(other_dir.cleanup)
+        task_a = DummyTask(content="same payload")
+        add_input_provenance(task_a, WorkspaceTask(workspace=self.workspace_dir.name))
+        task_b = DummyTask(content="same payload")
+        add_input_provenance(task_b, WorkspaceTask(workspace=other_dir.name))
+
+        self.assertNotEqual(
+            self.worker._get_cache_key(task_a), self.worker._get_cache_key(task_b)
+        )
+
+    def test_cache_key_without_workspace_does_not_raise(self):
+        task = DummyTask(content="orphan")
+        self.assertEqual(self.worker.extra_cache_key(task), "")
+        self.worker._get_cache_key(task)
 
 
 class OutputTaskFile(Task):
@@ -200,6 +239,32 @@ class TestCacheHitBypass(unittest.TestCase):
             mock_publish.assert_not_called()
 
         self.llm.generate_pydantic.assert_called_once()
+
+    def test_rerun_after_invalid_hit_does_not_reuse_llm_response_cache(self):
+        self._seed_cache()
+        self.llm.generate_pydantic = Mock(return_value=OutputTaskFile(result="fresh"))
+
+        with patch.object(self.worker, "_publish_cached_results"):
+            with patch("planai.llm_task.LLMTaskWorker.publish_work"):
+                self.worker._pre_consume_work(self.task)
+
+        salt = self.llm.generate_pydantic.call_args.kwargs["cache_salt"]
+        key = self.worker._get_cache_key(self.task)
+        self.assertNotEqual(salt, key)
+        self.assertTrue(salt.startswith(key + ":"))
+
+    def test_lookup_key_is_computed_once_per_execution(self):
+        self.llm.generate_pydantic = Mock(return_value=OutputTaskFile(result="fresh"))
+
+        with patch.object(
+            self.worker, "_get_cache_key", wraps=self.worker._get_cache_key
+        ) as spy:
+            with patch("planai.llm_task.LLMTaskWorker.publish_work"):
+                self.worker._pre_consume_work(self.task)
+
+        # once for the lookup and once, after consume_work, for the store;
+        # get_cache_salt reuses the lookup key instead of computing a third
+        self.assertEqual(spy.call_count, 2)
 
     def test_cache_hit_honored_when_expected_file_present(self):
         self._seed_cache()

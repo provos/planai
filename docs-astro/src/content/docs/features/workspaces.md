@@ -75,13 +75,13 @@ Override `get_workspace()` when the directory should come from worker configurat
 | `write_file(path, content)` | Creates or overwrites a file. Parent directories are created as needed. |
 | `edit_file(path, old_string, new_string, replace_all=False)` | Replaces an exact snippet. `old_string` must occur exactly once unless `replace_all` is true. |
 | `list_files(path=".", pattern="**/*")` | Lists files with their sizes, sorted by relative path. |
-| `grep_files(pattern, path=".", glob="**/*.md")` | Searches each line of the matching files with a Python regular expression. |
+| `grep_files(pattern, path=".", glob="**/*")` | Searches each line of the matching files with a Python regular expression. Long matching lines are truncated. |
 
 Every path is workspace-relative. Absolute paths, `..` components, and symlinks that resolve outside the root are rejected. The tools return an `Error: ...` string instead of raising, so the model sees what went wrong and can correct itself. Set `read_only=True` on the worker to omit `write_file` and `edit_file`.
 
 ## Caching and Files on Disk
 
-`WorkspaceLLMTaskWorker` extends `CachedLLMTaskWorker`, and files introduce two problems the normal cache key does not cover:
+`WorkspaceLLMTaskWorker` extends `CachedLLMTaskWorker`. Its cache key always includes the workspace root, so two jobs with the same payload in different directories never share an entry. Files introduce two further problems the normal cache key does not cover:
 
 1. **Changed inputs.** The cache key is built from the input task and the prompt, not from the files the model will read. Set `input_globs` to fold the content of the matching files into the key through `hash_files()`.
 2. **Missing outputs.** A cache hit replays the published output tasks, but not the files the tools wrote on the earlier run. Override `expected_output_files()` to list the workspace-relative paths the worker must produce. When any of them is missing, the hit is treated as a miss and the worker runs again.
@@ -97,7 +97,9 @@ class SectionWriter(WorkspaceLLMTaskWorker):
         return [task.output_file]
 ```
 
-The worker also forwards its cache key to `llm-interface` as `cache_salt`. The library's own response cache is keyed on the initial prompt, so without the salt a second run could receive a stale answer after the files changed.
+The key is computed again when the results are stored, after the worker ran. A worker that edits files it also lists in `input_globs` is therefore found by a later run over the edited files, and is not replayed over the unedited ones, which is when replaying without running would be wrong.
+
+`llm-interface` keeps its own response cache keyed on the initial prompt. A replayed response skips the tool calls, so for a worker that can write files the files would never be written. Such workers pass a fresh `cache_salt` on every execution and only ever hit the PlanAI cache. Read-only workers pass their cache key as the salt, so an identical request can still be served from the response cache.
 
 ## Validating What the Model Wrote
 
@@ -149,7 +151,7 @@ class Summarizer(LLMTaskWorker):
         return make_file_tools(Workspace(task.job_dir), read_only=True)
 ```
 
-`make_file_tools()` also accepts `max_read_chars`, `max_list_entries`, and `max_grep_matches` to bound the size of tool results. `Workspace.resolve(rel_path)` is the same check the tools use, so Python code can validate a model-supplied path before touching it.
+`make_file_tools()` also accepts `max_read_chars`, `max_list_entries`, `max_grep_matches`, and `max_grep_line_chars` to bound the size of tool results. Constructing a `Workspace` has no side effects: the directory is created by the first `write_file`. `Workspace.resolve(rel_path)` is the same check the tools use, so Python code can validate a model-supplied path before touching it.
 
 ## Testing
 

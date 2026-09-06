@@ -38,14 +38,15 @@ class Workspace:
     workspace root and are rejected with a :class:`ValueError` if they would
     escape that root, whether through an absolute path, a ``..`` component, or
     a symlink that points outside of the root.
+
+    Constructing a Workspace has no side effects: the root directory is not
+    created until ``write_file`` first writes into it.
     """
 
     def __init__(self, root: Union[str, "Path"]):
-        root_path = Path(root).expanduser()
-        root_path.mkdir(parents=True, exist_ok=True)
         # resolve() follows symlinks and normalizes the path so that every
         # subsequent comparison against self.root is done against the real path.
-        self.root: Path = root_path.resolve()
+        self.root: Path = Path(root).expanduser().resolve()
 
     def resolve(self, rel_path: str) -> Path:
         """Resolve a workspace-relative path to an absolute path inside the root.
@@ -88,16 +89,29 @@ class Workspace:
 def jailed_files(ws: Workspace, base: Path, pattern: str) -> List[Path]:
     """Files under ``base`` matching ``pattern`` whose real location is inside the
     workspace. Glob follows symlinks, so a link pointing outside the root would
-    otherwise be readable; such entries are skipped."""
+    otherwise be readable; such entries are skipped.
+
+    Raises:
+        ValueError: If the pattern is empty, absolute, or not supported by
+            :meth:`pathlib.Path.glob`.
+    """
+    if not pattern:
+        raise ValueError("Glob pattern must not be empty")
+    if pattern.startswith(("/", "\\")) or Path(pattern).is_absolute():
+        raise ValueError(f"Glob pattern must be relative: {pattern!r}")
+
     files = []
-    for path in base.glob(pattern):
-        if not path.is_file():
-            continue
-        try:
-            ws.resolve(path.relative_to(ws.root).as_posix())
-        except ValueError:
-            continue
-        files.append(path)
+    try:
+        for path in base.glob(pattern):
+            if not path.is_file():
+                continue
+            try:
+                ws.resolve(path.relative_to(ws.root).as_posix())
+            except ValueError:
+                continue
+            files.append(path)
+    except NotImplementedError as e:
+        raise ValueError(f"Unsupported glob pattern: {pattern!r}") from e
     return sorted(files)
 
 
@@ -129,9 +143,15 @@ def hash_files(workspace: Union[Workspace, str, Path], globs: List[str]) -> str:
 
     digest = hashlib.sha1()
     for rel in sorted(matched.keys()):
+        try:
+            content = matched[rel].read_bytes()
+        except OSError as e:
+            raise OSError(
+                f"Could not read {rel} while hashing workspace files: {e.strerror or e}"
+            ) from e
         digest.update(rel.encode("utf-8"))
         digest.update(b"\x00")
-        digest.update(matched[rel].read_bytes())
+        digest.update(content)
         digest.update(b"\x00")
     return digest.hexdigest()
 
@@ -143,16 +163,18 @@ def make_file_tools(
     max_read_chars: int = 100_000,
     max_list_entries: int = 500,
     max_grep_matches: int = 200,
+    max_grep_line_chars: int = 500,
 ) -> List[Tool]:
     """Create llm_interface Tool objects bound to a single sandboxed workspace.
 
     Args:
-        workspace: The Workspace to jail all file operations to (or a path to one,
-            which will be created if missing).
+        workspace: The Workspace to jail all file operations to (or a path to one).
         read_only: If True, omit the write_file and edit_file tools.
         max_read_chars: Maximum number of characters read_file returns before truncating.
         max_list_entries: Maximum number of entries list_files returns before truncating.
         max_grep_matches: Maximum number of matches grep_files returns before truncating.
+        max_grep_line_chars: Maximum number of characters of a matching line that
+            grep_files includes before truncating it.
 
     Returns:
         List[Tool]: Tool objects usable as the ``tools`` argument to an LLMTaskWorker.
@@ -223,7 +245,9 @@ def make_file_tools(
 
         try:
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(content, encoding="utf-8")
+            # write_bytes keeps the content verbatim; write_text would translate
+            # line endings on some platforms
+            target.write_bytes(content.encode("utf-8"))
         except OSError as e:
             return f"Error: Could not write file {path}: {e.strerror or e}"
 
@@ -237,7 +261,8 @@ def make_file_tools(
         """Replace an exact snippet of text within an existing file.
 
         By default, old_string must occur exactly once in the file; use replace_all
-        to replace every occurrence instead.
+        to replace every occurrence instead. Line endings are matched as "\\n" and
+        a file that uses CRLF keeps CRLF.
 
         Args:
             path: Workspace-relative path to the file to edit.
@@ -260,11 +285,16 @@ def make_file_tools(
             return "Error: old_string must not be empty"
 
         try:
-            text = target.read_text(encoding="utf-8")
+            raw = target.read_bytes().decode("utf-8")
         except UnicodeDecodeError:
             return f"Error: File is not valid UTF-8 text (binary?): {path}"
         except OSError as e:
             return f"Error: Could not read file {path}: {e.strerror or e}"
+
+        # match on "\n" so the model can quote the file as read_file showed it,
+        # but preserve the file's CRLF line endings when writing it back
+        uses_crlf = "\r\n" in raw
+        text = raw.replace("\r\n", "\n") if uses_crlf else raw
 
         count = text.count(old_string)
         if count == 0:
@@ -282,8 +312,11 @@ def make_file_tools(
             new_text = text.replace(old_string, new_string, 1)
             replacements = 1
 
+        if uses_crlf:
+            new_text = new_text.replace("\n", "\r\n")
+
         try:
-            target.write_text(new_text, encoding="utf-8")
+            target.write_bytes(new_text.encode("utf-8"))
         except OSError as e:
             return f"Error: Could not write file {path}: {e.strerror or e}"
 
@@ -333,7 +366,7 @@ def make_file_tools(
             output += f"\n\n[Output truncated at {max_list_entries} entries.]"
         return output
 
-    def grep_files(pattern: str, path: str = ".", glob: str = "**/*.md") -> str:
+    def grep_files(pattern: str, path: str = ".", glob: str = "**/*") -> str:
         """Search for a regular expression across text files in the workspace.
 
         Args:
@@ -342,7 +375,8 @@ def make_file_tools(
             path: Workspace-relative directory to search within. Use "." for the
                 workspace root.
             glob: Glob pattern, relative to path, selecting which files to search,
-                e.g. "**/*.md" for every Markdown file recursively.
+                e.g. "**/*" for every file recursively or "**/*.md" for Markdown
+                files only.
         """
         try:
             target = ws.resolve(path)
@@ -375,6 +409,8 @@ def make_file_tools(
             rel = file_path.relative_to(ws.root).as_posix()
             for lineno, line in enumerate(text.splitlines(), start=1):
                 if regex.search(line):
+                    if len(line) > max_grep_line_chars:
+                        line = line[:max_grep_line_chars] + " [line truncated]"
                     results.append(f"{rel}:{lineno}: {line}")
                     if len(results) >= max_grep_matches:
                         truncated = True

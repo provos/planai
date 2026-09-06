@@ -143,7 +143,7 @@ class Indexer(CachedTaskWorker):
         ...
 ```
 
-`WorkspaceLLMTaskWorker` implements both through its `input_globs` field and `expected_output_files()` hook, and additionally salts the LLM response cache with the same key. See [Workspaces and File Tools](/features/workspaces/).
+`WorkspaceLLMTaskWorker` implements both through its `input_globs` field and `expected_output_files()` hook. Note that the key is computed again when results are stored, after the worker ran, so a worker that changes files it also hashes is found by a later run over the changed files. See [Workspaces and File Tools](/features/workspaces/).
 
 ## Next Steps
 

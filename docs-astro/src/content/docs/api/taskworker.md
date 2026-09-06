@@ -346,7 +346,7 @@ Fields: `read_only` (default `False`), `max_tool_rounds` (default `40`), `input_
 Hooks:
 - `get_workspace(task)` returns the `Workspace`, taken from the nearest task with a string `workspace` attribute; override it to source the directory elsewhere.
 - `expected_output_files(task)` lists workspace-relative files whose absence invalidates a cache hit.
-- `get_cache_salt(task)` forwards the cache key to the LLM response cache.
+- `get_cache_salt(task)` salts the LLM response cache: the cache key for read-only workers, a fresh value per execution for workers whose tools write files.
 
 See [Workspaces and File Tools](/features/workspaces/) for the full guide.
 

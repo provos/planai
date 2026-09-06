@@ -1,5 +1,6 @@
 # test_filesystem.py
 
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -13,9 +14,16 @@ class TestWorkspaceJail(unittest.TestCase):
         self.addCleanup(self.tempdir.cleanup)
         self.workspace = Workspace(self.tempdir.name)
 
-    def test_root_is_created_and_resolved(self):
-        self.assertTrue(self.workspace.root.exists())
-        self.assertTrue(self.workspace.root.is_absolute())
+    def test_root_is_resolved_but_not_created(self):
+        missing = Path(self.tempdir.name) / "not-yet"
+        ws = Workspace(missing)
+        self.assertTrue(ws.root.is_absolute())
+        self.assertFalse(ws.root.exists())
+
+        tools = {t.name: t for t in make_file_tools(ws)}
+        result = tools["write_file"].execute(path="a.txt", content="hi")
+        self.assertNotIn("Error", result)
+        self.assertEqual((missing / "a.txt").read_text(), "hi")
 
     def test_nested_path_accepted(self):
         resolved = self.workspace.resolve("a/b/c.txt")
@@ -141,6 +149,12 @@ class TestWriteFile(FileToolsTestCase):
         self.assertIn("list_files", tools)
         self.assertIn("grep_files", tools)
 
+    def test_content_written_verbatim(self):
+        self.tools["write_file"].execute(path="win.txt", content="a\r\nb\n")
+        self.assertEqual(
+            (Path(self.tempdir.name) / "win.txt").read_bytes(), b"a\r\nb\n"
+        )
+
 
 class TestEditFile(FileToolsTestCase):
     def test_edit_unique_match(self):
@@ -183,6 +197,31 @@ class TestEditFile(FileToolsTestCase):
     def test_omitted_when_read_only(self):
         tools = {t.name: t for t in make_file_tools(self.workspace, read_only=True)}
         self.assertNotIn("edit_file", tools)
+
+
+class TestEditFileLineEndings(FileToolsTestCase):
+    def test_crlf_preserved(self):
+        full = Path(self.tempdir.name) / "win.txt"
+        full.write_bytes(b"hello\r\nworld\r\n")
+        result = self.tools["edit_file"].execute(
+            path="win.txt", old_string="world", new_string="there"
+        )
+        self.assertNotIn("Error", result)
+        self.assertEqual(full.read_bytes(), b"hello\r\nthere\r\n")
+
+    def test_multiline_old_string_matches_crlf_file(self):
+        full = Path(self.tempdir.name) / "win.txt"
+        full.write_bytes(b"a\r\nb\r\nc\r\n")
+        result = self.tools["edit_file"].execute(
+            path="win.txt", old_string="a\nb", new_string="ab"
+        )
+        self.assertNotIn("Error", result)
+        self.assertEqual(full.read_bytes(), b"ab\r\nc\r\n")
+
+    def test_lf_file_stays_lf(self):
+        full = self.write("unix.txt", "a\nb\n")
+        self.tools["edit_file"].execute(path="unix.txt", old_string="b", new_string="c")
+        self.assertEqual(full.read_bytes(), b"a\nc\n")
 
 
 class TestListFiles(FileToolsTestCase):
@@ -230,12 +269,27 @@ class TestGrepFiles(FileToolsTestCase):
         result = self.tools["grep_files"].execute(pattern="foo")
         self.assertEqual(result, "a.md:2: foo bar")
 
+    def test_default_glob_searches_every_file(self):
+        self.write("a.md", "needle\n")
+        self.write("src/b.py", "needle\n")
+        result = self.tools["grep_files"].execute(pattern="needle")
+        self.assertIn("a.md", result)
+        self.assertIn("src/b.py", result)
+
     def test_glob_filters_files(self):
         self.write("a.md", "needle\n")
         self.write("b.txt", "needle\n")
-        result = self.tools["grep_files"].execute(pattern="needle")
+        result = self.tools["grep_files"].execute(pattern="needle", glob="*.md")
         self.assertIn("a.md", result)
         self.assertNotIn("b.txt", result)
+
+    def test_long_lines_are_truncated(self):
+        self.write("a.md", "x" * 30 + "needle" + "y" * 30 + "\n")
+        tools = {
+            t.name: t for t in make_file_tools(self.workspace, max_grep_line_chars=20)
+        }
+        result = tools["grep_files"].execute(pattern="needle")
+        self.assertEqual(result, "a.md:1: " + "x" * 20 + " [line truncated]")
 
     def test_invalid_regex(self):
         result = self.tools["grep_files"].execute(pattern="(unclosed")
@@ -255,6 +309,24 @@ class TestGrepFiles(FileToolsTestCase):
         self.assertEqual(len(match_lines), 5)
 
 
+class TestAbsolutePatternsRejected(FileToolsTestCase):
+    def test_list_files(self):
+        result = self.tools["list_files"].execute(pattern="/etc/*")
+        self.assertTrue(result.startswith("Error:"), result)
+
+    def test_grep_files(self):
+        result = self.tools["grep_files"].execute(pattern="root", glob="/etc/*")
+        self.assertTrue(result.startswith("Error:"), result)
+
+    def test_hash_files(self):
+        with self.assertRaises(ValueError):
+            hash_files(self.workspace, ["/etc/*"])
+
+    def test_empty_pattern(self):
+        result = self.tools["list_files"].execute(pattern="")
+        self.assertTrue(result.startswith("Error:"), result)
+
+
 class TestHashFiles(unittest.TestCase):
     def setUp(self):
         self.tempdir = tempfile.TemporaryDirectory()
@@ -266,6 +338,19 @@ class TestHashFiles(unittest.TestCase):
         full.parent.mkdir(parents=True, exist_ok=True)
         full.write_text(content)
         return full
+
+    def test_unreadable_file_raises_clear_error(self):
+        if os.geteuid() == 0:
+            self.skipTest("root can read files regardless of permissions")
+        secret = self.write("secret.txt", "x")
+        secret.chmod(0)
+        self.addCleanup(secret.chmod, 0o600)
+        with self.assertRaises(OSError) as ctx:
+            hash_files(self.workspace, ["*.txt"])
+        self.assertIn("secret.txt", str(ctx.exception))
+
+    def test_missing_root_hashes_to_empty(self):
+        self.assertEqual(hash_files(Path(self.tempdir.name) / "nope", ["*"]), "")
 
     def test_empty_when_no_match(self):
         self.assertEqual(hash_files(self.workspace, ["**/*.md"]), "")
