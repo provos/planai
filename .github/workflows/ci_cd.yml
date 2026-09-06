@@ -11,6 +11,10 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
     strategy:
       matrix:
         python-version: [3.12, '3.10', '3.11']
@@ -37,7 +41,7 @@ jobs:
           github.rest.issues.createComment({
             issue_number: context.issue.number,
             owner: context.repo.owner,
-            repo: context.repo.name,
+            repo: context.repo.repo,
             body: '✅ Tests passed for Python ${{ matrix.python-version }}!'
           })
     - name: Upload coverage reports to Codecov
@@ -48,6 +52,10 @@ jobs:
 
   test-examples:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
     strategy:
       matrix:
         example: [deepsearch ]
@@ -78,12 +86,16 @@ jobs:
           github.rest.issues.createComment({
             issue_number: context.issue.number,
             owner: context.repo.owner,
-            repo: context.repo.name,
+            repo: context.repo.repo,
             body: '✅ Example tests passed for ${{ matrix.example }} (Python ${{ matrix.python-version }})!'
           })
 
   lint:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python
@@ -107,7 +119,7 @@ jobs:
           github.rest.issues.createComment({
             issue_number: context.issue.number,
             owner: context.repo.owner,
-            repo: context.repo.name,
+            repo: context.repo.repo,
             body: '✅ Linting passed!'
           })
 
