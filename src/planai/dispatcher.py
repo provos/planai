@@ -702,9 +702,12 @@ class Dispatcher:
             timeout (float, optional): Maximum time to wait for thread completion in seconds
         """
         self.stop_event.set()
-        if self._dispatch_thread:
-            self._dispatch_thread.join(timeout=timeout)
-            if self._dispatch_thread.is_alive():
+        # graphs sharing a dispatcher may call stop() concurrently; hold the
+        # thread locally so another caller clearing the attribute cannot race us
+        thread = self._dispatch_thread
+        if thread:
+            thread.join(timeout=timeout)
+            if thread.is_alive():
                 logging.warning("Dispatcher thread did not stop within timeout")
             else:
                 logging.info("Dispatcher thread stopped")
