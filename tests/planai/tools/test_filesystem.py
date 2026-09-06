@@ -316,3 +316,48 @@ class TestToolSchemas(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSymlinkEscapeInWalks(unittest.TestCase):
+    """list_files, grep_files and hash_files must not follow symlinks out of the jail."""
+
+    def setUp(self):
+        import tempfile
+
+        self.outside_dir = tempfile.TemporaryDirectory()
+        self.root_dir = tempfile.TemporaryDirectory()
+        outside = Path(self.outside_dir.name) / "secret.md"
+        outside.write_text("top secret needle")
+        root = Path(self.root_dir.name)
+        (root / "inside.md").write_text("inside needle")
+        (root / "link.md").symlink_to(outside)
+        (root / "linkdir").symlink_to(Path(self.outside_dir.name))
+        self.ws = Workspace(root)
+
+    def tearDown(self):
+        self.outside_dir.cleanup()
+        self.root_dir.cleanup()
+
+    def _tool(self, name):
+        return next(t for t in make_file_tools(self.ws) if t.name == name)
+
+    def test_list_skips_symlinked_files_and_directories(self):
+        listing = self._tool("list_files").execute(path=".", pattern="**/*")
+        self.assertIn("inside.md", listing)
+        self.assertNotIn("link.md", listing)
+        self.assertNotIn("secret.md", listing)
+
+    def test_grep_skips_symlinked_content(self):
+        hits = self._tool("grep_files").execute(
+            pattern="needle", path=".", glob="**/*.md"
+        )
+        self.assertIn("inside.md", hits)
+        self.assertNotIn("top secret", hits)
+        self.assertNotIn("link.md", hits)
+
+    def test_hash_ignores_symlinked_content(self):
+        before = hash_files(self.ws, ["**/*.md"])
+        (Path(self.outside_dir.name) / "secret.md").write_text("changed outside")
+        self.assertEqual(before, hash_files(self.ws, ["**/*.md"]))
+        (Path(self.root_dir.name) / "inside.md").write_text("changed inside")
+        self.assertNotEqual(before, hash_files(self.ws, ["**/*.md"]))

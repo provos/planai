@@ -85,6 +85,22 @@ class Workspace:
         return resolved
 
 
+def jailed_files(ws: Workspace, base: Path, pattern: str) -> List[Path]:
+    """Files under ``base`` matching ``pattern`` whose real location is inside the
+    workspace. Glob follows symlinks, so a link pointing outside the root would
+    otherwise be readable; such entries are skipped."""
+    files = []
+    for path in base.glob(pattern):
+        if not path.is_file():
+            continue
+        try:
+            ws.resolve(path.relative_to(ws.root).as_posix())
+        except ValueError:
+            continue
+        files.append(path)
+    return sorted(files)
+
+
 def hash_files(workspace: Union[Workspace, str, Path], globs: List[str]) -> str:
     """Compute a stable hash over the content of files matching the given globs.
 
@@ -104,10 +120,9 @@ def hash_files(workspace: Union[Workspace, str, Path], globs: List[str]) -> str:
 
     matched = {}
     for pattern in globs:
-        for path in ws.root.glob(pattern):
-            if path.is_file():
-                rel = path.relative_to(ws.root).as_posix()
-                matched[rel] = path
+        for path in jailed_files(ws, ws.root, pattern):
+            rel = path.relative_to(ws.root).as_posix()
+            matched[rel] = path
 
     if not matched:
         return ""
@@ -296,7 +311,7 @@ def make_file_tools(
             return f"Error: Not a directory: {path}"
 
         try:
-            matches = sorted(p for p in target.glob(pattern) if p.is_file())
+            matches = jailed_files(ws, target, pattern)
         except (re.error, ValueError) as e:
             return f"Error: Invalid pattern: {e}"
 
@@ -345,7 +360,7 @@ def make_file_tools(
             return f"Error: Invalid regular expression: {e}"
 
         try:
-            candidates = sorted(p for p in target.glob(glob) if p.is_file())
+            candidates = jailed_files(ws, target, glob)
         except ValueError as e:
             return f"Error: Invalid pattern: {e}"
 
