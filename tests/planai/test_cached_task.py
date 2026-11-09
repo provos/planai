@@ -11,9 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import shutil
+import tempfile
 import unittest
 from typing import List, Type
 from unittest.mock import patch
+
+from diskcache_community import Cache, Disk
 
 from planai.cached_task import CachedTaskWorker, TaskWorker
 from planai.task import Task
@@ -31,6 +35,18 @@ class DummyOutputTask(Task):
 
 class DummyOutputTask2(Task):
     processed_data: str
+
+
+PLANTED_CALLS = []
+
+
+def planted():
+    PLANTED_CALLS.append("planted code ran")
+
+
+class Planted:
+    def __reduce__(self):
+        return (planted, ())
 
 
 # DummyCachedTaskWorker
@@ -208,6 +224,36 @@ class TestCachedTaskWorker(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             self.worker._pre_consume_work(task)
+
+
+class TestCachedTaskWorkerOnDisk(unittest.TestCase):
+    def setUp(self):
+        self.cache_dir = tempfile.mkdtemp()
+        self.worker = DummyCachedTaskWorker(cache_dir=self.cache_dir)
+        self.worker.register_consumer(DummyOutputTask, SinkTaskWorker())
+
+    def tearDown(self):
+        self.worker._cache.close()
+        shutil.rmtree(self.cache_dir)
+
+    def test_planted_pickle_is_a_miss(self):
+        task = DummyInputTask(data="test")
+        with patch.object(
+            DummyCachedTaskWorker,
+            "consume_work",
+            autospec=True,
+            side_effect=DummyCachedTaskWorker.consume_work,
+        ) as mock_consume:
+            self.worker._pre_consume_work(task)
+            self.worker._pre_consume_work(task)
+            self.assertEqual(mock_consume.call_count, 1)
+
+            with Cache(self.cache_dir, disk=Disk) as writer:
+                writer.set(self.worker._get_cache_key(task), Planted())
+            self.worker._pre_consume_work(task)
+
+        self.assertEqual(PLANTED_CALLS, [])
+        self.assertEqual(mock_consume.call_count, 2)
 
 
 if __name__ == "__main__":

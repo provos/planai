@@ -1,6 +1,6 @@
 import sys
 
-from diskcache import Cache
+from diskcache_community import Cache
 
 
 def handle_cache_subcommand(parsed_args):

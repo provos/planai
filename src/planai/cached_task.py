@@ -18,7 +18,7 @@ import sys
 import threading
 from typing import List, Optional, Tuple
 
-from diskcache import Cache
+from diskcache_community import Cache, SafeDisk
 from pydantic import Field, PrivateAttr
 
 from .task import Task, TaskWorker
@@ -37,7 +37,14 @@ class CachedTaskWorker(TaskWorker):
 
     def __init__(self, **data):
         super().__init__(**data)
-        self._cache = Cache(self.cache_dir, size_limit=self.cache_size_limit)
+        types = [*self.output_types, *self.get_task_classes()]
+        self._cache = Cache(
+            self.cache_dir,
+            size_limit=self.cache_size_limit,
+            disk=SafeDisk.with_types(
+                *types, modules={t.__module__ for t in types}
+            ).with_options(on_error="miss"),
+        )
 
     def _pre_consume_work(self, task: Task):
         with self.work_buffer_context(task):
@@ -184,7 +191,7 @@ class CachedTaskWorker(TaskWorker):
     def _set_cache(self, input_task: Task, cached_results: List[Task]):
         cache_key = self._get_cache_key(input_task)
         try:
-            self._cache.set(cache_key, [cached_results, input_task])
+            self._cache.set(cache_key, [cached_results, input_task.copy_public()])
             logging.info("Worker %s cached results for key: %s", self.name, cache_key)
         except Exception as e:
             logging.error("Error caching results for key %s: %s", cache_key, str(e))
